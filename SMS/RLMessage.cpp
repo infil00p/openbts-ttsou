@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2008, Kestrel Signal Processing, Inc.
+* Copyright 2008 Free Software Foundation, Inc.
 *
 
     This program is free software: you can redistribute it and/or modify

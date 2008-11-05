@@ -3,7 +3,7 @@ unlike the built-in complex<> templates, these inline most operations for speed
 */
 
 /*
-* Copyright (c) 2008, Kestrel Signal Processing, Inc.
+* Copyright 2008 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
