@@ -1,0 +1,19 @@
+
+
+$(SIP)/%.o: FORCE
+	$(MAKE) -C $(@D) $(@F)
+
+$(COMMON)/%.o: FORCE
+	$(MAKE) -C $(@D) $(@F)
+
+$(GSM)/%.o: FORCE
+	$(MAKE) -C $(@D) $(@F)
+
+$(CONTROL)/%.o: FORCE
+	$(MAKE) -C $(@D) $(@F)
+
+$(TRXMANAGER)/%.o: FORCE
+	$(MAKE) -C $(@D) $(@F)
+
+FORCE:
+
