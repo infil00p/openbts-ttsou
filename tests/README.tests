@@ -1,0 +1,83 @@
+Tests that can be built and run.
+
+
+L1 Software Loopback (no USRP)
+
+This test exercises L1 components for bidirectional channels.  It uses two executables: TRXManager/LoopbackTest and TRXManager/TRXSimulator.
+
+LoopbackTest generates L2 frames, encodes them in L1 and pushes them through the transceiver UDP interface.  TRXSimulator echoes the radio bursts back as if they had been received.  L1 assembles and decodes the bursts into received L2 frames.
+
+Each frame is encoded with a counter to make comparison easier.
+
+The standard test uses the LoopbackFull TDMA mapping, which is a test-only mapping that does not actually appear in the GSM specifications.  It is an obvious one, though, since it is the only mapping that fully occupies a 51-multiframe with the standard 4-burst interleaving pattern.  If this pattern were actually used for data transmission, it would yield a payload rate of about 72 kbit/sec, which is the maximum control channel throughput for a single GSM ARFCN.
+
+On a 2.33 GHz Intel Core 2 Duo Powerbook, this test consumes about 18% of one core at the maximum single-ARFCN transfer rate.  About 40% of that load is in SoftVector::decode, the L1 soft-input convolutional decoder.  About 29% of that load is in sendto.
+
+
+
+
+Beacon Test
+
+This test verifies the generation of the C0T0 beacon.  The minimum valid beacon shows the SCH, FCCH, BCCH and an idle CCCH set.
+
+This test uses the tests/BeaconTest and the Transceiver/runTransceiver binaries.
+It is the first and simplest test to use the USRP to actually interact with a handset.
+
+
+This test requires:
+
+	(1) A USRP1 with 2 RFX900 daughter cards.  (One for RX and one for TX.)
+	(2) The runTransceiver and BeaconTest binaries.  (You can control the parameters by altering the constructor arguments for gBTS.  See comments in the BeaconTest.cpp source code.)
+	(3) A phone that supports the band (EGSM900 or GSM850) that is hard-coded in BeaconTest.
+	Preferably:
+		(a) The phone supports ONLY the test band.
+		(b) The band is NOT your real local GSM band.
+		(c) The phone supports a field test mode so that you can watch it operate.
+	(4) A GSM test set, R&S CMD-57 or similar.
+
+
+To run the test:
+
+	(1) Connect the USRP.
+	(2) Start runTransceiver.  To avoid USRP driver race conditions, it is usually best to run it at "nice -10" and direct the output for /dev/null.
+	(3) Start BeaconTest.  Again, performance is better if you direct output to a file or through grep, especially if you have full debugging enabled.  For this test, "BeaconTest | grep RACH" would be good.
+	(4) Turn on the phone.
+
+
+What you should see:
+
+	(1) The phone will go to your BTS's ARFCN.  (You will see this happen with a field test phone.)
+	(2) The phone will start senting access bursts.  (Nokia field test phones will show "AGCH".)
+	(3) OpenBTS will receive the RACH bursts.  You'll see output like this:
+		1222903095.086830 0x1801800: GSML1FEC.cpp:387 0x1803a00 RACHL1Decoder received RA=0 at time 0:5429
+
+
+That's about it, but the fact that you see the RACHL1Decoder message means two things:
+
+	(1) The phone recognizes the OpenBTS beacon as valid.
+	(2) The OpenBTS L1 works well enough to decode the RACH.
+
+
+
+
+AGCH Test
+
+This test verfies the operation of the access grant mechanism.
+The procedures and results are the same as for the Beacon Test, but instead of passively receiving RACH bursts, the BTS responds with immediate assignment reject messages that cause the phone to hold off on subsequent access attempts.
+
+
+
+
+LAPDmTest (no USRP)
+
+This is a test of the LAPDm (L2, link layer) state machine.  In this test, two LAPDm objects establish multiframe mode (async balanced mode), exchange I-frames and then perform a norml release.
+
+
+
+
+RegistrationTest
+
+This test verifies the hybrid GSM/SIP location updating and registration transaction.
+The equipment and procedure are the same as for BeaconTest and AGCHTest, execept that after the transaction, the phone will show "bars" on the service indicator.
+
+

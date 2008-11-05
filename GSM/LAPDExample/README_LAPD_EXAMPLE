@@ -1,0 +1,55 @@
+This source code is provided as an example of a LAPDm implementation.
+A more complete code set can be downloaded from http://www.visdn.org/download.php.
+
+Because this code implements Q.921 LAPD instead of GSM 04.06 LAPDm, and because is was designed to work in a different programming framework, we cannot use it directly in our system.
+
+However, LAPD is a functional superset of LAPDm and a working reference is always useful.
+
+Note the following correspondences between our LAPDmProcessor methods and the functions in datalink.[ch]:
+
+datalink function			LAPDmProcessor method
+-----------------			---------------------
+lapd_socket_handle_iframe		handleIFrame
+lapd_socket_handle_sframe_rr		handleRRFrame
+lapd_socket_handle_sframe_rej		handleREJFrame
+lapd_socket_handle_sframe		handleSFrame
+lapd_socket_handle_uframe_ua		handleUAFrame
+lapd_socket_handle_uframe_disc		handleDISCFrame
+lapd_socket_handle_uframe_dm		handleDMFrame
+lapd_socket_handle_uframe_sabme		handleSABMFrame
+lapd_socket_handle_uframe_ui		handleUIFrame
+lapd_socket_handle_uframe		handleUFrame
+lapd_timer_T200				checkT200
+lapd_datalink_state_init		clearState and initializeState
+lapd_send_sframe			sendSFrame
+lapd_send_uframe			sendUFrame
+lapd_stop_timer				in Z100Timer::reset
+lapd_start_timer			in Z100Timer::set
+lapd_prepare_sframe			functionality in L2Frame class constructors and sendIFrame
+lapd_run_i_queue			functionality in sendIFrame
+lapd_invoke_retransmission_procedure	resend
+lapd_ack_frames				functionality in handleIFrame
+lapd_prepare_iframe			functionality in sendIFrame
+lapd_sock_queue_iframe			functionality in sendIFrame
+lapd_frame_reject			functionality in handleIFrame
+
+
+
+
+Note the following correspondences between our GSM C++ classes and structures in the LAPD driver C code:
+
+LAPD driver C struct			C++ class in our GSM code
+--------------------			-------------------------
+lapd_adress				L2Address
+lapd_u_frame				L2Control variation
+lapd_i_frame				L2Control variation
+lapd_s_frame				L2Control variation
+lapd_data_hrd				L2Header
+lapd_sframe_function			in L2Control::FrameType
+lapd_uframe_function			in L2Control::FrameType
+lapd_frame_type				L2Control::ControlFormat
+lapd_cr					L2Address::mCR
+
+
+
+

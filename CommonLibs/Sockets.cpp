@@ -1,0 +1,223 @@
+/*
+* Copyright (c) 2008, Kestrel Signal Processing, Inc.
+*
+* This software is distributed under the terms of the GNU Public License.
+* See the COPYING file in the main directory for details.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+/*
+Contributors:
+David A. Burgess, dburgess@ketsrelsp.com
+*/
+
+
+
+#include "Threads.h"
+#include "Sockets.h"
+#include <unistd.h>
+#include <fcntl.h>
+
+
+
+
+
+
+/** A local function to resolve IP host names. */
+bool resolveAddress(struct sockaddr_in *address, const char *host, unsigned short port)
+{
+	struct hostent *hp = gethostbyname(host);
+	if (hp==NULL) {
+		CERR("WARNING -- gethostbyname() failed for " << host << ", " << hstrerror(h_errno));
+		return false;
+	}
+	address->sin_family = AF_INET;
+	bcopy(hp->h_addr, &(address->sin_addr), hp->h_length);
+	address->sin_port = htons(port);
+	return true;
+}
+
+
+
+DatagramSocket::DatagramSocket()
+{
+	bzero(mDestination,sizeof(mDestination));
+}
+
+
+
+
+
+void DatagramSocket::nonblocking()
+{
+	fcntl(mSocketFD,F_SETFL,O_NONBLOCK);
+}
+
+
+void DatagramSocket::close()
+{
+	::close(mSocketFD);
+}
+
+
+DatagramSocket::~DatagramSocket()
+{
+	close();
+}
+
+
+
+
+
+int DatagramSocket::write( const char * message, size_t length )
+{
+	assert(length<=MAX_UDP_LENGTH);
+	int retVal = sendto(mSocketFD, message, length, 0,
+		(struct sockaddr *)mDestination, addressSize());
+	if (retVal == -1 ) perror("DatagramSocket::write() failed");
+	return retVal;
+}
+
+
+int DatagramSocket::write( const char * message)
+{
+	size_t length=strlen(message)+1;
+	return write(message,length);
+}
+
+
+
+int DatagramSocket::read(char* buffer)
+{
+	socklen_t temp_len = sizeof(mReturnAddr);
+	int length = recvfrom(mSocketFD, (void*)buffer, MAX_UDP_LENGTH, 0,
+	    (struct sockaddr*)&mReturnAddr,&temp_len);
+	if ((length==-1) && (errno!=EAGAIN)) {
+		perror("DatagramSocket::read() failed");
+		throw SocketError();
+	}
+	return length;
+}
+
+
+
+
+
+
+
+UDPSocket::UDPSocket(unsigned short wSrcPort)
+	:DatagramSocket()
+{
+	open(wSrcPort);
+}
+
+
+UDPSocket::UDPSocket(unsigned short wSrcPort,
+          	 const char * wDestIP, unsigned short wDestPort )
+	:DatagramSocket()
+{
+	open(wSrcPort);
+	destination(wDestPort, wDestIP);
+}
+
+
+
+void UDPSocket::destination( unsigned short wDestPort, const char * wDestIP )
+{
+	resolveAddress((sockaddr_in*)mDestination, wDestIP, wDestPort );
+}
+
+
+void UDPSocket::open(unsigned short localPort)
+{
+	// create
+	mSocketFD = socket(AF_INET,SOCK_DGRAM,0);
+	if (mSocketFD<0) {
+		perror("socket() failed");
+		throw SocketError();
+	}
+
+	// bind
+	struct sockaddr_in address;
+	size_t length = sizeof(address);
+	bzero(&address,length);
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = INADDR_ANY;
+	address.sin_port = htons(localPort);
+	if (bind(mSocketFD,(struct sockaddr*)&address,length)<0) {
+		perror("bind() failed");
+		throw SocketError();
+	}
+}
+
+
+
+unsigned short UDPSocket::port() const
+{
+	struct sockaddr_in name;
+	socklen_t nameSize = sizeof(name);
+	int retVal = getsockname(mSocketFD, (struct sockaddr*)&name, &nameSize);
+	if (retVal==-1) throw SocketError();
+	return ntohs(name.sin_port);
+}
+
+
+
+
+
+UDDSocket::UDDSocket(const char* localPath, const char* remotePath)
+	:DatagramSocket()
+{
+	if (localPath!=NULL) open(localPath);
+	if (remotePath!=NULL) destination(remotePath);
+}
+
+
+
+void UDDSocket::open(const char* localPath)
+{
+	// create
+	mSocketFD = socket(AF_UNIX,SOCK_DGRAM,0);
+	if (mSocketFD<0) {
+		perror("socket() failed");
+		throw SocketError();
+	}
+
+	// bind
+	struct sockaddr_un address;
+	size_t length = sizeof(address);
+	bzero(&address,length);
+	address.sun_family = AF_UNIX;
+	strcpy(address.sun_path,localPath);
+	unlink(localPath);
+	if (bind(mSocketFD,(struct sockaddr*)&address,length)<0) {
+		perror("bind() failed");
+		throw SocketError();
+	}
+}
+
+
+
+void UDDSocket::destination(const char* remotePath)
+{
+	struct sockaddr_un* unAddr = (struct sockaddr_un*)mDestination;
+	strcpy(unAddr->sun_path,remotePath);
+}
+
+
+
+
+// vim: ts=4 sw=4
