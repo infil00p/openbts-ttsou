@@ -19,10 +19,6 @@
 
 */
 
-/*
-Contributors:
-David A. Burgess, dburgess@ketsrelsp.com
-*/
 
 /*
 pthread thread numbers during testing:

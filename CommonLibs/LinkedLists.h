@@ -19,10 +19,6 @@
 
 */
 
-/*
-Contributors:
-David A. Burgess, dburgess@ketsrelsp.com
-*/
 
 
 #ifndef LINKEDLISTS_H

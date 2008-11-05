@@ -23,10 +23,6 @@ unlike the built-in complex<> templates, these inline most operations for speed
 
 */
 
-/*
-Contributors:
-David A. Burgess, dburgess@ketsrelsp.com
-*/
 
 
 

@@ -19,10 +19,6 @@
 
 */
 
-/*
-Contributors:
-David A. Burgess, dburgess@ketsrelsp.com
-*/
 
 /*
 Many elements follow Daniele Orlandi's <daniele@orlandi.com> vISDN/Q.921

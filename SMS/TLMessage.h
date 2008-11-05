@@ -19,10 +19,6 @@
 * See the COPYING file in the main directory for details.
 */
 
-/*
-Contributors:
-Raffi Sevlian, raffisev@gmail.com
-*/
 
 
 #ifndef TL_MESSAGE_H

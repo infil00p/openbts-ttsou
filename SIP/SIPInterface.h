@@ -19,11 +19,6 @@
 
 */
 
-/*
-Contributors:
-Raffi Sevlian, raffisev@gmail.com
-David A. Burgess, dburgess@ketsrelsp.com
-*/
 
 
 #ifndef SIPINTERFACE_H

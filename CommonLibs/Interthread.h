@@ -19,10 +19,6 @@
 
 */
 
-/*
-Contributors:
-David A. Burgess, dburgess@kestrelsp.com
-*/
 
 #ifndef INTERTHREAD_H
 #define INTERTHREAD_H

@@ -19,11 +19,6 @@
 * See the COPYING file in the main directory for details.
 */
 
-/*
-Contributors:
-DAB David A. Burgess, dburgess@ketsrelsp.com
-Raffi Sevlian, raffisev@gmail.com
-*/
 
 
 #ifndef GSML1FEC_H

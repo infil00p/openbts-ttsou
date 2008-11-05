@@ -19,10 +19,6 @@
 
 */
 
-/*
-Contributors:
-Harvind S. Samra, hssamra@kestrelsp.com
-*/
 
 
 #include "sigProcLib.h"

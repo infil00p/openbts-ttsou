@@ -20,10 +20,6 @@
 */
 
 /*
-Contributors:
-David A. Burgess, dburgess@kestrelsp.com
-*/
-/*
 Many elements follow Daniele Orlandi's <daniele@orlandi.com> vISDN/Q.921
 implementation, although no code is copied directly.
 */

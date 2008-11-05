@@ -22,11 +22,6 @@
 
 */
 
-/*
-Contributors:
-David A. Burgess, dburgess@ketsrelsp.com
-Raffi Sevlian, raffisev@gmail.com
-*/
 
 #ifndef GSML3RRELEMENTS_H
 #define GSML3RRELEMENTS_H

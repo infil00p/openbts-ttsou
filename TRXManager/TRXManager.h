@@ -19,10 +19,6 @@
 
 */
 
-/*
-Contributors:
-Raffi Sevlian, raffisev@gmail.com
-*/
 
 
 #ifndef TRXMANAGER_H

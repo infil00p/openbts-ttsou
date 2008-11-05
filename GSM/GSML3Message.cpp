@@ -19,11 +19,6 @@
 
 */
 
-/*
-Contributors:
-David A. Burgess, dburgess@ketsrelsp.com
-Raffi Sevlian, raffisev@gmail.com
-*/
 
 
 #include "GSML3Message.h"

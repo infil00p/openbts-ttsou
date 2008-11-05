@@ -20,10 +20,6 @@
 
 */
 
-/*
-Contributors:
-David A. Burgess, dburgess@ketsrelsp.com
-*/
 
 
 #ifndef GSMTDMA_H
