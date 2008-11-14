@@ -22,8 +22,6 @@
 */
 
 
-
-
 #include "ControlCommon.h"
 #include "GSMLogicalChannel.h"
 #include "GSML3Message.h"
@@ -104,8 +102,9 @@ ostream& Control::operator<<(ostream& os, TransactionEntry::Q931CallState state)
 	switch (state) {
 		case TransactionEntry::NullState: os << "null"; break;
 		case TransactionEntry::Paging: os << "paging"; break;
-		case TransactionEntry::MOCProceeding: os << "proceeding"; break;
-		case TransactionEntry::MTCConfirmed: os << "confirmed"; break;
+		case TransactionEntry::MOCInitiated: os << "MOC initiated"; break;
+		case TransactionEntry::MOCProceeding: os << "MOC proceeding"; break;
+		case TransactionEntry::MTCConfirmed: os << "MTC confirmed"; break;
 		case TransactionEntry::CallReceived: os << "call received"; break;
 		case TransactionEntry::CallPresent: os << "call present"; break;
 		case TransactionEntry::ConnectIndication: os << "connect indication"; break;

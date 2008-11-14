@@ -699,7 +699,7 @@ void Transceiver::driveTransmitFIFO()
 void Transceiver::writeClockInterface()
 {
   char command[50];
-  sprintf(command,"IND CLOCK %llu",(unsigned long long) (mTransmitDeadlineClock.FN()+0*10));
+  sprintf(command,"IND CLOCK %llu",(unsigned long long) (mTransmitDeadlineClock.FN()+10));
 
   DCOUT("ClockInterface: sending " << command);
 

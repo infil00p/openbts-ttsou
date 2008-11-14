@@ -364,8 +364,11 @@ void L2LAPDm::serviceLoop()
 		// Allow other threads to modify state while blocked.
 		// Add 2 ms to prevent race condition due to roundoff error.
 		unsigned timeout = mT200.remaining() + 2;
-		if (!mT200.active()) timeout=gBigReadTimeout;
-		OBJDCOUT("L2LAPDm::serviceLoop read bocking up to " << timeout << " ms, state=" << mState);
+		if (!mT200.active()) {
+			if (mState==LinkReleased) timeout=gBigReadTimeout;
+			else timeout = T200();
+		}
+		OBJDCOUT("L2LAPDm::serviceLoop read blocking up to " << timeout << " ms, state=" << mState);
 		mLock.unlock();
 		L2Frame* frame = mL1In.read(timeout);
 		mLock.lock();

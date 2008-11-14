@@ -20,7 +20,6 @@
 */
 
 
-
 #include "radioInterface.h"
 
 #define DEBUG 0
@@ -142,8 +141,9 @@ void RadioInterface::pushBuffer(void) {
 					    INRATE,sendLPF);
   delete inputVector;
  
-  //scaleVector(*resampledVector,13500.0/2.25); // this gets 2W out of 3318PA at 885Mhz
-  scaleVector(*resampledVector,100.0);
+  // Set transmit gain and power here.
+  scaleVector(*resampledVector,13500.0/2.25); // this gets 2W out of 3318PA at 885Mhz
+  //scaleVector(*resampledVector,100.0);
 
   short *resampledVectorShort = USRPifyVector(*resampledVector);
 
@@ -360,14 +360,15 @@ void RadioInterface::driveReceiveRadio() {
   unsigned tN = rcvClock.TN();
   int rcvSz = rcvBuffer->size();
   int readSz = 0;
+  const int symbolsPerSlot = gSlotLen + 8;
 
   // while there's enough data in receive buffer, form received 
   //    GSM bursts and pass up to Transceiver
   // Using the 157-156-156-156 symbols per timeslot format.
-  while (rcvSz > (gSlotLen + 8 +(tN % 4 == 0))*samplesPerSymbol) {
+  while (rcvSz > (symbolsPerSlot + (tN % 4 == 0))*samplesPerSymbol) {
     signalVector rxVector(rcvBuffer->begin(),
 			  readSz,
-			  (gSlotLen + 8 +(tN % 4 == 0))*samplesPerSymbol);
+			  (symbolsPerSlot + (tN % 4 == 0))*samplesPerSymbol);
     GSM::Time tmpTime = rcvClock;
     if (rcvClock.FN() >= 0) {
       DCOUT("FN: " << rcvClock.FN());
@@ -379,8 +380,8 @@ void RadioInterface::driveReceiveRadio() {
     if (mReceiveFIFO.size() >= 16) mReceiveFIFO.wait(8);
 
     DCOUT("receiveFIFO: wrote radio vector at time: " << mClock.get() << ", new size: " << mReceiveFIFO.size() );
-    readSz += (156+(tN % 4 == 0))*samplesPerSymbol;
-    rcvSz -= (156+(tN % 4 == 0))*samplesPerSymbol;
+    readSz += (symbolsPerSlot+(tN % 4 == 0))*samplesPerSymbol;
+    rcvSz -= (symbolsPerSlot+(tN % 4 == 0))*samplesPerSymbol;
 
     tN = rcvClock.TN();
   }

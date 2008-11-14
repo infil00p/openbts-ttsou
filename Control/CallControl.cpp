@@ -21,8 +21,6 @@
 */
 
 
-
-
 /*
 	Abbreviations:
 	MTC -- Mobile Terminated Connect (someone calling the mobile)
@@ -542,6 +540,7 @@ void Control::MOCStarter(const L3CMServiceRequest* req, SDCCHLogicalChannel *SDC
 	unsigned basePort = allocateRTPPorts();
 	SIPState state = transaction.SIP().MOCSendINVITE(bcd_digits,"127.0.0.1",basePort,SIP::RTPGSM610);
 	CLDCOUT("MOC: SIP state="<<state)
+	CLDCOUT("MOC: Q.931 state=" << transaction.Q931State());
 
 	// Finally done with the Setup message.
 	delete setup;
@@ -567,7 +566,6 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 	// Once we can start SIP call setup, send Call Proceeding.
 	CLDCOUT("MOC: Sending Call Proceeding ");
 	TCH->send(L3CallProceeding(1,L3TI));
-	//TCH->send(L3CallProceeding(1,L3TI)); // HACK
 	transaction.Q931State(TransactionEntry::MOCProceeding);
 
 	// Look for RINGING or OK from the SIP side.
@@ -591,7 +589,6 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 			case SIP::Ringing:
 				CLDCOUT("MOC A: SIP:Ringing, send Alerting and move on");
 				TCH->send(L3Alerting(1,L3TI));
-				//TCH->send(L3Alerting(1,L3TI)); // HACK
 				transaction.Q931State(TransactionEntry::CallReceived);
 				break;
 			case SIP::Active:
@@ -658,9 +655,8 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 	
 	// Let the phone know the call is connected.
 	CLDCOUT("MOC: sending Connect to handset");
-	msleep(1000); // HACK
+	msleep(1000); // HACK to prevent a race condition
 	TCH->send(L3Connect(1,L3TI));
-	//TCH->send(L3Connect(1,L3TI)); // HACK
 	transaction.T313().set();
 	transaction.Q931State(TransactionEntry::ConnectIndication);
 
@@ -712,7 +708,6 @@ void Control::MTCStarter(const L3PagingResponse *resp,
 	// GSM 04.08 5.2.2.1
 	CLDCOUT("MTC: sending GSM Setup");
 	SDCCH->send(L3Setup(0,L3TI));
-	//SDCCH->send(L3Setup(0,L3TI));	// HACK
 	transaction.T303().set();
 	transaction.Q931State(TransactionEntry::CallPresent);
 

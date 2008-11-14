@@ -20,7 +20,6 @@
 */
 
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -49,7 +48,7 @@ using namespace std;
 
 void SIP::get_owner_ip( osip_message_t * msg, char * o_addr ){
 	
-	osip_body_t * sdp_body = (osip_body_t*)osip_list_get(msg->bodies, 0);
+	osip_body_t * sdp_body = (osip_body_t*)osip_list_get(&msg->bodies, 0);
 	char * sdp_str = sdp_body->body;
 
 	sdp_message_t * sdp;
@@ -61,8 +60,7 @@ void SIP::get_owner_ip( osip_message_t * msg, char * o_addr ){
 
 void SIP::get_rtp_params(const osip_message_t * msg, char * port, char * ip_addr )
 {
-
-	osip_body_t * sdp_body = (osip_body_t*)osip_list_get(msg->bodies, 0);
+	osip_body_t * sdp_body = (osip_body_t*)osip_list_get(&msg->bodies, 0);
 	char * sdp_str = sdp_body->body;
 
 	sdp_message_t * sdp;
