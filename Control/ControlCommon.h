@@ -198,6 +198,7 @@ class PagingEntry {
 
 	private:
 
+	// FIXME -- We need to support channel type.  See tracker item #316.
 	GSM::L3MobileIdentity mID;		///< The mobile ID.
 	Timeval mExpiration;			///< The expiration time for this entry.
 
@@ -302,12 +303,12 @@ class TransactionEntry {
 
 	private:
 
-	unsigned mID;								///< the internal transaction ID, assigned by a TransactionTable
+	unsigned mID;							///< the internal transaction ID, assigned by a TransactionTable
 
 	GSM::L3MobileIdentity mSubscriber;		///< some kind of subscriber ID, preferably IMSI
 	GSM::L3CMServiceType mService;			///< the associated service type
-	unsigned mTIFlag;							///< "0" for originating party ,"1" for terminating
-	unsigned mTIValue;							///< the L3 short transaction ID set by the MS
+	unsigned mTIFlag;						///< "0" for originating party ,"1" for terminating
+	unsigned mTIValue;						///< the L3 short transaction ID set by the MS
 	GSM::L3CalledPartyBCDNumber mCalled;	///< the associated called party number, if known
 	GSM::L3CallingPartyBCDNumber mCalling;	///< the associated calling party number, if known
 
@@ -331,59 +332,23 @@ class TransactionEntry {
 
 	public:
 
-	TransactionEntry()
-		:mID(0),mQ931State(NullState),
-		mT301(T301ms), mT302(T302ms), mT303(T303ms),
-		mT304(T304ms), mT305(T305ms), mT308(T308ms),
-		mT310(T310ms), mT313(T313ms),
-		mT3113(GSM::T3113ms)
-	{}
+	TransactionEntry();
 
 	/** This form is used for MTC. */
 	TransactionEntry(const GSM::L3MobileIdentity& wSubscriber, 
 		const GSM::L3CMServiceType& wService,
-		const GSM::L3CallingPartyBCDNumber& wCalling)
-		:mID(0),mSubscriber(wSubscriber),mService(wService),
-		// TIValue=7 means non-valid TI.
-		mTIFlag(1), mTIValue(7),
-		mCalling(wCalling),
-		mSIP(SIP_UDP_PORT,5060,"127.0.0.1"),
-		mQ931State(NullState),
-		mT301(T301ms), mT302(T302ms), mT303(T303ms),
-		mT304(T304ms), mT305(T305ms), mT308(T308ms),
-		mT310(T310ms), mT313(T313ms),
-		mT3113(GSM::T3113ms)
-	{}
+		const GSM::L3CallingPartyBCDNumber& wCalling);
 
 	/** This form is used for MOC. */
 	TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 		const GSM::L3CMServiceType& wService,
 		unsigned wTIValue,
-		const GSM::L3CalledPartyBCDNumber& wCalled)
-		:mID(0),mSubscriber(wSubscriber),mService(wService),
-		mTIFlag(0), mTIValue(wTIValue),
-		mCalled(wCalled),
-		mSIP(SIP_UDP_PORT,5060,"127.0.0.1"),
-		mQ931State(NullState),
-		mT301(T301ms), mT302(T302ms), mT303(T303ms),
-		mT304(T304ms), mT305(T305ms), mT308(T308ms),
-		mT310(T310ms), mT313(T313ms),
-		mT3113(GSM::T3113ms)
-	{}
+		const GSM::L3CalledPartyBCDNumber& wCalled);
 
 	TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 		const GSM::L3CMServiceType& wService,
 		unsigned wTIValue,
-		const GSM::L3CallingPartyBCDNumber& wCalling)
-		:mID(0),mSubscriber(wSubscriber),mService(wService),
-		mTIValue(wTIValue),mCalling(wCalling),
-		mSIP(SIP_UDP_PORT,5060,"127.0.0.1"),
-		mQ931State(NullState),
-		mT301(T301ms), mT302(T302ms), mT303(T303ms),
-		mT304(T304ms), mT305(T305ms), mT308(T308ms),
-		mT310(T310ms), mT313(T313ms),
-		mT3113(GSM::T3113ms)
-	{}
+		const GSM::L3CallingPartyBCDNumber& wCalling);
 
 	/**@name Accessors. */
 	//@{
@@ -444,6 +409,7 @@ class TransactionEntry {
 };
 
 
+std::ostream& operator<<(std::ostream& os, const TransactionEntry&);
 std::ostream& operator<<(std::ostream& os, TransactionEntry::Q931CallState);
 
 
@@ -472,12 +438,15 @@ class TransactionTable {
 	}
 
 	/**
-		Insert a new entry into the table.
-		Also assigns a transaction ID to the argument.
-		@param value The entry to copy into the table.
-		@return The assigned transaction ID.
+		Return a new ID for use in the table.
 	*/
-	unsigned add(TransactionEntry& value);
+	unsigned newID();
+
+	/**
+		Insert a new entry into the table.
+		@param value The entry to copy into the table.
+	*/
+	void add(const TransactionEntry& value);
 
 	/**
 		Update a transaction in the table.
@@ -505,15 +474,18 @@ class TransactionTable {
 		Find an entry by its mobile ID.
 		@param mobileID The mobile at to search for.
 		@param target A TransactionEntry to accept the found record.
-		@return Entry transaction ID or 0 on failure.
+		@return true is the mobile ID was foind.
 	*/
-	unsigned findByMobileID(const GSM::L3MobileIdentity& mobileID, TransactionEntry& target) const;
+	bool findByMobileID(const GSM::L3MobileIdentity& mobileID, TransactionEntry& target) const;
 
 	/**
 		Remove "dead" entries from the table.
+		A "dead" entry is a transaction that is no longer active.
 	*/
 	void clearDeadEntries();
 };
+
+
 
 
 
@@ -583,9 +555,8 @@ class Q931TimerExpired : public ControlLayerException {
 //@}
 
 
-
-
 }	//Control
+
 
 
 /**@addtogroup Globals */
@@ -593,6 +564,7 @@ class Q931TimerExpired : public ControlLayerException {
 /** A single global transaction table in the global namespace. */
 extern Control::TransactionTable gTransactionTable;
 //@}
+
 
 
 

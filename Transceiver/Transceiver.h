@@ -177,8 +177,11 @@ protected:
   /** drive handling of control messages from GSM core */
   void driveControl();
 
-  /** drive modulation and sorting of GSM bursts from GSM core */
-  void driveTransmitPriorityQueue();
+  /**
+    drive modulation and sorting of GSM bursts from GSM core
+    @return true if a burst was transferred successfully
+  */
+  bool driveTransmitPriorityQueue();
 
   friend void *TransmitFIFOServiceLoopAdapter(Transceiver *);
 

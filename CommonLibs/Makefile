@@ -30,7 +30,7 @@ SocketsTest: SocketsTest.cpp Sockets.h Threads.h Timeval.h Sockets.o Timeval.o T
 
 
 BitVector.o: BitVector.cpp BitVector.h Vector.h
-	$(COMPILE) -o $@ $<
+	$(COMPILE) -O3 -o $@ $<
 
 BitVectorTest: BitVectorTest.cpp Vector.h BitVector.o
 	$(BUILD) -o $@ $< BitVector.o

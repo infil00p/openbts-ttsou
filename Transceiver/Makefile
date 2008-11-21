@@ -1,5 +1,8 @@
 ROOT = ..
 include $(ROOT)/Makefile.include
+
+all: transceiver
+
 include $(ROOT)/Makefile.targets
 
 #=================================================================
@@ -7,7 +10,7 @@ include $(ROOT)/Makefile.targets
 #=================================================================
 
 TESTS = USRPping  		\
-	runTransceiver          
+	transceiver          
 
 
 GSMOBJS = $(GSM)/GSMCommon.o
@@ -56,15 +59,15 @@ sigProcLibTest: sigProcLibTest.cpp sigProcLib.o $(GSMOBJS)
 testRadio: testRadio.cpp $(TRANSCEIVEROBJS) $(TESTRADIOOBJS)
 	$(BUILD) -I .. $(BUILDOPTS) -o $@ $< $(TRANSCEIVEROBJS) $(TESTRADIOOBJS $(USRPLIBS))
 
-# runTransceiver
-runTransceiver: runTransceiver.cpp $(TRANSCEIVEROBJS) $(GSMOBJS) $(COMMONOBJS)
+# transceiver
+transceiver: runTransceiver.cpp $(TRANSCEIVEROBJS) $(GSMOBJS) $(COMMONOBJS)
 	$(BUILD) -I .. $(BUILDOPTS) -o $@ $< $(TRANSCEIVEROBJS) $(GSMOBJS) $(COMMONOBJS) $(USRPLIBS)
 
 TRANSCEIVERLOGGINGOBJS = $(TRANSCEIVER)/USRPDevice.o $(TRANSCEIVER)/sigProcLib.o $(TRANSCEIVER)/radioInterface.o TransceiverLogging.o
-runTransceiverLogging: runTransceiver.cpp $(TRANSCEIVERLOGGINGOBJS) $(GSMOBJS) $(COMMONOBJS)
+transceiverLogging: runTransceiver.cpp $(TRANSCEIVERLOGGINGOBJS) $(GSMOBJS) $(COMMONOBJS)
 	$(BUILD) -I .. $(BUILDOPTS) -o $@ $< $(TRANSCEIVERLOGGINGOBJS) $(GSMOBJS) $(COMMONOBJS) $(USRPLIBS)
 TRANSCEIVERLOGGINGOBJS = $(TRANSCEIVER)/USRPDevice.o $(TRANSCEIVER)/sigProcLib.o $(TRANSCEIVER)/radioInterface.o TransceiverLogging1.o
-runTransceiverLogging1: runTransceiver.cpp $(TRANSCEIVERLOGGINGOBJS) $(GSMOBJS) $(COMMONOBJS)
+transceiverLogging1: runTransceiver.cpp $(TRANSCEIVERLOGGINGOBJS) $(GSMOBJS) $(COMMONOBJS)
 	$(BUILD) -I .. $(BUILDOPTS) -o $@ $< $(TRANSCEIVERLOGGINGOBJS) $(GSMOBJS) $(COMMONOBJS) $(USRPLIBS)
 
 

@@ -68,6 +68,7 @@ clean:
 	- $(MAKE) -C $(SIP) clean
 	- $(MAKE) -C $(SMS) clean
 	- $(MAKE) -C $(APPS) clean
+	- $(MAKE) -C $(TESTS) clean
 	
 
 

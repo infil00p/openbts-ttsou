@@ -82,5 +82,12 @@ ostream& operator<<(ostream& os, const Timeval& tv)
 }
 
 
+ostream& operator<<(ostream& os, const struct timespec& ts)
+{
+	os << ts.tv_sec << "," << ts.tv_nsec;
+	return os;
+}
+
+
 
 // vim: ts=4 sw=4

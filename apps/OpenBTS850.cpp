@@ -36,14 +36,14 @@ using namespace GSM;
 // Example BTS configuration:
 // 0 -- network color code
 // 0 -- basestation color code
-// EGSM900 -- the operating band
+// GSM850 -- the operating band
 // LAI: 901 -- mobile country code
 // LAI: 55 -- mobile network code
 // LAI: 667 -- location area code ("the neighbors of the beast")
 // OpenBTS -- network "short name", displayed on nicer/newer phones
-GSMConfig gBTS(0,0,EGSM900,L3LocationAreaIdentity("901","55",667),L3CellIdentity(0x0),"OpenBTS");
+GSMConfig gBTS(0,0,GSM850,L3LocationAreaIdentity("901","55",667),L3CellIdentity(0x0),"OpenBTS");
 // ARFCN is set with the ARFCNManager::tune method after the BTS is running.
-const unsigned ARFCN=29;
+const unsigned ARFCN=200;
 
 TransceiverManager gTRX(1, "127.0.0.1", 5700);
 

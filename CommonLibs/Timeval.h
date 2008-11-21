@@ -87,7 +87,9 @@ class Timeval {
 
 };
 
-std::ostream& operator<<(std::ostream& os, const Timeval& tv);
+std::ostream& operator<<(std::ostream& os, const Timeval&);
+
+std::ostream& operator<<(std::ostream& os, const struct timespec&);
 
 
 #endif

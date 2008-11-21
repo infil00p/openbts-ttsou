@@ -82,6 +82,7 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 	// GSM 04.08 3.3.1.1.3.
 	// Given a request reference, try to allocate a channel
 	// and send the assignment to the handset on the CCCH.
+	// Papa Legba, open that door...
 
 	CLDCOUT("AccessGrantResponder RA=" << RA << " when=" << when);
 
@@ -98,6 +99,9 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 	CCCHLogicalChannel *AGCH = gBTS.getAGCH();
 	assert(AGCH);
 
+	// FIXME -- We are ASSUMING that SDCCH is OK.
+	// The truth is that we should decode according GSM 04.08 9.1.8, Table 9.9a.
+
 	// Get an SDCCH to assign to.
 	SDCCHLogicalChannel *SDCCH = gBTS.getSDCCH();
 
@@ -107,7 +111,7 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 		// Emergency calls are not subject to T3122 hold-off.
 		// They are not handled as a special case because the
 		// MS will ignore the T3122 setting.
-		CERR("NOTICE -- SDCCH CONGESTION");
+		CERR("NOTICE -- Access Grant CONGESTION");
 		unsigned waitTime = curT3122()/1000;
 		CLDCOUT("AccessGrantResponder: assginment reject, wait time " << waitTime);
 		const L3ImmediateAssignmentReject reject(L3RequestReference(RA,when),waitTime);

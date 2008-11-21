@@ -37,7 +37,8 @@ TRXMANAGER = $(ROOT)/TRXManager
 TRANSCEIVER = $(ROOT)/Transceiver
 SIP = $(ROOT)/SIP
 SMS = $(ROOT)/SMS
-APPS = $(ROOT)/APPS
+APPS = $(ROOT)/apps
+TESTS = $(ROOT)/tests
 
 
 # Paths

@@ -158,8 +158,10 @@ void L3PagingRequestType1::writeBody(L3Frame& dest, size_t &wp) const
 {
 	int sz = mMobileIDs.size();
 	assert(sz<=2);
-	dest.writeField(wp,0x0,4);		// "normal paging", GSM 04.08 Table 10.5.63
+	// Remember for reverse orders of 1/2-octet fields.
+	// Because GSM transmits LSB-first within each byte.
 	dest.writeField(wp,0x0,4);		// "any channel", GSM 04.08 Table 10.5.29
+	dest.writeField(wp,0x0,4);		// "normal paging", GSM 04.08 Table 10.5.63
 	mMobileIDs[0].writeLV(dest,wp);
 	if (sz>1) mMobileIDs[1].writeTLV(0x17,dest,wp);
 }

@@ -51,6 +51,7 @@ private:
   bool started;			///< flag indicates USRP has started
   bool skipRx;			///< set if USRP is transmit-only.
 
+  static const unsigned currDataSize = 200000;
   short *currData;		///< internal data buffer when reading from USRP
   TIMESTAMP currTimestamp;	///< timestamp of internal data buffer
   unsigned currLen;		///< size of internal data buffer

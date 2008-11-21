@@ -214,8 +214,7 @@ bool SIPInterface::checkInvite( osip_message_t * msg )
 	// Check SIP map.  Repeated entry?  Page again.
 	if (mSIPMap.map().readNoBlock(call_id_string) != NULL) { 
 		TransactionEntry transaction;
-		unsigned ID = gTransactionTable.findByMobileID(mobile_id,transaction);
-		if (ID==0) {
+		if (!gTransactionTable.findByMobileID(mobile_id,transaction)) {
 			CERR("WARNING -- repeated INVITE with no transaction record");
 			return false;
 		}
@@ -249,8 +248,8 @@ bool SIPInterface::checkInvite( osip_message_t * msg )
 	transaction.Q931State(TransactionEntry::Paging);
 	transaction.SIP().User( call_id_num, to_sip_uri);
 	transaction.SIP().saveINVITE(msg);
-	unsigned newID = gTransactionTable.add(transaction); 
-	DCOUT("SIPInterface::checkInvite: making transaction and add to transaction table ID= "<<newID)
+	gTransactionTable.add(transaction); 
+	DCOUT("SIPInterface::checkInvite: making transaction and add to transaction table ID= "<< transaction.ID());
 	DCOUT("SIPInterface::checkInvite: adding mobile ID "<<mobile_id)
 	
 	// Add to paging list.

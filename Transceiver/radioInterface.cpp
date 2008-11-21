@@ -21,8 +21,8 @@
 
 
 #include "radioInterface.h"
+#define NDEBUG
 
-#define DEBUG 0
 
 GSM::Time VectorQueue::nextTime() const
 {

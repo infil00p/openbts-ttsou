@@ -212,6 +212,8 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	// Call clearing steps.
 	// Good diagrams in GSM 04.08 7.3.4
 
+	// FIXME -- We should be checking TI values against the transaction object.
+
 	// Disconnect (1st step of MOD)
 	// GSM 04.08 5.4.3.2
 	if (const L3Disconnect* disconnect = dynamic_cast<const L3Disconnect*>(message)) {
@@ -389,7 +391,6 @@ bool updateSignalling(TransactionEntry &transaction, LogicalChannel *LCH, unsign
 	bool SIPCleared = (engine.state()==SIP::Cleared);
 
 	return GSMCleared && SIPCleared;
-
 }
 
 
@@ -526,9 +527,10 @@ void Control::MOCStarter(const L3CMServiceRequest* req, SDCCHLogicalChannel *SDC
 		setup->calledPartyBCDNumber());
 	transaction.SIP().User(IMSI);
 	transaction.Q931State(TransactionEntry::MOCInitiated);
-	unsigned transactionID = gTransactionTable.add(transaction);
-	SDCCH->transactionID(transactionID);
-	TCH->transactionID(transactionID);
+	SDCCH->transactionID(transaction.ID());
+	TCH->transactionID(transaction.ID());
+	CLDCOUT("MOC: transaction: " << transaction);
+	gTransactionTable.add(transaction);
 
 	// At this point, we have enough information start the SIP call setup.
 	// We have 2 seconds to repsond to the MS.  ITU-T Q.931 Table 9-1, T303.
@@ -547,6 +549,7 @@ void Control::MOCStarter(const L3CMServiceRequest* req, SDCCHLogicalChannel *SDC
 
 	// The transaction is moving on to the MOCController.
 	gTransactionTable.update(transaction);
+	CLDCOUT("MOC: transaction: " << transaction);
 	// This call also opens the TCH.
 	assignTCHF(SDCCH,TCH);
 }
@@ -560,7 +563,7 @@ void Control::MOCStarter(const L3CMServiceRequest* req, SDCCHLogicalChannel *SDC
 */
 void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChannel* TCH)
 {
-	CLDCOUT("MOC: transaction ID " << transaction.ID());
+	CLDCOUT("MOC: transaction: " << transaction);
 	unsigned L3TI = transaction.TIValue();
 
 	// Once we can start SIP call setup, send Call Proceeding.
@@ -655,7 +658,6 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 	
 	// Let the phone know the call is connected.
 	CLDCOUT("MOC: sending Connect to handset");
-	msleep(1000); // HACK to prevent a race condition
 	TCH->send(L3Connect(1,L3TI));
 	transaction.T313().set();
 	transaction.Q931State(TransactionEntry::ConnectIndication);
@@ -694,16 +696,14 @@ void Control::MTCStarter(const L3PagingResponse *resp,
 	// Find the transction table entry that was created when the phone was paged.
 	CLDCOUT("MTC: find TransactionEntry for " << resp->mobileIdentity());
 	TransactionEntry transaction;
-	unsigned transactionID = gTransactionTable.findByMobileID(resp->mobileIdentity(),transaction);
-	if (transactionID==0) {
+	if (!gTransactionTable.findByMobileID(resp->mobileIdentity(),transaction)) {
 		CLDCOUT("WARNING -- MTC attempt with no transaction record");
 		return;
 	}
-	unsigned L3TI = transactionID % 7;
-	CLDCOUT("MTC: transactionID="<<transactionID)
-	transaction.TIValue(L3TI);
-	TCH->transactionID(transactionID);	
-	SDCCH->transactionID(transactionID);	
+	CLDCOUT("MTC: transaction: "<< transaction);
+	TCH->transactionID(transaction.ID());	
+	SDCCH->transactionID(transaction.ID());	
+	unsigned L3TI = transaction.TIValue();
 
 	// GSM 04.08 5.2.2.1
 	CLDCOUT("MTC: sending GSM Setup");
@@ -734,6 +734,7 @@ void Control::MTCStarter(const L3PagingResponse *resp,
 
 	// The transaction is moving to the MTCController.
 	gTransactionTable.update(transaction);
+	CLDCOUT("MTC: transaction: " << transaction);
 	assignTCHF(SDCCH,TCH);
 }
 
@@ -744,7 +745,7 @@ void Control::MTCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 	// Early Assignment Mobile Terminated Call. 
 	// Transaction table in 04.08 7.3.3 figure 7.10a
 
-	CLDCOUT("MTC:, transaction ID " << transaction.ID());
+	CLDCOUT("MTC: transaction: " << transaction);
 	unsigned L3TI = transaction.TIValue();
 
 	// Get the alerting message.
@@ -778,7 +779,6 @@ void Control::MTCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 				state = transaction.SIP().MTCSendOK(RTPPorts,SIP::RTPGSM610);
 				break;
 			case SIP::Connecting:
-				//msleep(1000);
 				break;
 			default:
 				CLDCOUT("MTC: SIP unexpected state " << state);
@@ -826,7 +826,7 @@ void Control::ShortMessageServiceStarter(const L3CMServiceRequest*resp,
 	
 	sleep(1);
 	TLMessage * msg = tl_proc.mUplinkFIFO.read();
-	DCOUT(" ControlLayer SMS = "<<*msg)
+	CLDCOUT(" ControlLayer SMS = "<<*msg)
 	sleep(1);
 	tl_proc.writeHighSide( SubmitReport("08162312394401"), SM_RL_REPORT_REQ );
 	

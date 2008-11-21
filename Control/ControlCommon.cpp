@@ -46,6 +46,67 @@ using namespace Control;
 TransactionTable gTransactionTable;
 
 
+
+
+
+TransactionEntry::TransactionEntry()
+	:mID(gTransactionTable.newID()),
+	mQ931State(NullState),
+	mT301(T301ms), mT302(T302ms), mT303(T303ms),
+	mT304(T304ms), mT305(T305ms), mT308(T308ms),
+	mT310(T310ms), mT313(T313ms),
+	mT3113(GSM::T3113ms)
+{}
+
+TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber, 
+	const GSM::L3CMServiceType& wService,
+	const GSM::L3CallingPartyBCDNumber& wCalling)
+	:mID(gTransactionTable.newID()),
+	mSubscriber(wSubscriber),mService(wService),
+	mTIFlag(1), mTIValue(0),
+	mCalling(wCalling),
+	mSIP(SIP_UDP_PORT,5060,"127.0.0.1"),
+	mQ931State(NullState),
+	mT301(T301ms), mT302(T302ms), mT303(T303ms),
+	mT304(T304ms), mT305(T305ms), mT308(T308ms),
+	mT310(T310ms), mT313(T313ms),
+	mT3113(GSM::T3113ms)
+{}
+
+TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
+	const GSM::L3CMServiceType& wService,
+	unsigned wTIValue,
+	const GSM::L3CalledPartyBCDNumber& wCalled)
+	:mID(gTransactionTable.newID()),
+	mSubscriber(wSubscriber),mService(wService),
+	mTIFlag(0), mTIValue(wTIValue),
+	mCalled(wCalled),
+	mSIP(SIP_UDP_PORT,5060,"127.0.0.1"),
+	mQ931State(NullState),
+	mT301(T301ms), mT302(T302ms), mT303(T303ms),
+	mT304(T304ms), mT305(T305ms), mT308(T308ms),
+	mT310(T310ms), mT313(T313ms),
+	mT3113(GSM::T3113ms)
+{}
+
+
+TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
+	const GSM::L3CMServiceType& wService,
+	unsigned wTIValue,
+	const GSM::L3CallingPartyBCDNumber& wCalling)
+	:mID(gTransactionTable.newID()),
+	mSubscriber(wSubscriber),mService(wService),
+	mTIValue(wTIValue),mCalling(wCalling),
+	mSIP(SIP_UDP_PORT,5060,"127.0.0.1"),
+	mQ931State(NullState),
+	mT301(T301ms), mT302(T302ms), mT303(T303ms),
+	mT304(T304ms), mT305(T305ms), mT308(T308ms),
+	mT310(T310ms), mT313(T313ms),
+	mT3113(GSM::T3113ms)
+{}
+
+
+
 bool TransactionEntry::timerExpired() const
 {
 	if (mT301.expired()) {
@@ -101,7 +162,7 @@ ostream& Control::operator<<(ostream& os, TransactionEntry::Q931CallState state)
 {
 	switch (state) {
 		case TransactionEntry::NullState: os << "null"; break;
-		case TransactionEntry::Paging: os << "paging"; break;
+		case TransactionEntry::Paging: os << "MTC paging"; break;
 		case TransactionEntry::MOCInitiated: os << "MOC initiated"; break;
 		case TransactionEntry::MOCProceeding: os << "MOC proceeding"; break;
 		case TransactionEntry::MTCConfirmed: os << "MTC confirmed"; break;
@@ -116,24 +177,45 @@ ostream& Control::operator<<(ostream& os, TransactionEntry::Q931CallState state)
 	return os;
 }
 
+ostream& Control::operator<<(ostream& os, const TransactionEntry& entry)
+{
+	os << "ID=" << entry.ID();
+	os << " TI=(" << entry.TIFlag() << "," << entry.TIValue() << ")";
+	os << " Q.931State=" << entry.Q931State();
+	return os;
+}
 
-unsigned TransactionTable::add(TransactionEntry& value)
+
+unsigned TransactionTable::newID()
+{
+	mLock.lock();
+	unsigned ID = mIDCounter++;
+	mLock.unlock();
+	return ID;
+}
+
+
+void TransactionTable::add(const TransactionEntry& value)
 {
 	clearDeadEntries();
 	mLock.lock();
-	unsigned key = mIDCounter++;
-	value.ID(key);
-	mTable[key]=value;
+	mTable[value.ID()]=value;
 	mLock.unlock();
-	return key;
 }
 
 
 void TransactionTable::update(const TransactionEntry& value)
 {
+	// ID==0 is a non-valid special case.
 	assert(value.ID());
 	mLock.lock();
-	mTable[value.ID()]=value;
+	TransactionMap::iterator iter = mTable.find(value.ID());
+	if (iter==mTable.end()) {
+		mLock.unlock();
+		CERR("WARNING -- attempt to update non-existent transaction entry with key " << value.ID());
+		return;
+	}
+	iter->second = value;
 	mLock.unlock();
 }
 
@@ -154,6 +236,8 @@ bool TransactionTable::find(unsigned key, TransactionEntry& target) const
 	return retVal;
 }
 
+
+
 bool TransactionTable::remove(unsigned key)
 {
 	assert(key);
@@ -162,6 +246,8 @@ bool TransactionTable::remove(unsigned key)
 	mLock.unlock();
 	return retVal;
 }
+
+
 
 void TransactionTable::clearDeadEntries()
 {
@@ -185,25 +271,26 @@ void TransactionTable::clearDeadEntries()
 	mLock.unlock();
 }
 
-unsigned TransactionTable::findByMobileID(const L3MobileIdentity& mobileID, TransactionEntry& target) const
+
+
+bool TransactionTable::findByMobileID(const L3MobileIdentity& mobileID, TransactionEntry& target) const
 {
 	// FIXME -- If we were smart, we'd organize the table for a log-time search.
-	// Also removes "dead" entries.
-	unsigned retVal = 0;
+	bool foundIt = false;
 	mLock.lock();
 	// brute force search
 	TransactionMap::const_iterator itr = mTable.begin();
 	while (itr!=mTable.end()) {
 		const TransactionEntry& transaction = itr->second;
 		if (transaction.subscriber()==mobileID) {
-			retVal = itr->first;
+			foundIt = true;
 			target = transaction;
 			break;
 		}
 		++itr;
 	}
 	mLock.unlock();
-	return retVal;
+	return foundIt;
 }
 
 
@@ -253,7 +340,7 @@ bool Control::waitForPrimitive(LogicalChannel *LCH, Primitive primitive, unsigne
 
 L3Message* Control::getMessage(LogicalChannel *LCH)
 {
-	unsigned timeout_ms = LCH->N200() * T200ms;
+	//unsigned timeout_ms = LCH->N200() * T200ms;
 	L3Frame *rcv = LCH->recv(LCH->N200() * T200ms);
 	if (rcv==NULL) {
 		CERR("NOTICE -- getMessage timed out");
@@ -328,7 +415,7 @@ void Control::forceSIPClearing(TransactionEntry& transaction)
 */
 void Control::abortCall(TransactionEntry& transaction, LogicalChannel *LCH, const L3Cause& cause)
 {
-	CLDCOUT("abortCall");
+	CLDCOUT("abortCall transction: " << transaction);
 	forceGSMClearing(transaction,LCH,cause);
 	forceSIPClearing(transaction);
 	gTransactionTable.update(transaction);

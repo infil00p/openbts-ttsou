@@ -27,11 +27,12 @@
 */ 
 
 
+#define NDEBUG
 #include <string.h>
 #include <stdlib.h>
 #include "Threads.h"
 #include "USRPDevice.h"
-#define DEBUG 0
+
 
 using namespace std;
 
@@ -235,7 +236,7 @@ bool USRPDevice::start()
     m_uRx->write_aux_dac(1,0,(int) ceil(0.2*4096.0/3.3)); // set to maximum gain 
   }
 
-  currData = (short *) malloc(200000*sizeof(short));
+  currData = new short[currDataSize];
   currTimestamp = 0;
   currLen = 0;
   timestampOffset = 0;
@@ -263,7 +264,7 @@ bool USRPDevice::stop()
   m_uTx->write_io(0,(~POWER_UP|RX_TXN),(POWER_UP|RX_TXN|ENABLE));
   m_uRx->write_io(1,~POWER_UP,(POWER_UP|ENABLE));
   
-  delete currData;
+  delete[] currData;
   
   started = !(m_uRx->stop() && m_uTx->stop());
   return !started;
@@ -321,7 +322,7 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
 	if ((word2 >> 16) == ((0x01 << 8) | 0x02)) {
           timestamp -= timestampOffset;
 	  timestampOffset = pktTimestamp - pingTimestamp + PINGOFFSET;
-	  COUT("updating timestamp offset to: " << timestampOffset);
+	  DCOUT("updating timestamp offset to: " << timestampOffset);
           timestamp += timestampOffset;
 	}
 	continue;
@@ -332,7 +333,7 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
       }
       if ((word0 >> 28) & 0x04) {
 	if (underrun) *underrun = true; 
-	CERR("UNDERRUN!");
+	CERR("WARNING -- UNDERRUN in TRX->USRP interface");
       }
       if (RSSI) *RSSI = (word0 >> 21) & 0x3f;
       if (!currLen && (pktTimestamp + payloadSz/2/sizeof(short) > timestamp + 10000))
@@ -346,10 +347,11 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
       }
       if (!currLen) currTimestamp = pktTimestamp;
       if (currTimestamp+currLen < pktTimestamp) {
-         COUT("Missing packet, compensating...")
+         DCOUT("Missing packet, compensating...")
          currLen = pktTimestamp - currTimestamp;
       }
-      memcpy(currData+currLen*2,tmpBuf+2,payloadSz);
+      // currLen counts complex short samples.  currData is *short, tmpBuf is *unint_32.
+      if ((currLen*2+payloadSz)<=currDataSize) memcpy(currData+currLen*2,tmpBuf+2,payloadSz);
       currLen += (payloadSz/2/sizeof(short));
     }	
     if (currTimestamp + currLen > timestamp + len) break; 
@@ -367,7 +369,8 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
   
   // remove copied data from out local buffer
   currTimestamp = timestamp + len;
-  memcpy(currData,newDataPtr,sizeof(short)*(currLen*2 - (newDataPtr-currData)));
+  unsigned copySize = sizeof(short)*(currLen*2 - (newDataPtr-currData));
+  if (copySize<currDataSize) memcpy(currData,newDataPtr,copySize);
   currLen -= (newDataPtr-currData)/2;
   
   return len;

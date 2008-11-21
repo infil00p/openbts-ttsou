@@ -88,6 +88,7 @@ Mutex::~Mutex()
 void Signal::wait(Mutex& wMutex, unsigned timeout) const
 {
 	struct timespec waitTime = Timeval(timeout).timespec();
+	// FIXME -- With -O3 optimzation in OS X this doesn't block.  See bug #320.
 	pthread_cond_timedwait(&mSignal,&wMutex.mMutex,&waitTime);
 }
 

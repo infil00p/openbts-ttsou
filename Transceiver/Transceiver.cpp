@@ -26,9 +26,9 @@
 */
 
 
+#define NDEBUG
 #include "Transceiver.h"
 
-#define NDEBUG
 
 
 Transceiver::Transceiver(int wBasePort,
@@ -48,7 +48,7 @@ Transceiver::Transceiver(int wBasePort,
 
   // generate pulse and setup up signal processing library
   gsmPulse = generateGSMPulse(2,mSamplesPerSymbol);
-  COUT("gsmPulse: " << *gsmPulse);
+  DCOUT("gsmPulse: " << *gsmPulse);
   sigProcLibSetup(mSamplesPerSymbol);
 
   // initialize filler tables with dummy bursts, initialize other per-timeslot variables
@@ -107,7 +107,7 @@ void Transceiver::unModulateVector(signalVector wVector)
 				   *gsmPulse,
 				   mSamplesPerSymbol,
 				   1.0,0.0);
-  COUT("LOGGED BURST: " << *burst);
+  DCOUT("LOGGED BURST: " << *burst);
 
 /*
   unsigned char burstStr[gSlotLen+1];
@@ -117,7 +117,7 @@ void Transceiver::unModulateVector(signalVector wVector)
     burstStr[i] = (unsigned char) ((*burstItr++)*255.0);
   }
   burstStr[gSlotLen]='\0';
-  COUT("LOGGED BURST: " << burstStr);
+  DCOUT("LOGGED BURST: " << burstStr);
 */
   delete burst;
 }
@@ -127,8 +127,10 @@ void Transceiver::pushRadioVector(GSM::Time &nowTime)
 {
   // dump stale bursts, if any
   while ((mTransmitPriorityQueue.size() > 0) && 
-	 (mTransmitPriorityQueue.nextTime() < nowTime)) 
+	 (mTransmitPriorityQueue.nextTime() < nowTime)) {
+    CERR("WARNING -- dumping STALE burst in TRX->USRP interface");
     delete mTransmitPriorityQueue.read();
+  }
   
   int TN = nowTime.TN();
   int modFN = nowTime.FN() % fillerModulus[nowTime.TN()];
@@ -142,7 +144,6 @@ void Transceiver::pushRadioVector(GSM::Time &nowTime)
     mTransmitFIFO->write(next);
 #ifdef TRANSMIT_LOGGING
     if (nowTime.TN()==TRANSMIT_LOGGING) { 
-      COUT("unmodulating time: " << nowTime);
       unModulateVector(fillerTable[modFN][TN]);
     }
 #endif
@@ -313,24 +314,24 @@ SoftVector *Transceiver::pullRadioVector(GSM::Time &wTime,
 				  &channelResp,
 				  &chanOffset);
     if (success) {
-      COUT("FOUND TSC!!!!!! " << amplitude << " " << TOA);
+      DCOUT("FOUND TSC!!!!!! " << amplitude << " " << TOA);
       mEnergyThreshold -= 1.0F;
       if (mEnergyThreshold < 0.0) mEnergyThreshold = 0.0;
       SNRestimate[timeslot] = amplitude.norm2()/(mEnergyThreshold*mEnergyThreshold+1.0); // this is not highly accurate
       if (estimateChannel) {
-         COUT("estimating channel...");
+         DCOUT("estimating channel...");
          channelResponse[timeslot] = channelResp;
        	 chanRespOffset[timeslot] = chanOffset;
          chanRespAmplitude[timeslot] = amplitude;
 	 scaleVector(*channelResp, complex(1.0,0.0)/amplitude);
          designDFE(*channelResp, SNRestimate[timeslot], 7, &DFEForward[timeslot], &DFEFeedback[timeslot]);
          channelEstimateTime[timeslot] = rxBurst->time();  
-         COUT("SNR: " << SNRestimate[timeslot] << ", DFE forward: " << *DFEForward[timeslot] << ", DFE backward: " << *DFEFeedback[timeslot]);
+         DCOUT("SNR: " << SNRestimate[timeslot] << ", DFE forward: " << *DFEForward[timeslot] << ", DFE backward: " << *DFEFeedback[timeslot]);
       }
     }
     else {
       double framesElapsed = rxBurst->time()-prevFalseDetectionTime; 
-      COUT("wTime: " << rxBurst->time() << ", pTime: " << prevFalseDetectionTime << ", fElapsed: " << framesElapsed);
+      DCOUT("wTime: " << rxBurst->time() << ", pTime: " << prevFalseDetectionTime << ", fElapsed: " << framesElapsed);
       mEnergyThreshold += 10.0F*exp(-framesElapsed);
       prevFalseDetectionTime = rxBurst->time();
       channelResponse[timeslot] = NULL;
@@ -344,7 +345,7 @@ SoftVector *Transceiver::pullRadioVector(GSM::Time &wTime,
 			      &amplitude,
 			      &TOA);
     if (success) {
-      COUT("FOUND RACH!!!!!! " << amplitude << " " << TOA);
+      DCOUT("FOUND RACH!!!!!! " << amplitude << " " << TOA);
       mEnergyThreshold -= 1.0F;
       if (mEnergyThreshold < 0.0) mEnergyThreshold = 0.0;
       channelResponse[timeslot] = NULL; 
@@ -355,7 +356,7 @@ SoftVector *Transceiver::pullRadioVector(GSM::Time &wTime,
       prevFalseDetectionTime = rxBurst->time();
     }
   }
-  COUT("energy Threshold = " << mEnergyThreshold); 
+  DCOUT("energy Threshold = " << mEnergyThreshold); 
 
   // demodulate burst
   SoftVector *burst = NULL;
@@ -377,11 +378,11 @@ SoftVector *Transceiver::pullRadioVector(GSM::Time &wTime,
     wTime = rxBurst->time();
     // FIXME:  what is full scale for the USRP?  we get more that 12 bits of resolution...
     RSSI = (int) floor(20.0*log10(9450.0/amplitude.abs()));
-    COUT("RSSI: " << RSSI );
+    DCOUT("RSSI: " << RSSI );
     timingOffset = (int) round(TOA*256.0/mSamplesPerSymbol);
   }
 
-  //if (burst) COUT("burst: " << *burst << '\n');
+  //if (burst) DCOUT("burst: " << *burst << '\n');
 
   delete rxBurst;
 
@@ -558,7 +559,7 @@ void Transceiver::driveControl()
   mLock.unlock();
 }
 
-void Transceiver::driveTransmitPriorityQueue() 
+bool Transceiver::driveTransmitPriorityQueue() 
 {
 
   char buffer[gSlotLen+50];
@@ -567,7 +568,8 @@ void Transceiver::driveTransmitPriorityQueue()
   size_t msgLen = mDataSocket.read(buffer);
 
   if (msgLen!=gSlotLen+1+4+1) {
-    return;
+    CERR("WARNING -- badly formatted packet on GSM->TRX interface");
+    return false;
   }
 
   int timeSlot = (int) buffer[0];
@@ -584,9 +586,8 @@ void Transceiver::driveTransmitPriorityQueue()
 
   if (GSM::Time(frameNum,timeSlot) < mTransmitDeadlineClock) {
     // stale burst from GSM core
-    DCOUT("STALE! "<< GSM::Time(frameNum,timeSlot));
-    writeClockInterface();
-    return;
+    CERR("WARNING -- STALE packet on GSM->TRX interface at time "<< GSM::Time(frameNum,timeSlot));
+    return false;
   }
   
   //DCOUT("rcvd. burst at: " << GSM::Time(frameNum,timeSlot));
@@ -603,6 +604,8 @@ void Transceiver::driveTransmitPriorityQueue()
   addRadioVector(newBurst,RSSI,currTime);
   
   DCOUT("added burst - time: " << currTime << ", RSSI: " << RSSI); // << ", data: " << newBurst); 
+
+  return true;
 
 
 }
@@ -671,7 +674,7 @@ void Transceiver::driveTransmitFIFO()
         // only do latency update every 10 frames, so we don't over update
 	if (radioClock->get() > mLatencyUpdateTime + GSM::Time(10,0)) {
 	  mTransmitLatency = mTransmitLatency + GSM::Time(1,0);
-	  COUT("new latency: " << mTransmitLatency);
+	  DCOUT("new latency: " << mTransmitLatency);
 	  mLatencyUpdateTime = radioClock->get();
 	}
       }
@@ -681,7 +684,7 @@ void Transceiver::driveTransmitFIFO()
 	if (mTransmitLatency > GSM::Time(1,1)) {
             if (radioClock->get() > mLatencyUpdateTime + GSM::Time(216,0)) {
 	    mTransmitLatency.decTN();
-	    COUT("reduced latency: " << mTransmitLatency);
+	    DCOUT("reduced latency: " << mTransmitLatency);
 	    mLatencyUpdateTime = radioClock->get();
 	  }
 	}
@@ -699,7 +702,9 @@ void Transceiver::driveTransmitFIFO()
 void Transceiver::writeClockInterface()
 {
   char command[50];
-  sprintf(command,"IND CLOCK %llu",(unsigned long long) (mTransmitDeadlineClock.FN()+10));
+  // FIME -- See tracker #315.
+  //sprintf(command,"IND CLOCK %llu",(unsigned long long) (mTransmitDeadlineClock.FN()+10));
+  sprintf(command,"IND CLOCK %llu",(unsigned long long) (mTransmitDeadlineClock.FN()+20));
 
   DCOUT("ClockInterface: sending " << command);
 
@@ -740,7 +745,15 @@ void *ControlServiceLoopAdapter(Transceiver *transceiver)
 void *TransmitPriorityQueueServiceLoopAdapter(Transceiver *transceiver)
 {
   while (1) {
-    transceiver->driveTransmitPriorityQueue(); 
+    bool stale = false;
+    // Flush the UDP packets until a successful transfer.
+    while (!transceiver->driveTransmitPriorityQueue()) {
+      stale = true; 
+    }
+    if (stale) {
+      // If a packet was stale, remind the GSM stack of the clock.
+      transceiver->writeClockInterface();
+    }
     pthread_testcancel();
   }
   return NULL;

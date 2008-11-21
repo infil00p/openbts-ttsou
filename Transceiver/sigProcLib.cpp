@@ -896,14 +896,14 @@ bool detectRACHBurst(signalVector &rxBurst,
   float RMS = sqrtf(valleyPower/(float) numSamples)+0.00001;
   float peakToMean = peakAmpl.abs()/RMS;
 
-  COUT("RACH peakAmpl=" << peakAmpl << " RMS=" << RMS << " peakToMean=" << peakToMean);
+  DCOUT("RACH peakAmpl=" << peakAmpl << " RMS=" << RMS << " peakToMean=" << peakToMean);
   *amplitude = peakAmpl/(gRACHSequence->gain);
 
   *TOA = (*TOA) - gRACHSequence->TOA - 8*samplesPerSymbol;
 
   delete correlatedRACH;
 
-  COUT("RACH thresh: " << peakToMean);
+  DCOUT("RACH thresh: " << peakToMean);
 
   return (peakToMean > detectThreshold);
 }
@@ -994,7 +994,7 @@ bool analyzeTrafficBurst(signalVector &rxBurst,
   *TOA = (*TOA)-gMidambles[TSC]->TOA;
  
   (*TOA) = (*TOA) - (66-56)*samplesPerSymbol;
-  COUT("TCH peakAmpl=" << amplitude->abs() << " RMS=" << RMS << " peakToMean=" << peakToMean << " TOA=" << *TOA);
+  DCOUT("TCH peakAmpl=" << amplitude->abs() << " RMS=" << RMS << " peakToMean=" << peakToMean << " TOA=" << *TOA);
 
   DCOUT("autocorr: " << *correlatedBurst);
   
@@ -1019,7 +1019,7 @@ bool analyzeTrafficBurst(signalVector &rxBurst,
     *channelResponse = new signalVector(channelVector.size());
     correlatedBurst->segmentCopyTo(**channelResponse,(int) floor(TOAoffset+(maxI-5)*samplesPerSymbol),(*channelResponse)->size());
     scaleVector(**channelResponse,complex(1.0,0.0)/gMidambles[TSC]->gain);
-    COUT("channelResponse: " << **channelResponse);
+    DCOUT("channelResponse: " << **channelResponse);
     
     if (channelResponseOffset) 
       *channelResponseOffset = 5*samplesPerSymbol-maxI;
