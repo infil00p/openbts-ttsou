@@ -28,7 +28,7 @@
 #include "GSMSAPMux.h"
 #include "GSMConfig.h"
 #include "GSMTDMA.h"
-#include "TRXManager.h"
+#include <TRXManager.h>
 #include "Assert.h"
 
 using namespace std;
@@ -1227,7 +1227,7 @@ void TCHFACCHL1Encoder::sendFrame( const L2Frame& frame )
 	mL2Q.write(new L2Frame(frame));
 	// Make the write block until the frame is sent.
 	// This provides consistent behavior with the other control channels.
-	mL2Q.wait();
+	if (mRunning) mL2Q.wait();
 }
 
 

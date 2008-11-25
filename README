@@ -12,7 +12,7 @@ SIP		Components of the SIP state machines ued by the control layer.
 SMS		The SMS stack (incomplete).
 TRXManager	The interface between the GSM stack and the radio.
 Transceiver	The software transceiver and specific installation tests.
-apss		OpenBTS application binaries.
+apps		OpenBTS application binaries.
 doc		Project documentation.
 tests		Test fixtures for subsets of OpenBTS components.
 
