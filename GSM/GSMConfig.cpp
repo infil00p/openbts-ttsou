@@ -144,9 +144,7 @@ CCCHLogicalChannel* GSMConfig::minimumLoad(CCCHList &chanList)
 	++chan;
 	while (chan!=chanList.end()) {
 		unsigned thisLoad = (*chan)->load();
-		if ((thisLoad<minLoad) ||
-			((thisLoad==minLoad) && (random()%2)) )
-		{
+		if (thisLoad<minLoad) {
 			minLoad = thisLoad;
 			retVal = *chan;
 		}
@@ -168,10 +166,7 @@ template <class ChanType> ChanType* getChan(vector<ChanType*> chanList)
 	unsigned pos = random() % sz;
 	for (unsigned i=0; i<sz; i++) {
 		ChanType *chan = chanList[pos];
-		if (chan->recyclable()) {
-			chan->open();
-			return chan;
-		}
+		if (chan->recyclable()) return chan;
 		pos = (pos+1) % sz;
 	}
 	return NULL;
@@ -185,6 +180,7 @@ SDCCHLogicalChannel *GSMConfig::getSDCCH()
 {
 	mLock.lock();
 	SDCCHLogicalChannel *chan = getChan<SDCCHLogicalChannel>(mSDCCHPool);
+	if (chan) chan->open();
 	mLock.unlock();
 	return chan;
 }
@@ -194,6 +190,7 @@ TCHFACCHLogicalChannel *GSMConfig::getTCH()
 {
 	mLock.lock();
 	TCHFACCHLogicalChannel *chan = getChan<TCHFACCHLogicalChannel>(mTCHPool);
+	if (chan) chan->open();
 	mLock.unlock();
 	return chan;
 }

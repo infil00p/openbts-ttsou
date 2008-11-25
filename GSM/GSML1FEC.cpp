@@ -1234,6 +1234,13 @@ void TCHFACCHL1Encoder::sendFrame( const L2Frame& frame )
 
 void TCHFACCHL1Encoder::dispatch()
 {
+
+	// No downstream?  That's a problem.
+	assert(mDownstream);
+
+	// Get right with the system clock.
+	resync();
+
 	// If the channel is not active, wait for a multiframe and return.
 	// Most channels do not need this, becuase they are entirely data-driven
 	// from above.  TCH/FACCH, however, must feed the interleaver on time.
@@ -1242,8 +1249,6 @@ void TCHFACCHL1Encoder::dispatch()
 		gBTS.clock().wait(mNextWriteTime);
 		return;
 	}
-
-	assert(mDownstream);
 
 	// Let previous data get transmitted.
 	resync();
