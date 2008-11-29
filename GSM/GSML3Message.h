@@ -102,7 +102,7 @@ class L3Message {
 		It can't be pure virtual because it is not needed by all subclasses.
 	*/
 	virtual void writeBody(L3Frame& dest, size_t &writePosition) const
-	{ abort(); }
+	{ CERR("unimplemented L3Message::writeBody"); abort(); }
 
 	/**
 		The parseBody() method starts processing at the first byte following the
@@ -111,7 +111,7 @@ class L3Message {
 		It can't be pure virtual because it is not needed by all subclasses.
 	*/
 	virtual void parseBody(const L3Frame& source, size_t &readPosition)
-	{ abort(); }
+	{ CERR("unimplemented L3Message::parseBody"); abort(); }
 
 
 	public:
@@ -201,7 +201,7 @@ class L3ProtocolElement {
 	  @param rp Bit index of read position (updated by read).
 	*/
 	virtual void parseV(const L3Frame& src, size_t &rp )
-	{ abort(); }
+	{ CERR("unimplemented L3ProtocolElement::parseV"); abort(); }
 
 	/**
 	  The parseV method decodes L3 message bits from variable-length value parts.
@@ -213,7 +213,7 @@ class L3ProtocolElement {
 	  @param expectedLength Length of available field, in bytes.
 	*/
 	virtual void parseV(const L3Frame& src, size_t &rp, size_t expectedLength)
-	{ abort(); }
+	{ CERR("unimplemented L3ProtocolElement::parseV"); abort(); }
 
 
 	/**
@@ -250,7 +250,7 @@ class L3ProtocolElement {
 		@param wp The write index (updated by write).
 	*/
 	virtual void writeV(L3Frame& dest, size_t &wp) const
-	{ abort(); }
+	{ CERR("unimplemented L3ProtocolElement::writeV"); abort(); }
 
 	/**
 		Write LV format.

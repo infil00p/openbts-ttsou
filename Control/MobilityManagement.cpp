@@ -52,24 +52,24 @@ using namespace Control;
 
 
 /** Controller for CM Service requests, dispatches out to multiple possible transaction controllers. */
-void Control::CMServiceResponder(const L3CMServiceRequest* cmsrq, SDCCHLogicalChannel* SDCCH)
+void Control::CMServiceResponder(const L3CMServiceRequest* cmsrq, LogicalChannel* DCCH)
 {
 	assert(cmsrq);
 	CLDCOUT("CMServiceResponder " << *cmsrq);
 	switch (cmsrq->serviceType().type()) {
 		case L3CMServiceType::MobileOriginatedCall:
-			MOCStarter(cmsrq,SDCCH);
+			MOCStarter(cmsrq,DCCH);
 			break;
 #ifdef SMS
 		case L3CMServiceType::ShortMessage:
-			ShortMessageServiceStarter(cmsrq, SDCCH);
+			ShortMessageServiceStarter(cmsrq, dynamic_cast<SDCCHLogicalChannel*>(SDCCH));
 			break;
 #endif
 		default:
 			CLDCOUT("CMServiceResponder service not supported");
 			// Cause 0x20 means "serivce not supported".
-			SDCCH->send(L3CMServiceReject(0x20));
-			SDCCH->send(L3ChannelRelease());
+			DCCH->send(L3CMServiceReject(0x20));
+			DCCH->send(L3ChannelRelease());
 	}
 }
 

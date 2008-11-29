@@ -456,14 +456,19 @@ void callManagementLoop(TransactionEntry &transaction, TCHFACCHLogicalChannel* T
 
 
 /**
-	This function starts MOC to the point of TCH assignment. 
+	This function starts MOC on the SDCCH to the point of TCH assignment. 
 	@param req The CM Service Request that started all of this.
-	@param SDCCH The SDCCH used to initiate call setup.
+	@param LCH The logical used to initiate call setup.
 */
-void Control::MOCStarter(const L3CMServiceRequest* req, SDCCHLogicalChannel *SDCCH)
+void Control::MOCStarter(const L3CMServiceRequest* req, LogicalChannel *LCH)
 {
+	assert(LCH);
 	assert(req);
 	CLDCOUT("MOC: " << *req);
+
+	// Determine if very early assignment already happened.
+	bool veryEarly=false;
+	if (LCH->type()==FACCHType) veryEarly=true;
 
 	// FIXME -- At this point, verify the that subscriber has access to this service.
 	// If the subscriber isn't authorized, send a CM Service Reject with
@@ -478,25 +483,28 @@ void Control::MOCStarter(const L3CMServiceRequest* req, SDCCHLogicalChannel *SDC
 		// FIXME -- This is quick-and-dirty, not following GSM 04.08 5.
 		CERR("WARNING -- (ControlLayer) MOC setup with no IMSI");
 		// Cause 0x60 "Invalid mandatory information"
-		SDCCH->send(L3CMServiceReject(L3RejectCause(0x60)));
-		SDCCH->send(L3ChannelRelease());
+		LCH->send(L3CMServiceReject(L3RejectCause(0x60)));
+		LCH->send(L3ChannelRelease());
 		// The SIP side and transaction record don't exist yet.
 		// So we're done.
 		return;
 	}
 
-	// Allocate a TCH for the call.
-	TCHFACCHLogicalChannel *TCH = allocateTCH(SDCCH);
-	// It's OK to just return on failure; allocateTCH cleaned up already.
-	if (TCH==NULL) return;
+	// Allocate a TCH for the call, if we don't have it already.
+	TCHFACCHLogicalChannel *TCH = NULL;
+	if (!veryEarly) {
+		TCH = allocateTCH(dynamic_cast<SDCCHLogicalChannel*>(LCH));
+		// It's OK to just return on failure; allocateTCH cleaned up already.
+		if (TCH==NULL) return;
+	}
 
 	// Let the phone know we're going ahead with the transaction.
 	CLDCOUT("MOC: sending CMServiceAccept")
-	SDCCH->send(L3CMServiceAccept());
+	LCH->send(L3CMServiceAccept());
 
 	// Get the Setup message.
 	// GSM 04.08 5.2.1.2
-	const L3Setup *setup = dynamic_cast<const L3Setup*>(getMessage(SDCCH));
+	const L3Setup *setup = dynamic_cast<const L3Setup*>(getMessage(LCH));
 	if (setup==NULL) throw UnexpectedMessage();
 	CLDCOUT("MOC: " << *setup);
 	// Pull out the L3 short transaction information now.
@@ -506,8 +514,8 @@ void Control::MOCStarter(const L3CMServiceRequest* req, SDCCHLogicalChannel *SDC
 		// FIXME -- This is quick-and-dirty, not following GSM 04.08 5.
 		CERR("WARNING -- (ControlLayer) MOC setup with no number");
 		// Cause 0x60 "Invalid mandatory information"
-		SDCCH->send(L3ReleaseComplete(0,L3TI,L3Cause(0x60)));
-		SDCCH->send(L3ChannelRelease());
+		LCH->send(L3ReleaseComplete(0,L3TI,L3Cause(0x60)));
+		LCH->send(L3ChannelRelease());
 		// The SIP side and transaction record don't exist yet.
 		// So we're done.
 		return;
@@ -527,16 +535,16 @@ void Control::MOCStarter(const L3CMServiceRequest* req, SDCCHLogicalChannel *SDC
 		setup->calledPartyBCDNumber());
 	transaction.SIP().User(IMSI);
 	transaction.Q931State(TransactionEntry::MOCInitiated);
-	SDCCH->transactionID(transaction.ID());
-	TCH->transactionID(transaction.ID());
+	LCH->transactionID(transaction.ID());
+	if (!veryEarly) TCH->transactionID(transaction.ID());
 	CLDCOUT("MOC: transaction: " << transaction);
 	gTransactionTable.add(transaction);
 
 	// At this point, we have enough information start the SIP call setup.
 	// We have 2 seconds to repsond to the MS.  ITU-T Q.931 Table 9-1, T303.
 
-	// Now start a call by contacting asterisk. engine methods will return their 
-	// current state.	
+	// Now start a call by contacting asterisk.
+	// Engine methods will return their current state.	
 	// The remote party will start ringing soon.
 	CLDCOUT("MOC: starting SIP (INVITE) Calling "<<bcd_digits);
 	unsigned basePort = allocateRTPPorts();
@@ -548,11 +556,27 @@ void Control::MOCStarter(const L3CMServiceRequest* req, SDCCHLogicalChannel *SDC
 	delete setup;
 
 	// The transaction is moving on to the MOCController.
+	// If we need a TCH assignment, we do it here.
 	gTransactionTable.update(transaction);
 	CLDCOUT("MOC: transaction: " << transaction);
-	// This call also opens the TCH.
-	assignTCHF(SDCCH,TCH);
+	if (veryEarly) {
+		// For very early assignment, we need a mode change.
+		static const L3ChannelMode mode(L3ChannelMode::SpeechV1);
+		LCH->send(L3ChannelModeModify(LCH->channelDescription(),mode));
+		const L3ChannelModeModifyAcknowledge *ack =
+			dynamic_cast<L3ChannelModeModifyAcknowledge*>(getMessage(LCH));
+		if (!ack) throw UnexpectedMessage();
+		// Cause 0x06 is "channel unacceptable"
+		if (ack->mode() != mode) return abortCall(transaction,LCH,L3Cause(0x06));
+		MOCController(transaction,dynamic_cast<TCHFACCHLogicalChannel*>(LCH));
+	} else {
+		// For late assignment, send the TCH assignment now.
+		// This dispatcher on the next channel will continue the transaction.
+		assignTCHF(dynamic_cast<SDCCHLogicalChannel*>(LCH),TCH);
+	}
 }
+
+
 
 
 
@@ -565,6 +589,7 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 {
 	CLDCOUT("MOC: transaction: " << transaction);
 	unsigned L3TI = transaction.TIValue();
+	assert(TCH);
 
 	// Once we can start SIP call setup, send Call Proceeding.
 	CLDCOUT("MOC: Sending Call Proceeding ");
@@ -682,16 +707,24 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 
 
 
-void Control::MTCStarter(const L3PagingResponse *resp, 
-						SDCCHLogicalChannel *SDCCH)
+void Control::MTCStarter(const L3PagingResponse *resp, LogicalChannel *LCH)
 {
 	assert(resp);
-	CLDCOUT("MTC: " << *resp);
+	assert(LCH);
+	CLDCOUT("MTC on " << LCH->type() << ": " << *resp);
+
+	// Determine if very early assigment already happened.
+	bool veryEarly = false;
+	if (LCH->type()==FACCHType) veryEarly=true;
 
 	// Allocate a TCH for the call.
-	TCHFACCHLogicalChannel *TCH = allocateTCH(SDCCH);
-	// The orphaned transaction will be cleared at the next findByMobileID call.
-	if (TCH==NULL) return;
+	TCHFACCHLogicalChannel *TCH = NULL;
+	if (!veryEarly) {
+		TCH = allocateTCH(dynamic_cast<SDCCHLogicalChannel*>(LCH));
+		// It's OK to just return on failure; allocateTCH cleaned up already.
+		// The orphaned transaction will be cleared at the next findByMobileID call.
+		if (TCH==NULL) return;
+	}
 
 	// Find the transction table entry that was created when the phone was paged.
 	CLDCOUT("MTC: find TransactionEntry for " << resp->mobileIdentity());
@@ -701,13 +734,13 @@ void Control::MTCStarter(const L3PagingResponse *resp,
 		return;
 	}
 	CLDCOUT("MTC: transaction: "<< transaction);
-	TCH->transactionID(transaction.ID());	
-	SDCCH->transactionID(transaction.ID());	
+	if (!veryEarly) TCH->transactionID(transaction.ID());	
+	LCH->transactionID(transaction.ID());	
 	unsigned L3TI = transaction.TIValue();
 
 	// GSM 04.08 5.2.2.1
 	CLDCOUT("MTC: sending GSM Setup");
-	SDCCH->send(L3Setup(0,L3TI));
+	LCH->send(L3Setup(0,L3TI));
 	transaction.T303().set();
 	transaction.Q931State(TransactionEntry::CallPresent);
 
@@ -715,29 +748,45 @@ void Control::MTCStarter(const L3PagingResponse *resp,
 	CLDCOUT("MTC: wait for GSM Call Confirmed")
 	while (transaction.Q931State()!=TransactionEntry::MTCConfirmed) {
 		if (transaction.SIP().MTCSendTrying()==SIP::Fail) {
-			TCH->send(RELEASE);
-			return abortCall(transaction,SDCCH,L3Cause(0x7F));
+			LCH->send(RELEASE);
+			// Cause 0x03 is "no route to destination"
+			return abortCall(transaction,LCH,L3Cause(0x03));
 		}
 		// FIXME -- What's the proper timeout here?
 		// It's the SIP TRYING timeout, whatever that is.
-		if (updateGSMSignalling(transaction,SDCCH,1000)) {
+		if (updateGSMSignalling(transaction,LCH,1000)) {
 			CLDCOUT("MTC: Release from GSM side");
-			TCH->send(RELEASE);
+			LCH->send(RELEASE);
 			return;
 		}
 		// Check for SIP cancel, too.
 		if (transaction.SIP().MTCWaitForACK()==SIP::Fail) {
-			TCH->send(RELEASE);
-			return abortCall(transaction,SDCCH,L3Cause(0x7F));
+			LCH->send(RELEASE);
+			// Cause 0x10 is "normal clearing"
+			return abortCall(transaction,LCH,L3Cause(0x10));
 		}
 	}
 
 	// The transaction is moving to the MTCController.
 	gTransactionTable.update(transaction);
 	CLDCOUT("MTC: transaction: " << transaction);
-	assignTCHF(SDCCH,TCH);
+	if (veryEarly) {
+		// For very early assignment, we need a mode change.
+		static const L3ChannelMode mode(L3ChannelMode::SpeechV1);
+		LCH->send(L3ChannelModeModify(LCH->channelDescription(),mode));
+		const L3ChannelModeModifyAcknowledge *ack =
+			dynamic_cast<L3ChannelModeModifyAcknowledge*>(getMessage(LCH));
+		if (!ack) throw UnexpectedMessage();
+		// Cause 0x06 is "channel unacceptable"
+		if (ack->mode() != mode) return abortCall(transaction,LCH,L3Cause(0x06));
+		MTCController(transaction,dynamic_cast<TCHFACCHLogicalChannel*>(LCH));
+	}
+	else {
+		// For late assignment, send the TCH assignment now.
+		// This dispatcher on the next channel will continue the transaction.
+		assignTCHF(dynamic_cast<SDCCHLogicalChannel*>(LCH),TCH);
+	}
 }
-
 
 
 void Control::MTCController(TransactionEntry& transaction, TCHFACCHLogicalChannel* TCH)
@@ -747,6 +796,7 @@ void Control::MTCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 
 	CLDCOUT("MTC: transaction: " << transaction);
 	unsigned L3TI = transaction.TIValue();
+	assert(TCH);
 
 	// Get the alerting message.
 	CLDCOUT("MTC:: waiting for GSM Alerting and Connect");

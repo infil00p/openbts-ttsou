@@ -59,9 +59,9 @@ int main(int argc, char *argv[])
 	pager.start();
 
 	while (1) {
-		pager.addID(L3MobileIdentity(random()));
-		pager.addID(L3MobileIdentity(random()));
-		pager.addID(L3MobileIdentity("123456789012345"));
+		pager.addID(L3MobileIdentity(random()),GSM::AnyDCCHType);
+		pager.addID(L3MobileIdentity(random()),GSM::AnyDCCHType);
+		pager.addID(L3MobileIdentity("123456789012345"),GSM::AnyDCCHType);
 		sleep(random() % 2);
 	}
 }

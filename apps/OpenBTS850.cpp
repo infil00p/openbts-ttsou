@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
 		SDCCH[i].downstream(radio);
 		SDCCH[i].open();
 		gBTS.addSDCCH(&SDCCH[i]);
-		SDCCHControlThread[i].start((void*(*)(void*))Control::SDCCHDispatcher,&SDCCH[i]);
+		SDCCHControlThread[i].start((void*(*)(void*))Control::DCCHDispatcher,&SDCCH[i]);
 	}
 
 	// TCHs
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 		TCH[i].downstream(radio);
 		TCH[i].open();
 		gBTS.addTCH(&TCH[i]);
-		TCHControlThread[i].start((void*(*)(void*))Control::FACCHDispatcher,&TCH[i]);
+		TCHControlThread[i].start((void*(*)(void*))Control::DCCHDispatcher,&TCH[i]);
 	}
 
 	// Set up the pager.

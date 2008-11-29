@@ -75,6 +75,52 @@ void restoreT3122()
 //@}
 
 
+/**
+	Determine the channel type needed.
+	This is based on GSM 04.08 Table 9.3 and 9.3a.
+	The following is assumed about the global BTS capabilities:
+	- We do not support "new establishment causes" and NECI is 0.
+	- We do not support call reestablishment.
+	- We do not support GPRS.
+	@param RA The request reference from the channel request message.
+	@return channel type code, undefined if not a supported service
+*/
+ChannelType decodeChannelNeeded(unsigned RA)
+{
+	// These values assume NECI is 0.
+	// This code is formatted so that it lines up easily with GSM 04.08 Table 9.9.
+	//
+	if ((RA>>5) == 0x05) return TCHFType;			// emergency call
+	//
+	// skip re-establishment cases
+	//
+	// "Answer to paging"
+	if ((RA>>5) == 0x04) return SDCCHType;			// answer to paging, any channel
+	if ((RA>>4) == 0x01) return SDCCHType;			// answer to paging, SDCCH
+	if ((RA>>4) == 0x02) return TCHFType;			// answer to paging, TCH/F
+	if ((RA>>4) == 0x03) return TCHFType;			// answer to paging, TCH/F or TCH/H
+	//
+	if ((RA>>5) == 0x07) return SDCCHType;			// MOC or SDCCH procedures
+	//
+	if ((RA>>4) == 0x04) return TCHFType;			// MOC
+	//
+	// skip originating data call cases
+	//
+	if ((RA>>5) == 0x00) return SDCCHType;			// location updating
+	//
+	if ((RA>>4) == 0x00) return SDCCHType;			// location updating
+	//
+	// skip packet (GPRS) cases
+	//
+	// skip LMU case
+	//
+	// skip reserved cases
+	//
+	// Anything else falls through to here.
+	return UndefinedCHType;
+}
+
+
 void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 {
 	// RR Establishment.
@@ -82,35 +128,31 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 	// GSM 04.08 3.3.1.1.3.
 	// Given a request reference, try to allocate a channel
 	// and send the assignment to the handset on the CCCH.
+	// This GSM's version of medium access control.
 	// Papa Legba, open that door...
 
 	CLDCOUT("AccessGrantResponder RA=" << RA << " when=" << when);
 
 	// FIXME -- Check "when" against current clock to see if we're too late.
 
-	// Check the request type to see if it's a service we don't even support.
+	// Determine the channel type needed.
+	ChannelType chanNeeded = decodeChannelNeeded(RA);
+
+	// Allocate the channel.
+	LogicalChannel *LCH = NULL;
+	if (chanNeeded==TCHFType) LCH = gBTS.getTCH();
+	if (chanNeeded==SDCCHType) LCH = gBTS.getSDCCH();
 	// If we don't support it, ignore it.
-	if ((RA&0xe0)==0x70) return;	// GPRS
-	if ((RA&0xe0)==0x60) return;	// TCH/H reestablishment & some reserved codes
-	if (RA==0x67) return;			// LMU
-	if (RA==0xef) return;			// reserved
+	if (LCH==NULL) return;
 
 	// Get an AGCH to send on.
 	CCCHLogicalChannel *AGCH = gBTS.getAGCH();
 	assert(AGCH);
 
-	// FIXME -- We are ASSUMING that SDCCH is OK.
-	// The truth is that we should decode according GSM 04.08 9.1.8, Table 9.9a.
-
-	// Get an SDCCH to assign to.
-	SDCCHLogicalChannel *SDCCH = gBTS.getSDCCH();
-
 	// Nothing available?
-	if (!SDCCH) {
+	if (!LCH) {
 		// Rejection, GSM 04.08 3.3.1.1.3.2.
-		// Emergency calls are not subject to T3122 hold-off.
-		// They are not handled as a special case because the
-		// MS will ignore the T3122 setting.
+		// BTW, emergency calls are not subject to T3122 hold-off.
 		CERR("NOTICE -- Access Grant CONGESTION");
 		unsigned waitTime = curT3122()/1000;
 		CLDCOUT("AccessGrantResponder: assginment reject, wait time " << waitTime);
@@ -123,10 +165,10 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 	// Assignment, GSM 04.08 3.3.1.1.3.1.
 	// Create the ImmediateAssignment message.
 	// For most of the message, default IE values are correct.
-	const L3ImmediateAssignment assign(L3RequestReference(RA,when),SDCCH->channelDescription());
+	const L3ImmediateAssignment assign(L3RequestReference(RA,when),LCH->channelDescription());
 	CLDCOUT("AccessGrantResponder sending " << assign);
 	AGCH->send(assign);
-	SDCCH->open();
+	// This was opened by the gBTS.getXXX() method.  LCH->open();
 
 	// Reset exponential back-off upon successful allocation.
 	restoreT3122();
@@ -136,8 +178,10 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 
 
 
-void Control::PagingResponseHandler(const L3PagingResponse* resp, SDCCHLogicalChannel* SDCCH)
+void Control::PagingResponseHandler(const L3PagingResponse* resp, LogicalChannel* DCCH)
 {
+	assert(resp);
+	assert(DCCH);
 	CLDCOUT("PagingResponseHandler " << *resp);
 
 	// FIXME -- Delete the Mobile ID from the paging list to free up CCCH bandwidth.
@@ -146,12 +190,43 @@ void Control::PagingResponseHandler(const L3PagingResponse* resp, SDCCHLogicalCh
 	// if not a legitimate reason, need to release the channel.
 
 	// FIXME -- Check the transaction table to see if the call is still valid.
+
 #ifndef PAGERTEST
 	// For now, assume MTC.
-	MTCStarter(resp, SDCCH);
+	MTCStarter(resp, DCCH);
 #else
 	COUT("starting MTC...");
 #endif
+}
+
+
+
+void Control::AssignmentCompleteHandler(const L3AssignmentComplete *confirm, TCHFACCHLogicalChannel *TCH)
+{
+	assert(TCH);
+	assert(confirm);
+
+	// Check the transaction table to know what to do next.
+	TransactionEntry transaction;
+	if (!gTransactionTable.find(TCH->transactionID(),transaction)) {
+		CLDCOUT("NOTICE -- Assignment Complete from channel with no transaction");
+		throw UnexpectedMessage();
+	}
+	CLDCOUT("AssignmentCompleteHandler service="<<transaction.service().type());
+	// These "controller" functions don't return until the call is cleared.
+	switch (transaction.service().type()) {
+		case L3CMServiceType::MobileOriginatedCall:
+			MOCController(transaction,TCH);
+			break;
+		case L3CMServiceType::MobileTerminatedCall:
+			MTCController(transaction,TCH);
+			break;
+		default:
+			CLDCOUT("NOTICE -- request for unsupported service " << transaction.service());
+			throw UnsupportedMessage();
+	}
+	// If we got here, the call is cleared.
+	clearTransactionHistory(TCH->transactionID());
 }
 
 
@@ -161,7 +236,7 @@ void Control::PagingResponseHandler(const L3PagingResponse* resp, SDCCHLogicalCh
 
 
 
-void Pager::addID(const L3MobileIdentity& newID, unsigned wLife)
+void Pager::addID(const L3MobileIdentity& newID, ChannelType chanType, unsigned wLife)
 {
 	// Add a mobile ID to the paging list for a given lifetime.
 
@@ -180,7 +255,7 @@ void Pager::addID(const L3MobileIdentity& newID, unsigned wLife)
 	}
 	// If this ID is new, put it in the list.
 	if (!renewed) {
-		mPageIDs.push_back(PagingEntry(newID,wLife));
+		mPageIDs.push_back(PagingEntry(newID,chanType,wLife));
 		CLDCOUT("Pager::addID " << newID << " added to table");
 	}
 	// Signal in case the paging loop is waiting for new entries.
@@ -210,22 +285,25 @@ unsigned Pager::pageAll()
 	// Page remaining entries, two at a time if possible.
 	list<PagingEntry>::iterator lp = mPageIDs.begin();
 	while (lp != mPageIDs.end()) {
-		// HACK -- Just pick the minimum load channel.
-		// FIXME -- This completely ignores the paging goups, GSM 04.08 10.5.2.11 and GSM 05.02 6.5.2.
-		GSM::CCCHLogicalChannel *PCH = gBTS.getPCH();
+		// FIXME -- This completely ignores the paging groups, GSM 04.08 10.5.2.11 and GSM 05.02 6.5.2.
+		CCCHLogicalChannel *PCH = gBTS.getPCH();
 		assert(PCH);
-		const L3MobileIdentity& id1 = lp->ID(); ++lp;
+		const L3MobileIdentity& id1 = lp->ID();
+		ChannelType type1 = lp->type();
+		++lp;
 		if (lp==mPageIDs.end()) {
 			// Just one ID left?
 			//CLDCOUT("Pager::pageAll paging " << id1);
-			PCH->send(L3PagingRequestType1(id1));
+			PCH->send(L3PagingRequestType1(id1,type1));
 			numPaged++;
 			break;
 		}
 		// Page by pairs when possible.
-		const L3MobileIdentity& id2 = lp->ID(); ++lp;
+		const L3MobileIdentity& id2 = lp->ID();
+		ChannelType type2 = lp->type();
+		++lp;
 		//CLDCOUT("Pager::pageAll paging " << id1 << " and " << id2);
-		PCH->send(L3PagingRequestType1(id1,id2));
+		PCH->send(L3PagingRequestType1(id1,type1,id2,type2));
 		numPaged += 2;
 	}
 	

@@ -121,6 +121,7 @@ L3RRMessage* GSM::L3RRFactory(L3RRMessage::MessageType MTI)
 		case L3RRMessage::AssignmentFailure: return new L3AssignmentFailure();
 		case L3RRMessage::RRStatus: return new L3RRStatus();
 		case L3RRMessage::PagingResponse: return new L3PagingResponse();
+		case L3RRMessage::ChannelModeModifyAcknowledge: return new L3ChannelModeModifyAcknowledge();
 		default:
 			CERR("WARNING -- no L3 RR factory support for " << MTI);
 			return NULL;
@@ -143,6 +144,23 @@ L3RRMessage* GSM::parseL3RR(const L3Frame& source)
 
 
 
+/**
+This is a local function to map the GSM::ChannelType enum
+to one of the codes from GMS 04.07 10.5.2.8.
+*/
+unsigned channelNeededCode(ChannelType wType)
+{
+	switch (wType) {
+		case AnyDCCHType: return 0;
+		case SDCCHType: return 1;
+		case TCHFType: return 2;
+		case AnyTCHType: return 3;
+		default: abort();
+	}
+}
+
+
+
 size_t L3PagingRequestType1::bodyLength() const
 {
 	int sz = mMobileIDs.size();
@@ -154,14 +172,25 @@ size_t L3PagingRequestType1::bodyLength() const
 }
 
 
+
 void L3PagingRequestType1::writeBody(L3Frame& dest, size_t &wp) const
 {
+	// See GSM 04.08 9.1.22.
+	// Page Mode Page Mode M V 1/2 10.5.2.26    
+	// Channels Needed  M V 1/2 
+	// Mobile Identity 1 M LV 2-9 10.5.1.4    
+	// 0x17 Mobile Identity 2 O TLV  3-10 10.5.1.4    
+
 	int sz = mMobileIDs.size();
 	assert(sz<=2);
-	// Remember for reverse orders of 1/2-octet fields.
+	// Remember to reverse orders of 1/2-octet fields.
 	// Because GSM transmits LSB-first within each byte.
-	dest.writeField(wp,0x0,4);		// "any channel", GSM 04.08 Table 10.5.29
-	dest.writeField(wp,0x0,4);		// "normal paging", GSM 04.08 Table 10.5.63
+	// channel needed codes
+	dest.writeField(wp,channelNeededCode(mChannelsNeeded[1]),2);
+	dest.writeField(wp,channelNeededCode(mChannelsNeeded[0]),2);
+	// "normal paging", GSM 04.08 Table 10.5.63
+	dest.writeField(wp,0x0,4);
+	// the actual mobile IDs
 	mMobileIDs[0].writeLV(dest,wp);
 	if (sz>1) mMobileIDs[1].writeTLV(0x17,dest,wp);
 }
@@ -172,7 +201,7 @@ void L3PagingRequestType1::text(ostream& os) const
 	L3RRMessage::text(os);
 	os << " mobileIDs=(";
 	for (unsigned i=0; i<mMobileIDs.size(); i++) {
-		os << "(" << mMobileIDs[i] << "),";
+		os << "(" << mMobileIDs[i] << "," << mChannelsNeeded[i] << "),";
 	}
 	os << ")";
 }
@@ -499,6 +528,35 @@ void L3ImmediateAssignmentReject::text(ostream& os) const
 }
 
 
+
+void L3ChannelModeModify::writeBody(L3Frame &dest, size_t& wp) const
+{
+	mDescription.writeV(dest,wp);
+	mMode.writeV(dest,wp);
+}
+
+
+void L3ChannelModeModify::text(ostream& os) const
+{
+	L3RRMessage::text(os);
+	os << "description=(" << mDescription << ")";
+	os << " mode=(" << mMode << ")";
+}
+
+
+void L3ChannelModeModifyAcknowledge::parseBody(const L3Frame &src, size_t& rp)
+{
+	mDescription.parseV(src,rp);
+	mMode.parseV(src,rp);
+}
+
+
+void L3ChannelModeModifyAcknowledge::text(ostream& os) const
+{
+	L3RRMessage::text(os);
+	os << "description=(" << mDescription << ")";
+	os << " mode=(" << mMode << ")";
+}
 
 
 // vim: ts=4 sw=4

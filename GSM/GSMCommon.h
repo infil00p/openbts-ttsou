@@ -185,12 +185,14 @@ enum ChannelType {
 	//@{
 	TCHFType,		///< full-rate traffic
 	TCHHType,		///< half-rate traffic
+	AnyTCHType,		///< any TCH type
 	//@}
 	///@name Special internal channel types.
 	//@{
 	LoopbackFullType,		///< loopback testing
 	LoopbackHalfType,		///< loopback testing
-	UndefinedCHType,	///< undefined
+	AnyDCCHType,			///< any dedicated control channel
+	UndefinedCHType,		///< undefined
 	//@}
 };
 

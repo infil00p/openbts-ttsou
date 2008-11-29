@@ -43,6 +43,14 @@ using namespace GSM;
 using namespace Control;
 
 
+/**
+	The channel type to request in paging.
+	Request SDCCHType for early assignment or
+	TCHFType for very early assignment.
+*/
+const GSM::ChannelType RequiredChannel = GSM::TCHFType;
+//const GSM::ChannelType RequiredChannel = GSM::SDCCHType;
+
 
 
 
@@ -193,7 +201,7 @@ bool SIPInterface::checkInvite( osip_message_t * msg )
 	if(msg->sip_method == NULL){ return false; }
 	if( strcmp(msg->sip_method,"INVITE") != 0) {return false;}
 
-	// FIXME -- Check gBTS for TCH and SDCCH availability.  Bug #130.
+	// FIXME -- Check gBTS for TCH availability, bug #330.
 	// Respond with a congestion message if none are available.
 
 	// Get call_id from invite message.
@@ -219,17 +227,12 @@ bool SIPInterface::checkInvite( osip_message_t * msg )
 			return false;
 		}
 		DCOUT("SIPInterface::checkInvite: repeated SIP invite, repaging") 
-		gBTS.pager().addID(mobile_id);	
+		gBTS.pager().addID(mobile_id,RequiredChannel);	
 		transaction.T3113().set();
 		gTransactionTable.update(transaction);
 		osip_free(to_uri);
 		return false;
 	}
-
-	// FIXME -- At this point, check for the mobile_id in the transaction table.
-	// Bug #131.
-	// If it's there, it could mean the phone's already busy, depending on the state.
-	// Respond with Busy.
 
 	// Add an entry to the SIP Map.
 	mSIPMap.add(call_id_string);
@@ -254,7 +257,7 @@ bool SIPInterface::checkInvite( osip_message_t * msg )
 	
 	// Add to paging list.
 	DCOUT("SIPInterface::checkInvite: new SIP invite, initial paging") 
-	gBTS.pager().addID(mobile_id);	
+	gBTS.pager().addID(mobile_id,RequiredChannel);	
 
 	osip_free(to_uri);
 	return true;

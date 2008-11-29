@@ -95,12 +95,12 @@ class L3RRMessage : public L3Message {
 		///@name miscellaneous
 		//@{
 		ChannelModeModify=0x10,
-		ClassmarkChange=0x16,
-		GPRSSuspensionRequest=0x34,
 		RRStatus=0x12,
-		//@}
-		/// reporting
+		ChannelModeModifyAcknowledge=0x17,
+		ClassmarkChange=0x16,
 		MeasurementReport = 0x15,
+		GPRSSuspensionRequest=0x34,
+		//@}
 		///@name special cases -- assigned >8-bit codes to avoid conflicts
 		//@{
 		SynchronizationChannelInformation=0x100,
@@ -141,6 +141,7 @@ class L3PagingRequestType1 : public L3RRMessage {
 	private:
 
 	std::vector<L3MobileIdentity> mMobileIDs;
+	ChannelType mChannelsNeeded[2];
 
 
 	public:
@@ -150,18 +151,29 @@ class L3PagingRequestType1 : public L3RRMessage {
 	{
 		// The empty paging request is a single untyped mobile ID.
 		mMobileIDs.push_back(L3MobileIdentity());
+		mChannelsNeeded[0]=AnyDCCHType;
+		mChannelsNeeded[1]=AnyDCCHType;
 	}
 
-	L3PagingRequestType1(const L3MobileIdentity& wId)
+	L3PagingRequestType1(const L3MobileIdentity& wId, ChannelType wType)
 		:L3RRMessage()
-	{ mMobileIDs.push_back(wId); }
+	{
+		mMobileIDs.push_back(wId);
+		mChannelsNeeded[0]=wType;
+		mChannelsNeeded[1]=AnyDCCHType;
+	}
 
-	L3PagingRequestType1(const L3MobileIdentity& wId1, const L3MobileIdentity& wId2)
+	L3PagingRequestType1(const L3MobileIdentity& wId1, ChannelType wType1,
+			const L3MobileIdentity& wId2, ChannelType wType2)
 		:L3RRMessage()
 	{
 		mMobileIDs.push_back(wId1);
+		mChannelsNeeded[0]=wType1;
 		mMobileIDs.push_back(wId2);
+		mChannelsNeeded[1]=wType2;
 	}
+
+	unsigned chanCode(ChannelType) const;
 
 	size_t bodyLength() const;
 
@@ -668,6 +680,59 @@ class L3RRStatus : public L3RRMessage {
 
 	void text(std::ostream&) const;
 
+};
+
+
+
+/** GSM 04.08 9.1.5 */
+class L3ChannelModeModify : public L3RRMessage {
+
+	private:
+
+	L3ChannelDescription mDescription;
+	L3ChannelMode mMode;
+
+	public:
+
+	L3ChannelModeModify(const L3ChannelDescription& wDescription,
+						const L3ChannelMode& wMode)
+		:L3RRMessage(),
+		mDescription(wDescription),
+		mMode(wMode)
+	{}
+
+	int MTI() const { return (int) ChannelModeModify; }
+
+	size_t bodyLength() const
+		{ return mDescription.lengthV() + mMode.lengthV(); }
+
+	void writeBody(L3Frame&, size_t&) const;
+
+	void text(std::ostream&) const;
+};
+
+
+/** GSM 04.08 9.1.6 */
+class L3ChannelModeModifyAcknowledge : public L3RRMessage {
+
+	private:
+
+	L3ChannelDescription mDescription;
+	L3ChannelMode mMode;
+
+	public:
+
+	const L3ChannelDescription& description() const { return mDescription; }
+	const L3ChannelMode& mode() const { return mMode; }
+
+	int MTI() const { return (int) ChannelModeModifyAcknowledge; }
+
+	size_t bodyLength() const
+		{ return mDescription.lengthV() + mMode.lengthV(); }
+
+	void parseBody(const L3Frame&, size_t&);
+
+	void text(std::ostream&) const;
 };
 
 

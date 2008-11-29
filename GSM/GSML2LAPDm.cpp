@@ -43,6 +43,7 @@ implementation, although no code is copied directly.
 using namespace std;
 using namespace GSM;
 
+//#define NDEBUG
 
 
 ostream& GSM::operator<<(ostream& os, L2LAPDm::LAPDState state)

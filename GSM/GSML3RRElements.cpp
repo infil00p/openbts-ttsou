@@ -111,6 +111,7 @@ void L3ControlChannelDescription::writeV(L3Frame& dest, size_t &wp) const
 }
 
 
+
 void L3ControlChannelDescription::text(ostream& os) const
 {
 	os << "ATT=" << mATT;
@@ -298,6 +299,7 @@ void L3DedicatedModeOrTBF::text(ostream& os) const
 
 void L3ChannelDescription::writeV( L3Frame &dest, size_t &wp ) const 
 {
+	// GSM 04.08 10.5.2.5
 // 					Channel Description Format (non-hopping)
 // 		 	7      6      5      4      3     2      1      0
 //	  [         TSC       ][ H=0 ][ SPARE(0,0)][ ARFCN[9:8] ]  Octet 3
@@ -305,12 +307,30 @@ void L3ChannelDescription::writeV( L3Frame &dest, size_t &wp ) const
 //
 
 	// HACK -- Hard code for non-hopping.
-
+	assert(mHFlag==0);
 	dest.writeField(wp,mTypeAndOffset,5);
 	dest.writeField(wp,mTN,3);
 	dest.writeField(wp,mTSC,3);
 	dest.writeField(wp,0,3);				// H=0 + 2 spares
 	dest.writeField(wp,mARFCN,10);
+}
+
+
+
+void L3ChannelDescription::parseV(const L3Frame& src, size_t &rp)
+{
+	// GSM 04.08 10.5.2.5
+	mTypeAndOffset = (TypeAndOffset)src.readField(rp,5);
+	mTN = src.readField(rp,3);
+	mTSC = src.readField(rp,3);
+	mHFlag = src.readField(rp,1);
+	if (mHFlag) {
+		mMAIO = src.readField(rp,6);
+		mHSN = src.readField(rp,6);
+	} else {
+		rp += 2;	// skip 2 spare bits
+		mARFCN = src.readField(rp,10);
+	}
 }
 
 
@@ -404,6 +424,13 @@ void L3ChannelMode::writeV( L3Frame& dest, size_t &wp) const
 {
 	dest.writeField(wp, mMode, 8);
 }
+
+void L3ChannelMode::parseV(const L3Frame& src, size_t& rp)
+{
+	mMode = (Mode)src.readField(rp,8);
+}
+
+
 
 ostream& GSM::operator<<(ostream& os, L3ChannelMode::Mode mode)
 {

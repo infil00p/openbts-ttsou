@@ -274,8 +274,10 @@ ostream& GSM::operator<<(ostream& os, ChannelType val)
 		case SACCHType: os << "SACCH"; break;
 		case TCHFType: os << "TCH/F"; break;
 		case TCHHType: os << "TCH/H"; break;
-		case LoopbackFullType: os << "LoopbackFull"; break;
-		case LoopbackHalfType: os << "LoopbackHalf"; break;
+		case AnyTCHType: os << "any TCH"; break;
+		case LoopbackFullType: os << "Loopback Full"; break;
+		case LoopbackHalfType: os << "Loopback Half"; break;
+		case AnyDCCHType: os << "any DCCH"; break;
 		default: os << "?" << (int)val << "?";
 	}
 	return os;

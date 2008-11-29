@@ -31,10 +31,9 @@ noinst_PROGRAMS = PagerTest
 libcontrol_la_SOURCES = \
 	CallControl.cpp \
 	ControlCommon.cpp \
-	FACCHDispatch.cpp \
 	MobilityManagement.cpp \
 	RadioResource.cpp \
-	SDCCHDispatch.cpp
+	DCCHDispatch.cpp
 
 PagerTest_SOURCES = PagerTest.cpp
 PagerTest_LDADD = \

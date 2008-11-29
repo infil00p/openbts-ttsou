@@ -100,7 +100,7 @@ class L3CellSelectionParameters : public L3ProtocolElement {
 	unsigned mCELL_RESELECT_HYSTERESIS;
 	unsigned mMS_TXPWR_MAX_CCH;
 	unsigned mACS;
-	unsigned mNECI;
+	static const unsigned mNECI = 0;	// new establishment causes not supported
 	unsigned mRXLEV_ACCESS_MIN;
 
 	public:
@@ -112,7 +112,6 @@ class L3CellSelectionParameters : public L3ProtocolElement {
 		mCELL_RESELECT_HYSTERESIS=6;		// 8 dB reselect
 		mMS_TXPWR_MAX_CCH=0;				// a high power level in all bands
 		mACS=0;								// no additional relesect parameters
-		mNECI=0;							// new establishment causes not supported
 		mRXLEV_ACCESS_MIN=0;				// lowest allowed access level
 	}
 
@@ -388,9 +387,17 @@ public:
 		mARFCN(wARFCN),
 		mMAIO(0),mHSN(0)
 	{ }
+
+	/** Blank initializer */
+	L3ChannelDescription()
+		:mTypeAndOffset(TDMA_MISC),
+		mTN(0),mTSC(0),mHFlag(0),mARFCN(0),mMAIO(0),mHSN(0)
+	{ }
 	
 
 	void writeV( L3Frame &dest, size_t &wp ) const;
+
+	void parseV(const L3Frame& src, size_t &rp);
 
 	size_t lengthV() const  { return 3; }
 
@@ -538,7 +545,11 @@ public:
 		mMode(wMode)
 	{}
 
+	bool operator==(const L3ChannelMode& other) const { return mMode==other.mMode; }
+	bool operator!=(const L3ChannelMode& other) const { return mMode!=other.mMode; }
+
 	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame& src, size_t& wp);
 	size_t lengthV() const { return 1; }
 	void text(std::ostream&) const;
 

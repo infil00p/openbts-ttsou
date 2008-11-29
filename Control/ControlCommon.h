@@ -47,6 +47,7 @@
 #include <GSML3CommonElements.h>
 #include <GSML3MMElements.h>
 #include <GSML3CCElements.h>
+#include <GSML3RRMessages.h>
 #include <SIPEngine.h>
 
 
@@ -142,28 +143,36 @@ void clearTransactionHistory(unsigned transactionID);
 
 /**@name Functions for mobility manangement operations. */
 //@{
-void CMServiceResponder(const GSM::L3CMServiceRequest* cmsrq, GSM::SDCCHLogicalChannel* SDCCH);
+void CMServiceResponder(const GSM::L3CMServiceRequest* cmsrq, GSM::LogicalChannel* DCCH);
 void IMSIDetachController(const GSM::L3IMSIDetachIndication* idi, GSM::SDCCHLogicalChannel* SDCCH);
 void LocationUpdatingController(const GSM::L3LocationUpdatingRequest* lur, GSM::SDCCHLogicalChannel* SDCCH);
 //@}
 
 /**@name Functions for radio resource operations. */
 //@{
+/** Decode RACH bits and send an immediate assignment. */
 void AccessGrantResponder(unsigned requestReference, const GSM::Time& when);
-void PagingResponseHandler(const GSM::L3PagingResponse*, GSM::SDCCHLogicalChannel*);
+/** Find and compelte the in-process transaction associated with a paging repsonse. */
+void PagingResponseHandler(const GSM::L3PagingResponse*, GSM::LogicalChannel*);
+/** Find and compelte the in-process transaction associated with a completed assignment. */
+void AssignmentCompleteHandler(const GSM::L3AssignmentComplete*, GSM::TCHFACCHLogicalChannel*);
 //@}
 
 /**@name Functions for call control operations. */
 //@{
 /**@name MOC */
 //@{
-void MOCStarter(const GSM::L3CMServiceRequest* req, GSM::SDCCHLogicalChannel *SDCCH);
-void MOCController(TransactionEntry& transaction, GSM::TCHFACCHLogicalChannel* TCHFACCH);
+/** Run the MOC to the point of alerting, doing early assignment if needed. */
+void MOCStarter(const GSM::L3CMServiceRequest*, GSM::LogicalChannel*);
+/** Complete the MOC connection. */
+void MOCController(TransactionEntry&, GSM::TCHFACCHLogicalChannel*);
 //@}
 /**@name MTC */
 //@{
-void MTCStarter(const GSM::L3PagingResponse *resp, GSM::SDCCHLogicalChannel *SDCCH);
-void MTCController(TransactionEntry& transaction, GSM::TCHFACCHLogicalChannel* TCHFACCH);
+/** Run the MTC to the point of alerting, doing early assignment if needed. */
+void MTCStarter(const GSM::L3PagingResponse*, GSM::LogicalChannel*);
+/** Complete the MTC connection. */
+void MTCController(TransactionEntry&, GSM::TCHFACCHLogicalChannel*);
 //@}
 /**@name MOSMS */
 //@{
@@ -186,6 +195,7 @@ void abortCall(TransactionEntry& transaction, GSM::LogicalChannel *LCH, const GS
 //@{
 void FACCHDispatcher(GSM::TCHFACCHLogicalChannel *TCHFACCH);
 void SDCCHDispatcher(GSM::SDCCHLogicalChannel *SDCCH);
+void DCCHDispatcher(GSM::LogicalChannel *DCCH);
 //@}
 
 
@@ -199,6 +209,7 @@ class PagingEntry {
 	private:
 
 	// FIXME -- We need to support channel type.  See tracker item #316.
+	GSM::ChannelType mType;			///< The needed channel type.
 	GSM::L3MobileIdentity mID;		///< The mobile ID.
 	Timeval mExpiration;			///< The expiration time for this entry.
 
@@ -209,12 +220,15 @@ class PagingEntry {
 		@param wID The ID to be paged.
 		@param wLife The number of milliseconds to keep paging.
 	*/
-	PagingEntry(const GSM::L3MobileIdentity& wID, unsigned wLife)
-		:mID(wID),mExpiration(wLife)
+	PagingEntry(const GSM::L3MobileIdentity& wID, GSM::ChannelType wType, unsigned wLife)
+		:mID(wID),mType(wType),mExpiration(wLife)
 	{}
 
 	/** Access the ID. */
 	const GSM::L3MobileIdentity& ID() const { return mID; }
+
+	/** Access the channel type needed. */
+	const GSM::ChannelType type() const { return mType; }
 
 	/** Renew the timer. */
 	void renew(unsigned wLife) { mExpiration = Timeval(wLife); }
@@ -252,9 +266,10 @@ class Pager {
 	/**
 		Add a mobile ID to the paging list.
 		@param addID The mobile ID to be paged.
+		@param chanType The channel type to be requested.
 		@param wLife The paging duration in ms, default based on SIP INVITE retry preiod.
 	*/
-	void addID(const GSM::L3MobileIdentity& addID, unsigned wLife=4000);
+	void addID(const GSM::L3MobileIdentity& addID, GSM::ChannelType chanType, unsigned wLife=4000);
 
 	private:
 

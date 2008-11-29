@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
 	Thread SDCCHControlThread[4];
 	for (int i=0; i<4; i++) {
 		SDCCH[i].downstream(radio);
-		SDCCHControlThread[i].start((void*(*)(void*))Control::SDCCHDispatcher,&SDCCH[i]);
+		SDCCHControlThread[i].start((void*(*)(void*))Control::DCCHDispatcher,&SDCCH[i]);
 		SDCCH[i].open();
 		gBTS.addSDCCH(&SDCCH[i]);
 	}
@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
 	Thread TCHControlThread[7];
 	for (int i=0; i<7; i++) {
 		TCH[i].downstream(radio);
-		TCHControlThread[i].start((void*(*)(void*))Control::FACCHDispatcher,&TCH[i]);
+		TCHControlThread[i].start((void*(*)(void*))Control::DCCHDispatcher,&TCH[i]);
 		TCH[i].open();
 		gBTS.addTCH(&TCH[i]);
 	}
