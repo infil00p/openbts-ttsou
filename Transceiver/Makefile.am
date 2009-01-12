@@ -21,7 +21,7 @@
 include $(top_srcdir)/Makefile.common
 
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES) -I$(USRP_INCLUDEDIR)
-CXX_FLAGS = -O3 -g
+CXX_FLAGS = -O3 -g -lpthread
 
 rev2dir = $(datadir)/usrp/rev2
 rev4dir = $(datadir)/usrp/rev4

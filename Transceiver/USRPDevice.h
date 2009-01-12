@@ -39,8 +39,8 @@ class USRPDevice {
 private:
 
   double desiredSampleRate; 	///< the desired sampling rate
-  usrp_standard_rx* m_uRx;	///< the USRP receiver
-  usrp_standard_tx* m_uTx;	///< the USRP transmitter
+  usrp_standard_rx_sptr m_uRx;	///< the USRP receiver
+  usrp_standard_tx_sptr m_uTx;	///< the USRP transmitter
 	
   double actualSampleRate;	///< the actual USRP sampling rate
   unsigned int decimRate;	///< the USRP decimation rate

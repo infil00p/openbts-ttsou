@@ -137,8 +137,8 @@ USRPDevice::USRPDevice (double _desiredSampleRate)
   double masterClockRate = (double) 64.0e6;
   decimRate = (unsigned int) round(masterClockRate/_desiredSampleRate);
   actualSampleRate = masterClockRate/decimRate;
-  m_uRx = NULL;
-  m_uTx = NULL;
+  m_uRx.reset();
+  m_uTx.reset();
 
 #ifdef SWLOOPBACK 
   samplePeriod = 1.0e6/actualSampleRate;
@@ -156,7 +156,7 @@ bool USRPDevice::make(bool wSkipRx)
 #ifndef SWLOOPBACK 
   string rbf = "std_inband.rbf";
   //string rbf = "inband_1rxhb_1tx.rbf"; 
-  m_uRx = NULL;
+  m_uRx.reset();
   if (!skipRx) {
   try {
     m_uRx = (usrp_standard_rx::make(0,decimRate,1,-1,
@@ -166,9 +166,13 @@ bool USRPDevice::make(bool wSkipRx)
   
   catch(...) {
     COUT("make failed on Rx");
-    delete m_uRx;
     return false;
   }
+  }
+
+  if (!m_uTx) {
+    COUT("make failed on Rx");
+    return false;
   }
 
   try {
@@ -178,10 +182,14 @@ bool USRPDevice::make(bool wSkipRx)
   
   catch(...) {
     COUT("make failed on Tx");
-    delete m_uTx;
     return false;
   }
   
+  if (!m_uTx) {
+    COUT("make failed on Tx");
+    return false;
+  }
+
   if (!skipRx) m_uRx->stop();
   m_uTx->stop();
   
