@@ -170,7 +170,7 @@ bool USRPDevice::make(bool wSkipRx)
   }
   }
 
-  if (!m_uTx) {
+  if (!m_uRx) {
     COUT("make failed on Rx");
     return false;
   }
