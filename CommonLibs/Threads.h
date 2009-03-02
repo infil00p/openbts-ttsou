@@ -120,7 +120,7 @@ class Thread {
 
 	pthread_t mThread;
 	pthread_attr_t mAttrib;
-	const static size_t mStackSize=65536;
+	const static size_t mStackSize=4*65536;
 	
 
 	public:
