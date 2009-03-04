@@ -26,6 +26,9 @@
 	SWLOOPBACK	compile for software loopback testing
 */ 
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 #define NDEBUG
 #include <string.h>
