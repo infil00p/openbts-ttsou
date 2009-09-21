@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -39,8 +42,8 @@ class USRPDevice {
 private:
 
   double desiredSampleRate; 	///< the desired sampling rate
-  usrp_standard_rx_sptr m_uRx;	///< the USRP receiver
-  usrp_standard_tx_sptr m_uTx;	///< the USRP transmitter
+  usrp_standard_rx* m_uRx;	///< the USRP receiver
+  usrp_standard_tx* m_uTx;	///< the USRP transmitter
 	
   double actualSampleRate;	///< the actual USRP sampling rate
   unsigned int decimRate;	///< the USRP decimation rate
@@ -51,7 +54,15 @@ private:
   bool started;			///< flag indicates USRP has started
   bool skipRx;			///< set if USRP is transmit-only.
 
-  static const unsigned currDataSize = 200000;
+  static const unsigned int currDataSize_log2 = 18;
+  static const unsigned long currDataSize = (1 << currDataSize_log2);
+  short *data;
+  unsigned long dataStart;
+  unsigned long dataEnd;
+  TIMESTAMP timeStart;
+  TIMESTAMP timeEnd;
+  bool isAligned;
+
   short *currData;		///< internal data buffer when reading from USRP
   TIMESTAMP currTimestamp;	///< timestamp of internal data buffer
   unsigned currLen;		///< size of internal data buffer
@@ -59,7 +70,9 @@ private:
   TIMESTAMP timestampOffset;       ///< timestamp offset b/w Tx and Rx blocks
   TIMESTAMP latestWriteTimestamp;  ///< timestamp of most recent ping command
   TIMESTAMP pingTimestamp;	   ///< timestamp of most recent ping response
-  static const TIMESTAMP PINGOFFSET = 272;  ///< undetermined delay b/w ping response timestamp and trrue receive timestamp
+  static const TIMESTAMP PINGOFFSET = 272;  ///< undetermined delay b/w ping response timestamp and true receive timestamp
+  unsigned long hi32Timestamp;
+  unsigned long lastPktTimestamp;
 
 #ifdef SWLOOPBACK 
   short loopbackBuffer[1000000];

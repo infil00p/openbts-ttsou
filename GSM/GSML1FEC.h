@@ -14,6 +14,9 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -25,7 +28,7 @@
 #define GSML1FEC_H
 
 #include "Threads.h"
-#include "Assert.h"
+#include <assert.h>
 #include "BitVector.h"
 
 #include "GSMCommon.h"
@@ -782,6 +785,8 @@ class TCHFACCHL1Decoder : public XCCHL1Decoder {
 	/** Return count of internally-queued traffic frames. */
 	unsigned queueSize() const { return mSpeechQ.size(); }
 
+	/** Return true if the uplink is dead. */
+	bool uplinkLost() const { return mT3109.expired(); }
 };
 
 
@@ -1051,6 +1056,9 @@ public:
 
 	unsigned queueSize() const
 		{ assert(mTCHDecoder); return mTCHDecoder->queueSize(); }
+
+	bool radioFailure() const
+		{ assert(mTCHDecoder); return mTCHDecoder->uplinkLost(); }
 };
 
 

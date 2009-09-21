@@ -5,6 +5,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -141,7 +144,7 @@ SDCCHLogicalChannel::SDCCHLogicalChannel(
 	// SAP0 is RR/MM/CC, SAP3 is SMS
 	// SAP1 and SAP2 are not used.
 	mL2[0] = new SDCCHL2(1,0);
-	//mL2[3] = new SDCCHL2(1,3);
+	mL2[3] = new SDCCHL2(1,3);
 	mSACCH = new SACCHLogicalChannel(wTN,wMapping.SACCH());
 	connect();
 }
@@ -155,9 +158,10 @@ SACCHLogicalChannel::SACCHLogicalChannel(
 		const MappingPair& wMapping)
 {
 	mL1 = new SACCHL1FEC(wTN,wMapping);
+	// SAP0 is RR, SAP3 is SMS
+	// SAP1 and SAP2 are not used.
 	mL2[0] = new SACCHL2(1,0);
-	// SACCH SAP3 is used for in-call SMS.
-	//mL2[3] = new SACCHL2(1,3);
+	mL2[3] = new SACCHL2(1,3);
 	connect();
 	assert(mSACCH==NULL);
 }
@@ -206,8 +210,10 @@ TCHFACCHLogicalChannel::TCHFACCHLogicalChannel(
 {
 	mTCHL1 = new TCHFACCHL1FEC(wTN,wMapping.LCH());
 	mL1 = mTCHL1;
+	// SAP0 is RR/MM/CC, SAP3 is SMS
+	// SAP1 and SAP2 are not used.
 	mL2[0] = new FACCHL2(1,0);
-	//mL2[3] = new FACCHL2(1,3);
+	mL2[3] = new FACCHL2(1,3);
 	mSACCH = new SACCHLogicalChannel(wTN,wMapping.SACCH());
 	connect();
 }

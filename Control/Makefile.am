@@ -26,26 +26,12 @@ EXTRA_DIST = README.Control
 
 noinst_LTLIBRARIES = libcontrol.la
 
-noinst_PROGRAMS = PagerTest
-
 libcontrol_la_SOURCES = \
 	CallControl.cpp \
 	ControlCommon.cpp \
 	MobilityManagement.cpp \
 	RadioResource.cpp \
 	DCCHDispatch.cpp
-
-PagerTest_SOURCES = PagerTest.cpp
-PagerTest_LDADD = \
-	libcontrol.la \
-	$(COMMON_LA) \
-	$(GSM_LA) \
-	$(SIP_LA) \
-	$(TRX_LA) \
-	$(OSIP_LIBS) \
-	$(ORTP_LIBS)
-
-PagerTest_LDFLAGS = -lpthread
 
 noinst_HEADERS = \
 	ControlCommon.h

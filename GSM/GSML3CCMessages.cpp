@@ -5,6 +5,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -60,6 +63,12 @@ ostream& GSM::operator<<(ostream& os, L3CCMessage::MessageType val)
 				os << "Start DTMF"; break;
 		case L3CCMessage::StartDTMFReject:
 				os << "Start DTMF Reject"; break;
+		case L3CCMessage::StartDTMFAcknowledge:
+				os << "Start DTMF Acknowledge"; break;
+		case L3CCMessage::StopDTMF:
+				os << "Stop DTMF"; break;
+		case L3CCMessage::StopDTMFAcknowledge:
+				os << "Stop DTMF Acknowledge"; break;
 		default: os << hex << "0x" << (int)val << dec;
 	}
 	return os;
@@ -82,6 +91,7 @@ L3CCMessage * GSM::L3CCFactory(L3CCMessage::MessageType MTI)
 		case L3CCMessage::CallConfirmed: return new L3CallConfirmed();
 		case L3CCMessage::StartDTMF: return new L3StartDTMF();
 		case L3CCMessage::StartDTMFReject: return new L3StartDTMFReject();
+		case L3CCMessage::StopDTMF: return new L3StopDTMF();
 		default: {
 			CERR("WARNING -- no L3 CC factory support for message "<< MTI);
 			return NULL;
@@ -395,37 +405,27 @@ void L3CallConfirmed::text(ostream& os) const
 
 
 
-void L3StartDTMF::parseBody(const L3Frame& src, size_t &rp)
-{
-	mHaveKey = mKey.parseTV(0x2C,src,rp);
-}
-
-
-size_t L3StartDTMF::bodyLength() const
-{
-	size_t sum = 0;
-	if (mHaveKey) sum += mKey.lengthTV();
-	return sum;
-}
-
-
 void L3StartDTMF::text(ostream& os) const
 {
 	L3CCMessage::text(os);
-	if (mHaveKey) os << "key=" << mKey;
+	os << "key=" << mKey;
 }
 
 
 
-
-void L3StartDTMFReject::writeBody(L3Frame &src, size_t &rp) const
+void L3StartDTMFAcknowledge::text(ostream& os) const
 {
-	mCause.writeLV(src,rp);
+	L3CCMessage::text(os);
+	os << "key=" << mKey;
 }
+
+
+
 
 
 void L3StartDTMFReject::text(ostream& os) const
 {
+	L3CCMessage::text(os);
 	os << "cause=(" << mCause << ")";
 }
 
@@ -435,9 +435,7 @@ void L3StartDTMFReject::text(ostream& os) const
 
 size_t L3Progress::bodyLength() const
 {
-	size_t len=0;
-	len += mProgress.lengthLV();
-	return len;
+	return mProgress.lengthLV();
 }
 
 void L3Progress::writeBody(L3Frame &dest, size_t &wp) const

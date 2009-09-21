@@ -4,6 +4,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -44,10 +47,10 @@ public:
 
 	L3BearerCapability() : L3ProtocolElement() {}
 	
+	size_t lengthV() const { return 2; }
 	void writeV( L3Frame& dest, size_t &wp ) const;
 	void parseV( const L3Frame& src, size_t &rp, size_t expectedLength );	
-	size_t lengthV() const { return 2; }
-
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -68,7 +71,7 @@ class L3BCDDigits {
 	L3BCDDigits(const char* wDigits) { strncpy(mDigits,wDigits,15); }
 
 	void parse(const L3Frame& src, size_t &rp, size_t numOctets);
-	void write(L3Frame& src, size_t &wp) const;
+	void write(L3Frame& dest, size_t &wp) const;
 
 	/** Return number of octets needed to encode the digits. */
 	size_t lengthV() const;
@@ -79,43 +82,6 @@ class L3BCDDigits {
 
 
 std::ostream& operator<<(std::ostream&, const L3BCDDigits&);
-
-
-
-
-
-/** Called Party BCD Number, GSM 04.08 10.5.4.7 */
-class L3CalledPartyBCDNumber : public L3ProtocolElement {
-
-
-private:
-
-	TypeOfNumber mType;
-	NumberingPlan mPlan;
-	L3BCDDigits mDigits;
-
-public:
-
-	L3CalledPartyBCDNumber()
-		:mType(UnknownTypeOfNumber),
-		mPlan(UnknownPlan)
-	{ }
-
-	L3CalledPartyBCDNumber(const char * wDigits)
-		:mType(NationalNumber),mPlan(E164Plan),mDigits(wDigits)
-	{ }
-
-
-	NumberingPlan plan() const { return mPlan; }
-	TypeOfNumber type() const { return mType; }
-	const char* digits() const { return mDigits.digits(); }
-
-	void writeV( L3Frame& dest, size_t &wp  ) const;
-	void parseV( const L3Frame& src, size_t &rp, size_t expectedLength );	
-	size_t lengthV() const ; 
-
-	void text(std::ostream&) const;
-};
 
 
 
@@ -158,12 +124,53 @@ public:
 	TypeOfNumber type() const { return mType; }
 	const char* digits() const { return mDigits.digits(); }
 
+	size_t lengthV() const;
 	void writeV( L3Frame& dest, size_t &wp  ) const;
 	void parseV( const L3Frame& src, size_t &rp, size_t expectedLength);	
-	size_t lengthV() const;
-
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
+
+
+/** Called Party BCD Number, GSM 04.08 10.5.4.7 */
+class L3CalledPartyBCDNumber : public L3ProtocolElement {
+
+
+private:
+
+	TypeOfNumber mType;
+	NumberingPlan mPlan;
+	L3BCDDigits mDigits;
+
+public:
+
+	L3CalledPartyBCDNumber()
+		:mType(UnknownTypeOfNumber),
+		mPlan(UnknownPlan)
+	{ }
+
+	L3CalledPartyBCDNumber(const char * wDigits)
+		:mType(NationalNumber),mPlan(E164Plan),mDigits(wDigits)
+	{ }
+
+	L3CalledPartyBCDNumber(const L3CallingPartyBCDNumber& other)
+		:mType(other.type()),mPlan(other.plan()),mDigits(other.digits())
+	{ }
+
+
+	NumberingPlan plan() const { return mPlan; }
+	TypeOfNumber type() const { return mType; }
+	const char* digits() const { return mDigits.digits(); }
+
+	size_t lengthV() const ; 
+	void writeV( L3Frame& dest, size_t &wp  ) const;
+	void parseV( const L3Frame& src, size_t &rp, size_t expectedLength );	
+	void parseV(const L3Frame&, size_t&) { abort(); }
+	void text(std::ostream&) const;
+};
+
+
+
 
 
 
@@ -210,6 +217,7 @@ public:
 
 	void writeV( L3Frame& dest, size_t &wp) const;
 	void parseV( const L3Frame& src, size_t &rp , size_t expectedLength );
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -232,6 +240,7 @@ public:
 	size_t lengthV()const { return 1;}
 	void writeV( L3Frame& dest, size_t &wp) const;
 	void parseV( const L3Frame& src, size_t &rp );
+	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
 	void text(std::ostream&) const;
 	
 };
@@ -279,6 +288,8 @@ class L3ProgressIndicator : public L3ProtocolElement {
 
 	size_t lengthV() const { return 2; }
    	void writeV(L3Frame& dest, size_t &wp ) const;
+	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -292,7 +303,15 @@ class L3KeypadFacility : public L3ProtocolElement {
 
 	public:
 
+	L3KeypadFacility(unsigned wIA5=0)
+		:mIA5(wIA5)
+	{}
+
+	unsigned IA5() const { return mIA5; }
+
 	size_t lengthV() const { return 1; }
+   	void writeV(L3Frame&, size_t&) const;
+	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
 	void parseV(const L3Frame& src, size_t& rp);
 	void text(std::ostream&) const;
 };

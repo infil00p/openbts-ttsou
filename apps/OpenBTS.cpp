@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -29,33 +32,50 @@
 #include "GSMLogicalChannel.h"
 
 #include "SIPInterface.h"
+#include "Globals.h"
 
 using namespace GSM;
 
+// Load configuration from a file.
+ConfigurationTable gConfig("OpenBTS.config");
 
-// Example BTS configuration:
-// 0 -- network color code
-// 0 -- basestation color code
-// GSM850 -- the operating band
-// LAI: 901 -- mobile country code
-// LAI: 55 -- mobile network code
-// LAI: 667 -- location area code ("the neighbors of the beast")
-// OpenBTS -- network "short name", displayed on nicer/newer phones
-GSMConfig gBTS(0,0,GSM850,L3LocationAreaIdentity("901","55",667),L3CellIdentity(0x0),"OpenBTS");
+
+// All of the other globals that rely on the global configuration file need to
+// be declared here.
+
+// The global SIPInterface object.
+SIP::SIPInterface gSIPInterface;
+
+
+// Configure the BTS object based on the config file.
+GSMConfig gBTS(
+	gConfig.getNum("GSM.NCC"),
+	gConfig.getNum("GSM.BCC"),
+	(GSMBand)gConfig.getNum("GSM.Band"),
+	L3LocationAreaIdentity(
+		gConfig.getStr("GSM.MCC"),
+		gConfig.getStr("GSM.MNC"),
+		gConfig.getNum("GSM.LAC")),
+	L3CellIdentity(gConfig.getNum("GSM.CI")),
+	gConfig.getStr("GSM.ShortName"));
 // ARFCN is set with the ARFCNManager::tune method after the BTS is running.
-const unsigned ARFCN=200;
+const unsigned ARFCN=gConfig.getNum("GSM.ARFCN");
 
-TransceiverManager gTRX(1, "127.0.0.1", 5700);
-
-// Set interface with local ip and port=SIP_UDP_PORT. Asterisk port=5060
-SIP::SIPInterface gSIPInterface(SIP_UDP_PORT, "127.0.0.1", 5060);
-
-
+TransceiverManager gTRX(1, gConfig.getStr("TRX.IP"), gConfig.getNum("TRX.Port"));
 
 
 
 int main(int argc, char *argv[])
 {
+	//srandomdev();
+
+	CERR("INFO -- OpenBTS  Copyright (C) 2008, 2009 Free Software Foundation, Inc.");
+	CERR("INFO -- This program comes with ABSOLUTELY NO WARRANTY;");
+	CERR("INFO -- This is free software; you are welcome to redistribute it under the terms of GPLv3.");
+	CERR("INFO -- Use of this software may be subject to other legal restrictions,");
+	CERR("INFO -- including patent licsensing and radio spectrum licensing.");
+	CERR("INFO -- All users of this software are expected to comply with applicable regulations");
+
 	gSIPInterface.start();
 	gTRX.start();
 
@@ -68,7 +88,7 @@ int main(int argc, char *argv[])
 	// C-I on C0T1-C0T7
 	for (unsigned i=1; i<8; i++) radio->setSlot(i,1);
        	radio->setTSC(gBTS.BCC());
-       	radio->setPower(0);
+       	radio->setPower(gConfig.getNum("GSM.PowerAttenDB"));
 
 	// set up a combination V beacon set
 
@@ -114,9 +134,9 @@ int main(int argc, char *argv[])
 	Thread SDCCHControlThread[4];
 	for (int i=0; i<4; i++) {
 		SDCCH[i].downstream(radio);
+		SDCCHControlThread[i].start((void*(*)(void*))Control::DCCHDispatcher,&SDCCH[i]);
 		SDCCH[i].open();
 		gBTS.addSDCCH(&SDCCH[i]);
-		SDCCHControlThread[i].start((void*(*)(void*))Control::DCCHDispatcher,&SDCCH[i]);
 	}
 
 	// TCHs
@@ -132,9 +152,9 @@ int main(int argc, char *argv[])
 	Thread TCHControlThread[7];
 	for (int i=0; i<7; i++) {
 		TCH[i].downstream(radio);
+		TCHControlThread[i].start((void*(*)(void*))Control::DCCHDispatcher,&TCH[i]);
 		TCH[i].open();
 		gBTS.addTCH(&TCH[i]);
-		TCHControlThread[i].start((void*(*)(void*))Control::DCCHDispatcher,&TCH[i]);
 	}
 
 	// Set up the pager.
@@ -148,6 +168,7 @@ int main(int argc, char *argv[])
 
 	// Just sleep now.
 	while (1) {
-		sleep(1);
+		sleep(20);
+		CERR("NOTICE -- uptime " << gBTS.uptime() << " seconds, frame " << gBTS.time());
 	}
 }

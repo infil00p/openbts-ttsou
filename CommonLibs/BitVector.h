@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -304,9 +307,13 @@ class BitVector : public Vector<char> {
 	/**@name Serialization and deserialization. */
 	//@{
 	uint64_t peekField(size_t readIndex, unsigned length) const;
+	uint64_t peekFieldReversed(size_t readIndex, unsigned length) const;
 	uint64_t readField(size_t& readIndex, unsigned length) const;
+	uint64_t readFieldReversed(size_t& readIndex, unsigned length) const;
 	void fillField(size_t writeIndex, uint64_t value, unsigned length);
+	void fillFieldReversed(size_t writeIndex, uint64_t value, unsigned length);
 	void writeField(size_t& writeIndex, uint64_t value, unsigned length);
+	void writeFieldReversed(size_t& writeIndex, uint64_t value, unsigned length);
 	//@}
 
 	/** Sum of bits. */

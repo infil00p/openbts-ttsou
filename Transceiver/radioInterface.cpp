@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,9 +22,8 @@
 
 */
 
-
+//#define NDEBUG
 #include "radioInterface.h"
-#define NDEBUG
 
 
 GSM::Time VectorQueue::nextTime() const
@@ -142,7 +144,7 @@ void RadioInterface::pushBuffer(void) {
   delete inputVector;
  
   // Set transmit gain and power here.
-  scaleVector(*resampledVector,13500.0/2.25); // this gets 2W out of 3318PA at 885Mhz
+  scaleVector(*resampledVector,13500.0); ///2.25); // this gets 2W out of 3318PA at 885Mhz
   //scaleVector(*resampledVector,100.0);
 
   short *resampledVectorShort = USRPifyVector(*resampledVector);
@@ -164,7 +166,7 @@ void RadioInterface::pushBuffer(void) {
 					  &underrun,
 					  writeTimestamp);
   //COUT("writeTimestamp: " << writeTimestamp << ", samplesWritten: " << samplesWritten);
-  writeTimestamp += samplesWritten;
+  writeTimestamp += (TIMESTAMP) samplesWritten;
   wroteRadioSignal.signal();
   writingRadioLock.unlock();
 
@@ -195,19 +197,21 @@ void RadioInterface::pullBuffer(void)
 {
     
   writingRadioLock.lock();
-  while (readTimestamp > writeTimestamp - 2*OUTCHUNK) {
+  // These timestamps are in samples @ 400 kHz.
+  while (readTimestamp > writeTimestamp - (TIMESTAMP) 2*OUTCHUNK) {
     DCOUT("waiting..." << readTimestamp << " " << writeTimestamp);
-    wroteRadioSignal.wait(writingRadioLock,1);
+    wroteRadioSignal.wait(writingRadioLock);
+    //wroteRadioSignal.wait(writingRadioLock,1);
   } 
   writingRadioLock.unlock();
   
   bool localUnderrun;
 
    // receive receiveVector
-  short shortVector[OUTCHUNK*2];  
+  short* shortVector = new short[OUTCHUNK*2];  
   int samplesRead = usrp->readSamples(shortVector,OUTCHUNK,&overrun,readTimestamp,&localUnderrun);
   underrun |= localUnderrun;
-  readTimestamp += samplesRead;
+  readTimestamp += (TIMESTAMP) samplesRead;
   while (samplesRead < OUTCHUNK) {
     int oldSamplesRead = samplesRead;
     samplesRead += usrp->readSamples(shortVector+2*samplesRead,
@@ -216,10 +220,11 @@ void RadioInterface::pullBuffer(void)
 				     readTimestamp,
 				     &localUnderrun);
     underrun |= localUnderrun;
-    readTimestamp += (samplesRead - oldSamplesRead);
+    readTimestamp += (TIMESTAMP) (samplesRead - oldSamplesRead);
   }
 
   signalVector *receiveVector = unUSRPifyVector(shortVector,samplesRead);
+  delete []shortVector;
     
   if (!rcvLPF) {
     int P = INRATE; int Q = OUTRATE;
@@ -324,7 +329,7 @@ void *AlignRadioServiceLoopAdapter(RadioInterface *radioInterface)
 
 void RadioInterface::alignRadio() {
   sleep(60);
-  usrp->updateAlignment(writeTimestamp+10000);
+  usrp->updateAlignment(writeTimestamp+ (TIMESTAMP) 10000);
 }
 
 void RadioInterface::driveTransmitRadio() {

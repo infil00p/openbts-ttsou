@@ -7,6 +7,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -175,12 +178,11 @@ class L3PagingRequestType1 : public L3RRMessage {
 
 	unsigned chanCode(ChannelType) const;
 
-	size_t bodyLength() const;
-
 	int MTI() const { return PagingRequestType1; }
 
+	size_t bodyLength() const;
 	void writeBody(L3Frame& dest, size_t& wp) const;
-
+	void parseBody(const L3Frame& source, size_t &rp) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -199,7 +201,9 @@ class L3PagingResponse : public L3RRMessage {
 	const L3MobileIdentity& mobileIdentity() const { return mMobileID; }
 
 	int MTI() const { return PagingResponse; }
+
 	size_t bodyLength() const;
+	void writeBody(L3Frame& dest, size_t& wp) const { abort(); }
 	void parseBody(const L3Frame& source, size_t &rp);
 	void text(std::ostream&) const;
 
@@ -233,12 +237,11 @@ class L3SystemInformationType1 : public L3RRMessage {
 	void cellChannelDescription(const L3FrequencyList& wCellChannelDescription)
 		{ mCellChannelDescription = wCellChannelDescription; }
 
-	size_t bodyLength() const { return 19; }
-
 	int MTI() const { return (int)SystemInformationType1; }
 
+	size_t bodyLength() const { return 19; }
 	void writeBody(L3Frame &dest, size_t &wp) const;
-
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -274,12 +277,11 @@ class L3SystemInformationType2 : public L3RRMessage {
 	void RACHControlParameters(const L3RACHControlParameters& wRACHControlParameters)
 		{ mRACHControlParameters = wRACHControlParameters; }
 
-	size_t bodyLength() const { return 20; }
-
 	int MTI() const { return (int)SystemInformationType2; }
 
+	size_t bodyLength() const { return 20; }
 	void writeBody(L3Frame &dest, size_t &wp) const;
-
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -327,13 +329,11 @@ class L3SystemInformationType3 : public L3RRMessage {
 	void RACHControlParameters(const L3RACHControlParameters& wRACHControlParameters)
 		{ mRACHControlParameters = wRACHControlParameters; }
 
+	int MTI() const { return (int)SystemInformationType3; }
+
 	size_t bodyLength() const { return 16; }
-
-	int MTI() const
-		{ return (int)SystemInformationType3; }
-
 	void writeBody(L3Frame &dest, size_t &wp) const;
-
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -368,16 +368,16 @@ class L3SystemInformationType4 : public L3RRMessage {
 	void RACHControlParameters(const L3RACHControlParameters& wRACHControlParameters)
 		{ mRACHControlParameters = wRACHControlParameters; }
 
+	int MTI() const { return (int)SystemInformationType4; }
+
 	size_t bodyLength() const
 	{
 		return mLAI.lengthV() +
 		mCellSelectionParameters.lengthV() + mRACHControlParameters.lengthV();
 	}
 
-	int MTI() const { return (int)SystemInformationType4; }
-
 	void writeBody(L3Frame &dest, size_t &wp) const;
-
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -401,12 +401,11 @@ class L3SystemInformationType5 : public L3RRMessage {
 	void BCCHFrequencyList(const L3FrequencyList& wBCCHFrequencyList)
 		{ mBCCHFrequencyList = wBCCHFrequencyList; }
 
+	int MTI() const { return (int)SystemInformationType5; }
+
 	size_t bodyLength() const { return 16; }
-
-	int MTI() const
-		 { return (int)SystemInformationType5; }
-
 	void writeBody(L3Frame &dest, size_t &wp) const;
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -444,12 +443,11 @@ class L3SystemInformationType6 : public L3RRMessage {
 	void NCCPermitted(const L3NCCPermitted& wNCCPermitted)
 		{ mNCCPermitted = wNCCPermitted; }
 
-	size_t bodyLength() const { return 9; }
-
 	int MTI() const { return (int)SystemInformationType6; }
 
+	size_t bodyLength() const { return 9; }
 	void writeBody(L3Frame &dest, size_t &wp) const;
-
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -478,10 +476,11 @@ public:
 		mChannelDescription(wChannelDescription)
 	{}
 
-	void writeBody(L3Frame &dest, size_t &wp) const;
 	int MTI() const { return (int)ImmediateAssignment; }
 	size_t bodyLength() const { return 9; }
 
+	void writeBody(L3Frame &dest, size_t &wp) const;
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -505,10 +504,11 @@ public:
 		mWaitIndication(seconds)
 	{ mRequestReference.push_back(wRequestReference); }
 
-	void writeBody(L3Frame &dest, size_t &wp) const;
 	int MTI() const { return (int)ImmediateAssignmentReject; }
-	size_t bodyLength() const { return 17; }
 
+	size_t bodyLength() const { return 17; }
+	void writeBody(L3Frame &dest, size_t &wp) const;
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -532,11 +532,11 @@ public:
 		:L3RRMessage(),mRRCause(cause)
 	{}
 
-	void writeBody( L3Frame &dest, size_t &wp ) const; 
-
 	int MTI() const { return (int) ChannelRelease; }
-	size_t bodyLength() const { return mRRCause.lengthV(); }
 
+	size_t bodyLength() const { return mRRCause.lengthV(); }
+	void writeBody( L3Frame &dest, size_t &wp ) const; 
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -572,8 +572,10 @@ class L3ChannelRequest : public L3RRMessage {
 	//@}
 
 	int MTI() const { return (int)ChannelRequest; }
-	size_t lengthV() const { return 0; }
 
+	size_t bodyLength() const { return 0; }
+	void writeBody( L3Frame &dest, size_t &wp ) const; 
+	void parseBody(const L3Frame&, size_t&);
 	void text(std::ostream&) const;
 };
 
@@ -601,11 +603,12 @@ public:
 		mHaveMode1(true),mMode1(wMode1)
 	{}
 
-	void writeBody( L3Frame &dest, size_t &wp ) const; 
 
 	int MTI() const { return (int) AssignmentCommand; }
-	size_t bodyLength() const;
 
+	size_t bodyLength() const;
+	void writeBody( L3Frame &dest, size_t &wp ) const; 
+	void parseBody(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -624,10 +627,11 @@ class L3AssignmentComplete : public L3RRMessage {
 	const L3RRCause& cause() const { return mCause; }
 	//@}
 
-	void parseBody( const L3Frame &src, size_t &rp );
 	int MTI() const { return (int) AssignmentComplete; }
-	size_t bodyLength() const { return 1; }
 
+	size_t bodyLength() const { return 1; }
+	void writeBody( L3Frame &dest, size_t &wp ) const { abort(); } 
+	void parseBody( const L3Frame &src, size_t &rp );
 	void text(std::ostream&) const;
 
 };
@@ -647,11 +651,11 @@ class L3AssignmentFailure : public L3RRMessage {
 	const L3RRCause& cause() const { return mCause; }
 	//@}
 
-	void parseBody( const L3Frame &src, size_t &rp );
-
 	int MTI() const { return (int) AssignmentFailure; }
-	size_t bodyLength() const { return 1; }
 
+	size_t bodyLength() const { return 1; }
+	void parseBody( const L3Frame &src, size_t &rp );
+	void writeBody( L3Frame &dest, size_t &wp ) const { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -673,11 +677,11 @@ class L3RRStatus : public L3RRMessage {
 	const L3RRCause& cause() const { return mCause; }
 	//@}
 
-	void parseBody( const L3Frame &src, size_t &rp );
-
 	int MTI() const { return (int) RRStatus; }
-	size_t bodyLength() const { return 1; }
 
+	size_t bodyLength() const { return 1; }
+	void writeBody( L3Frame &dest, size_t &wp ) const { abort(); } 
+	void parseBody( const L3Frame &src, size_t &rp );
 	void text(std::ostream&) const;
 
 };
@@ -707,7 +711,7 @@ class L3ChannelModeModify : public L3RRMessage {
 		{ return mDescription.lengthV() + mMode.lengthV(); }
 
 	void writeBody(L3Frame&, size_t&) const;
-
+	void parseBody( const L3Frame &src, size_t &rp ) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -730,8 +734,8 @@ class L3ChannelModeModifyAcknowledge : public L3RRMessage {
 	size_t bodyLength() const
 		{ return mDescription.lengthV() + mMode.lengthV(); }
 
+	void writeBody(L3Frame&, size_t&) const { abort(); }
 	void parseBody(const L3Frame&, size_t&);
-
 	void text(std::ostream&) const;
 };
 

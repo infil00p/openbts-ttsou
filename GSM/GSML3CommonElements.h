@@ -6,6 +6,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -49,9 +52,9 @@ class L3CellIdentity : public L3ProtocolElement {
 	{ }
 
 	size_t lengthV() const { return 2; }
-
 	void writeV(L3Frame& dest, size_t &wp) const;
-
+	void parseV(const L3Frame&, size_t&) { abort(); }
+	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -81,11 +84,12 @@ class L3LocationAreaIdentity : public L3ProtocolElement {
 	*/
 	L3LocationAreaIdentity(const char*wMCC, const char* wMNC, unsigned wLAC);
 
+	bool operator==(const L3LocationAreaIdentity&) const;
+
 	size_t lengthV() const { return 5; }
-
 	void parseV(const L3Frame& source, size_t &rp);
+	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
 	void writeV(L3Frame& dest, size_t &wp) const;
-
 	void text(std::ostream&) const;
 };
 
@@ -134,11 +138,13 @@ class L3MobileIdentity : public L3ProtocolElement {
 	/** Comparison. */
 	bool operator==(const L3MobileIdentity&) const;
 
-	size_t lengthV() const;
+	/** Comparison. */
+	bool operator<(const L3MobileIdentity&) const;
 
+	size_t lengthV() const;
 	void writeV(L3Frame& dest, size_t &wp) const;
 	void parseV( const L3Frame& src, size_t &rp, size_t expectedLength );
-
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void text(std::ostream&) const;
 };
 

@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -40,11 +43,16 @@ Transceiver::Transceiver(int wBasePort,
 	 mControlSocket(wBasePort+1,TRXAddress,wBasePort+101),
 	 mClockSocket(wBasePort,TRXAddress,wBasePort+100)
 {
+  //GSM::Time startTime(0,0);
+  //GSM::Time startTime(gHyperframe/2 - 4*216*60,0);
+  GSM::Time startTime(random() % gHyperframe,0);
+
   mSamplesPerSymbol = wSamplesPerSymbol;
   mRadioInterface = wRadioInterface;
   mTransmitLatency = wTransmitLatency;
-  mTransmitDeadlineClock = GSM::Time(0,0);
-  mLatencyUpdateTime = GSM::Time(0,0);
+  mTransmitDeadlineClock = startTime;
+  mLatencyUpdateTime = startTime;
+  mRadioInterface->getClock()->set(startTime);
 
   // generate pulse and setup up signal processing library
   gsmPulse = generateGSMPulse(2,mSamplesPerSymbol);
@@ -59,14 +67,14 @@ Transceiver::Transceiver(int wBasePort,
 //if (i!=0) scaleVector(*modBurst,0.0001);
     fillerModulus[i]=26;
     for (int j = 0; j < 102; j++) {
-      fillerTable[j][i] = *modBurst;
+      fillerTable[j][i] = new signalVector(*modBurst);
     }
     delete modBurst;
     mChanType[i] = NONE;
     channelResponse[i] = NULL;
     DFEForward[i] = NULL;
     DFEFeedback[i] = NULL;
-    channelEstimateTime[i] = GSM::Time(0,0);
+    channelEstimateTime[i] = startTime;
   }
 
   mOn = false;
@@ -74,7 +82,7 @@ Transceiver::Transceiver(int wBasePort,
   mRxFreq = 0.0;
   mPower = -10;
   mEnergyThreshold = 250.0; // based on empirical data
-  prevFalseDetectionTime = GSM::Time(0,0);
+  prevFalseDetectionTime = startTime;
 }
 
 Transceiver::~Transceiver()
@@ -140,22 +148,23 @@ void Transceiver::pushRadioVector(GSM::Time &nowTime)
       (mTransmitPriorityQueue.nextTime() == nowTime)) {
     radioVector *next = mTransmitPriorityQueue.read();
     //DCOUT("transmitFIFO: wrote burst " << next << " at time: " << nowTime);
-    fillerTable[modFN][TN] = *(next);
+    delete fillerTable[modFN][TN];
+    fillerTable[modFN][TN] = new signalVector(*(next));
     mTransmitFIFO->write(next);
 #ifdef TRANSMIT_LOGGING
     if (nowTime.TN()==TRANSMIT_LOGGING) { 
-      unModulateVector(fillerTable[modFN][TN]);
+      unModulateVector(*(fillerTable[modFN][TN]));
     }
 #endif
     return;
   }
 
   // otherwise, pull filler data, and push to radio FIFO
-  radioVector *tmpVec = new radioVector(fillerTable[modFN][TN],nowTime);
+  radioVector *tmpVec = new radioVector(*fillerTable[modFN][TN],nowTime);
   mTransmitFIFO->write(tmpVec);
 #ifdef TRANSMIT_LOGGING
   if (nowTime.TN()==TRANSMIT_LOGGING) 
-    unModulateVector(fillerTable[modFN][TN]);
+    unModulateVector(*fillerTable[modFN][TN]);
 #endif
 
 }
@@ -590,7 +599,7 @@ bool Transceiver::driveTransmitPriorityQueue()
     return false;
   }
   
-  //DCOUT("rcvd. burst at: " << GSM::Time(frameNum,timeSlot));
+  DCOUT("rcvd. burst at: " << GSM::Time(frameNum,timeSlot));
   
   int RSSI = (int) buffer[5];
   BitVector newBurst(gSlotLen);
@@ -695,6 +704,9 @@ void Transceiver::driveTransmitFIFO()
     }
     
   }
+  // FIXME -- This should not be a hard spin.
+  // But any delay here causes us to throw omni_thread_fatal.
+  //else radioClock->wait();
 }
 
 

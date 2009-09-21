@@ -24,17 +24,24 @@
 
 
 
-#ifndef GSM610TABLES_H
-#define GSM610TABLES_H
+#include "Regexp.h"
+#include <iostream>
+
+using namespace std;
 
 
+int main(int argc, char *argv[])
+{
 
-namespace GSM {
+	Regexp email("^[[:graph:]]+@[[:graph:]]+ ");
+	Regexp simple("^dburgess@");
 
-/** Table #2 from GSM 05.03 */
-extern unsigned int g610BitOrder[260];
+	const char text1[] = "dburgess@jcis.net test message";
+	const char text2[] = "no address text message";
 
+	cout << email.match(text1) << " " << text1 << endl;
+	cout << email.match(text2) << " " << text2 << endl;
+
+	cout << simple.match(text1) << " " << text1 << endl;
+	cout << simple.match(text2) << " " << text2 << endl;
 }
-
-
-#endif

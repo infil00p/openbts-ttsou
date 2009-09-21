@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -29,13 +32,15 @@ namespace SIP {
 
 
 
-osip_message_t * sip_register( const char * sip_username, short local_port, const char * local_ip, 
+osip_message_t * sip_register( const char * sip_username, short timeout, short local_port, const char * local_ip, 
 const char * proxy_ip, const char * from_tag, const char * via_branch, const char * call_id, int cseq);
 
 
 osip_message_t * sip_unregister( const char * sip_username, short local_port, const char * local_ip, 
 const char * proxy_ip, const char * from_tag, const char * via_branch, const char * call_id, int cseq);
 
+
+osip_message_t * sip_message( const char * dialed_number, const char * sip_username, short local_port, const char * local_ip, const char * proxy_ip, const char * from_tag, const char * via_branch, const char * call_id, int cseq, const char* message);
 
 osip_message_t * sip_invite( const char * dialed_number, short rtp_port,const char * sip_username, short local_port, const char * local_ip, const char * proxy_ip, const char * from_tag, const char * via_branch, const char * call_id, int cseq, unsigned codec);
 
@@ -48,6 +53,9 @@ osip_message_t * sip_bye( const char * req_uri, const char * dialed_number, cons
 
 osip_message_t * sip_okay( osip_message_t * inv, const char * sip_username, const char * local_ip, short wlocal_port, const char * to_tag, short rtp_port, unsigned audio_codecs );
 
+osip_message_t * sip_okay_SMS( osip_message_t * inv, const char * sip_username, const char * local_ip, short wlocal_port, const char * to_tag);
+
+osip_message_t * sip_info(unsigned info, const char *dialed_number, short rtp_port,const char * sip_username, short local_port, const char * local_ip, const char * proxy_ip, const char * from_tag, const char * via_branch, const char * call_id, int cseq);
 
 osip_message_t * sip_b_okay( osip_message_t * bye  );
 

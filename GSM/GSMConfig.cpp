@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -49,7 +52,8 @@ GSMConfig::GSMConfig(unsigned wNCC, unsigned wBCC,
 	mBand(wBand),
 	mLAI(wLAI),mCI(wCI),
 	mSI5Frame(UNIT_DATA),mSI6Frame(UNIT_DATA),
-	mShortName(wShortName)
+	mShortName(wShortName),
+	mStartTime(::time(NULL))
 {
 	assert(wNCC<8);
 	assert(wBCC<8);

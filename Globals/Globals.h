@@ -22,19 +22,18 @@
 
 */
 
+/*
+	This file keeps global system parameters.
+	Initially, a lot will be defined as constants.
+*/
 
+#ifndef GLOBALS_H
+#define GLOBALS_H
 
-#ifndef GSM610TABLES_H
-#define GSM610TABLES_H
+#include <Configuration.h>
 
-
-
-namespace GSM {
-
-/** Table #2 from GSM 05.03 */
-extern unsigned int g610BitOrder[260];
-
-}
+/** Just about everything goes into the configuration table. */
+extern ConfigurationTable gConfig;
 
 
 #endif

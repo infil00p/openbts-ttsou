@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -29,7 +32,7 @@
 #include "GSMConfig.h"
 #include "GSMTDMA.h"
 #include <TRXManager.h>
-#include "Assert.h"
+#include <assert.h>
 
 using namespace std;
 using namespace GSM;
@@ -174,8 +177,8 @@ L1Encoder::L1Encoder(unsigned wTN, const TDMAMapping& wMapping, L1FEC *wParent)
 {
 	assert(mMapping.allowedSlot(mTN));
 	assert(mMapping.downlink());
-	mNextWriteTime.rollForward(mMapping.frameMapping(mTotalBursts),mMapping.repeatLength());
-	mPrevWriteTime.rollForward(mMapping.frameMapping(mTotalBursts),mMapping.repeatLength());
+	mNextWriteTime.rollForward(mMapping.frameMapping(0),mMapping.repeatLength());
+	mPrevWriteTime.rollForward(mMapping.frameMapping(0),mMapping.repeatLength());
 	// Compatibility with C0 will be checked in the ARFCNManager.
 }
 
@@ -217,6 +220,7 @@ void L1Encoder::open()
 
 void L1Encoder::close()
 {
+	// Don't return until the channel is fully closed.
 	OBJDCOUT("L1Encoder::close");
 	mLock.lock();
 	mActive = false;
@@ -956,6 +960,8 @@ TCHFACCHL1Decoder::TCHFACCHL1Decoder(
 }
 
 
+
+
 void TCHFACCHL1Decoder::writeLowSide(const RxBurst& inBurst)
 {
 	OBJDCOUT("TCHFACCHL1Decoder::writeLowSide " << inBurst);
@@ -1076,12 +1082,10 @@ bool TCHFACCHL1Decoder::decodeTCH(bool stolen)
 		// 3.1.2.2
 		// decode from c[] to u[]
 		mClass1_c.decode(mVCoder,mTCHU);
-		//mC.head(378).decode(mVCoder,mTCHU);
 	
 		// 3.1.2.2
 		// copy class 2 bits c[] to d[]
 		mClass2_c.sliced().copyToSegment(mTCHD,182);
-		//mC.segment(378,78).sliced().copyToSegment(mTCHD,182);
 	
 		// 3.1.2.1
 		// copy class 1 bits u[] to d[]
@@ -1093,7 +1097,6 @@ bool TCHFACCHL1Decoder::decodeTCH(bool stolen)
 		// 3.1.2.1
 		// check parity of class 1A
 		unsigned sentParity = (~mTCHU.peekField(91,3)) & 0x07;
-		//unsigned calcParity = mTCHD.head(50).parity(mTCHParity) & 0x07;
 		unsigned calcParity = mClass1A_d.parity(mTCHParity) & 0x07;
 
 		// 3.1.2.2
@@ -1108,7 +1111,7 @@ bool TCHFACCHL1Decoder::decodeTCH(bool stolen)
 		good = (sentParity==calcParity) && (tail==0);
 		if (good) {
 			// Undo Um's importance-sorted bit ordering.
-			// See GSM 05.03 3.1 and Tablee 2.
+			// See GSM 05.03 3.1 and Table 2.
 			BitVector payload = mVFrame.payload();
 			mTCHD.unmap(g610BitOrder,260,payload);
 			mVFrame.pack(newFrame);
@@ -1118,9 +1121,9 @@ bool TCHFACCHL1Decoder::decodeTCH(bool stolen)
 	}
 
 	if (!good) {
-		// TODO -- Bad frame processing, GSM 06.11.
+		// FIXME -- Bad frame processing, GSM 06.11, KSP Bug #45
 		// For now, just repeat the last good frame.
-		// TODO -- Need to apply attenuation and randomization of grid positions.
+		// Need to apply attenuation and randomization of grid positions.
 		memcpy(newFrame,mPrevGoodFrame,33);
 	}
 
@@ -1258,7 +1261,7 @@ void TCHFACCHL1Encoder::dispatch()
 	bool currentFACCH = false; 
 	
 	// Speech latency control.
-	// TODO -- This should be adaptive.
+	// Since Asterisk is local, latency should be small.
 	OBJDCOUT("TCHFACCHL1Encoder::dispatch speechQ.size=" << mSpeechQ.size());
 	while (mSpeechQ.size() > mMaxQSize) delete mSpeechQ.read();
 
@@ -1281,13 +1284,11 @@ void TCHFACCHL1Encoder::dispatch()
 		delete tFrame;
 		OBJDCOUT("TCHFACCHL1Encoder::dispatch TCH c[]=" << mC);
 	} else {
+		// We have no ready data but must send SOMETHING.
 		// This filler pattern was captured from a Nokia 3310, BTW.
 		static const BitVector fillerC("110100001000111100000000111001111101011100111101001111000000000000110111101111111110100110101010101010101010101010101010101010101010010000110000000000000000000000000000000000000000001101001111000000000000000000000000000000000000000000000000111010011010101010101010101010101010101010101010101001000011000000000000000000110100111100000000111001111101101000001100001101001111000000000000000000011001100000000000000000000000000000000000000000000000000000000001");
 		fillerC.copyTo(mC);
 		OBJDCOUT("TCHFACCHL1Encoder::dispatch filler FACCH=" << currentFACCH << " c[]=" << mC);
-		// We have no ready data but must send SOMETHING.
-		// So we repeat whatever is in c[], along with the associated stealing flag.
-		// TODO -- capture an idle TCH frame from a phone and send that instead.
 	}
 
 	// Interleave c[] to i[].
@@ -1345,7 +1346,7 @@ void SACCHL1Encoder::open()
 {
 	OBJDCOUT("SACCHL1Encoder::open()");
 	// Set initial defaults for power and timing advance.
-	// TODO -- Ideally, these should be set from the RACH.
+	// FIXME -- These should be set from the RACH.
 	mOrderedMSPower = 36;
 	mOrderedMSTiming = 0;
 	XCCHL1Encoder::open();
@@ -1365,7 +1366,7 @@ void SACCHL1Encoder::sendFrame(const L2Frame& frame)
 		int deltaP = RSSI - gBTS.RSSITarget();
 		mOrderedMSPower -= deltaP/2;
 		if (mOrderedMSPower>36) mOrderedMSPower=36;
-		if (mOrderedMSPower<0) mOrderedMSPower=0;
+		else if (mOrderedMSPower<0) mOrderedMSPower=0;
 		OBJDCOUT("SACCHL1Encoder::sendFrame RSSI=" << RSSI << " target=" << gBTS.RSSITarget()
 			<< " deltaP=" << deltaP << " order=" << mOrderedMSPower);
 		// Timing.  GSM 05.10 5, 6  Do it here...
@@ -1377,7 +1378,7 @@ void SACCHL1Encoder::sendFrame(const L2Frame& frame)
 	OBJDCOUT("SACCHL1Encoder::sendFrame RSSI order=" << mOrderedMSPower);
 	mU.fillField(0,encodePower(mOrderedMSPower),8);
 
-	// HACK -- No timing advance control for now.
+	// FIXME -- No timing advance control for now.
 	mU.fillField(8,0x7f,8);	// timing (GSM 04.04 6.1, 0x7f means "none")
 
 	// Encode the rest of the frame.

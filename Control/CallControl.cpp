@@ -4,6 +4,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,41 +30,28 @@
 	MOC -- Mobile Originated Connect (mobile calling out)
 	MTD -- Mobile Terminated Disconnect (other party hangs up)
 	MOD -- Mobile Originated Disconnect (mobile hangs up)
-	MOSMS -- Mobile Originated Short Message Service (mobile sends text message)
-	MTSMS -- Mobile Terminated Short Message Service (mobile received text message)
 */
 
 
-#include "ControlCommon.h"
-#include "GSMLogicalChannel.h"
-#include "GSML3RRMessages.h"
-#include "GSML3MMMessages.h"
-#include "GSML3CCMessages.h"
-#include "GSMConfig.h"
+#include <Globals.h>
 
-#define DEBUG 1
+#include "ControlCommon.h"
+
+#include <GSMLogicalChannel.h>
+#include <GSML3RRMessages.h>
+#include <GSML3MMMessages.h>
+#include <GSML3CCMessages.h>
+#include <GSMConfig.h>
+
+#include <SIPInterface.h>
+#include <SIPUtility.h>
+#include <SIPMessage.h>
+#include <SIPEngine.h>
 
 using namespace std;
 using namespace GSM;
 using namespace Control;
-
-#ifdef SMS
-#include "SMSTransfer.h"
-#include "CMMessage.h"
-#include "RLMessage.h"
-#include "TLMessage.h"
-#include "CMProcessor.h"
-#include "RLProcessor.h"
-#include "TLProcessor.h"
-using namespace SMS;
-#endif
-
-#include "SIPInterface.h"
-#include "SIPUtility.h"
-#include "SIPMessage.h"
-#include "SIPEngine.h"
 using namespace SIP;
-
 
 
 
@@ -74,8 +64,8 @@ using namespace SIP;
 unsigned allocateRTPPorts()
 {
 	// FIXME -- We need a real port allocator (bug #82).
-	const unsigned range = 98;
-	const unsigned base = RTP_PORT_START;
+	const unsigned base = gConfig.getNum("RTP.Start");
+	const unsigned range = gConfig.getNum("RTP.Range");
 	const unsigned top = base+range;
 	static Mutex lock;
 	// Pick a random starting point.
@@ -124,9 +114,9 @@ bool assignTCHF(SDCCHLogicalChannel *SDCCH, TCHFACCHLogicalChannel *TCH)
 {
 	TCH->open();
 
-	// Try 3 times to send the assignment.
+	// Try twice to send the assignment.
 	// (The spec says just try once...)
-	for (int i=0; i<3; i++) {
+	for (int i=0; i<2; i++) {
 		CLDCOUT("assignTCHF sending AssignmentCommand for " << TCH << " on " << SDCCH);
 		SDCCH->send(L3AssignmentCommand(TCH->channelDescription(),L3ChannelMode(L3ChannelMode::SpeechV1)));
 	
@@ -264,11 +254,23 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	}
 
 	// Start DTMF
-	// We don't support it yet.
+	// Send a SIP INFO to generate a tone in Asterisk.
 	if (const L3StartDTMF* keypress = dynamic_cast<const L3StartDTMF*>(message)) {
 		// Cause 0x3f means "service or option not available".
 		unsigned L3TI = keypress->TIValue();
-		LCH->send(L3StartDTMFReject(1,L3TI,0x3f));
+		unsigned keyVal = encodeBCDChar(keypress->key().IA5());
+		bool success = transaction.SIP().sendINFOAndWaitForOK(keyVal);
+		if (success) LCH->send(L3StartDTMFAcknowledge(1,L3TI,keypress->key()));
+		else LCH->send(L3StartDTMFReject(1,L3TI,0x3f));
+		return false;
+	}
+
+	// Stop DTMF
+	// Since we use SIP INFO we just ack.
+	if (const L3StopDTMF* stop = dynamic_cast<const L3StopDTMF*>(message)) {
+		// Cause 0x3f means "service or option not available".
+		unsigned L3TI = stop->TIValue();
+		LCH->send(L3StopDTMFAcknowledge(1,L3TI));
 		return false;
 	}
 
@@ -301,7 +303,6 @@ bool updateCallTraffic(TransactionEntry &transaction, TCHFACCHLogicalChannel *TC
 	// Make the rxFrame buffer big enough for G.711.
 	unsigned char rxFrame[160];
 	if (engine.RxFrame(rxFrame)) {
-		//DCOUT("updateCallTraffic receiving");
 		activity = true;
 		TCH->sendTCH(rxFrame);
 	}
@@ -310,7 +311,6 @@ bool updateCallTraffic(TransactionEntry &transaction, TCHFACCHLogicalChannel *TC
 	// Flush FIFO to limit latency.
 	while (TCH->queueSize()>2) delete TCH->recvTCH();
 	if (unsigned char *txFrame = TCH->recvTCH()) {
-		//DCOUT("updateCallTraffic transmitting");
 		activity = true;
 		// Send on RTP.
 		engine.TxFrame(txFrame);
@@ -345,13 +345,13 @@ bool updateGSMSignalling(TransactionEntry &transaction, LogicalChannel *LCH, uns
 	// Look for a control message from MS side.
 	if (L3Frame *l3 = LCH->recv(timeout)) {
 		L3Message *l3msg = parseL3(*l3);
+		delete l3;
 		bool cleared = false;
 		if (l3msg) {
 			CLDCOUT("callManagementLoop got GSM " << *l3msg);
 			cleared = callManagementDispatchGSM(transaction, LCH, l3msg);
+			delete l3msg;
 		}
-		delete l3msg;
-		delete l3;
 		return cleared;
 	}
 
@@ -402,13 +402,20 @@ bool updateSignalling(TransactionEntry &transaction, LogicalChannel *LCH, unsign
 	Will block for up to 250 ms.
 	@param transaction The call's TransactionEntry.
 	@param TCH The call's TCH+FACCH.
-	@return true If the call was cleared on the Q.931 side.
+	@return true If the call was cleared.
 */
 bool pollInCall(TransactionEntry &transaction, TCHFACCHLogicalChannel *TCH)
 {
+	// See if the radio link disappeared.
+	if (TCH->radioFailure()) {
+		forceSIPClearing(transaction);
+		return true;
+	}
 	// Process pending SIP and GSM signalling.
+	// If this returns true, it means the call is fully cleared.
 	if (updateSignalling(transaction,TCH)) return true;
 	// Transfer vocoder data.
+	// If anything happened, then the call is still up.
 	if (updateCallTraffic(transaction,TCH)) return false;
 	// If nothing happened, sleep so we don't burn up the CPU cycles.
 	msleep(250);
@@ -425,7 +432,7 @@ bool pollInCall(TransactionEntry &transaction, TCHFACCHLogicalChannel *TCH)
 	@param waitTime_ms The maximum time to wait, in ms.
 	@return true If the call is cleared during the wait.
 */
-bool waitInCall(TransactionEntry& transaction, TCHFACCHLogicalChannel *TCH, unsigned waitTime_ms = gBigReadTimeout)
+bool waitInCall(TransactionEntry& transaction, TCHFACCHLogicalChannel *TCH, unsigned waitTime_ms)
 {
 	Timeval targetTime(waitTime_ms);
 	CLDCOUT("waitInCall");
@@ -439,7 +446,7 @@ bool waitInCall(TransactionEntry& transaction, TCHFACCHLogicalChannel *TCH, unsi
 
 /**
 	This is the standard call manangement loop, regardless of the origination type.
-	This function returns when the call has ended and the channel is released.
+	This function returns when the call is cleared and the channel is released.
 	@param transaction The transaction record for this call.
 	@param TCH The TCH+FACCH for the call.
 */
@@ -470,16 +477,25 @@ void Control::MOCStarter(const L3CMServiceRequest* req, LogicalChannel *LCH)
 	bool veryEarly=false;
 	if (LCH->type()==FACCHType) veryEarly=true;
 
-	// FIXME -- At this point, verify the that subscriber has access to this service.
-	// If the subscriber isn't authorized, send a CM Service Reject with
-	// cause code, 0x41, "requested service option not subscribed",
-	// followed by a Channel Release with cause code 0x6f, "unspecified".
-	// Otherwise, proceed to the next section of code.
-	// For now, we are assuming that the phone won't make a call if it didn't
-	// get registered.
+	// If we got a TMSI, find the IMSI.
+	L3MobileIdentity mobileIdentity = req->mobileIdentity();
+	if (mobileIdentity.type()==TMSIType) {
+		const char *IMSI = gTMSITable.find(mobileIdentity.TMSI());
+		if (IMSI) mobileIdentity = L3MobileIdentity(IMSI);
+	}
 
-	// Got IMSI?
-	if (req->mobileIdentity().type()!=IMSIType) {
+	// Still no IMSI?  Ask for one.
+	if (mobileIdentity.type()!=IMSIType) {
+		CLDCOUT("NOTICE -- MOC with no IMSI or valid TMSI.  Reqesting IMSI.");
+		LCH->send(L3IdentityRequest(IMSIType));
+		// FIXME -- This request times out on T3260, 12 sec.  See GSM 04.08 Table 11.2.
+		L3IdentityResponse *resp = dynamic_cast<L3IdentityResponse*>(getMessage(LCH));
+		if (!resp) throw UnexpectedMessage();
+		mobileIdentity = resp->mobileID();
+	}
+
+	// Still no IMSI??
+	if (mobileIdentity.type()!=IMSIType) {
 		// FIXME -- This is quick-and-dirty, not following GSM 04.08 5.
 		CERR("WARNING -- (ControlLayer) MOC setup with no IMSI");
 		// Cause 0x60 "Invalid mandatory information"
@@ -489,6 +505,14 @@ void Control::MOCStarter(const L3CMServiceRequest* req, LogicalChannel *LCH)
 		// So we're done.
 		return;
 	}
+
+	// FIXME -- At this point, verify the that subscriber has access to this service.
+	// If the subscriber isn't authorized, send a CM Service Reject with
+	// cause code, 0x41, "requested service option not subscribed",
+	// followed by a Channel Release with cause code 0x6f, "unspecified".
+	// Otherwise, proceed to the next section of code.
+	// For now, we are assuming that the phone won't make a call if it didn't
+	// get registered.
 
 	// Allocate a TCH for the call, if we don't have it already.
 	TCHFACCHLogicalChannel *TCH = NULL;
@@ -523,13 +547,13 @@ void Control::MOCStarter(const L3CMServiceRequest* req, LogicalChannel *LCH)
 
 	CLDCOUT("MOC: SIP start engine")
 	// Get the users sip_uri by pulling out the IMSI.
-	const char *IMSI = req->mobileIdentity().digits();
+	const char *IMSI = mobileIdentity.digits();
 	// Pull out Number user is trying to call and use as the sip_uri.
 	const char *bcd_digits = setup->calledPartyBCDNumber().digits();
 
 	// Create a transaction table entry so the TCH controller knows what to do later.
 	// The transaction on the TCH is a continuation of this one and uses the same ID.
-	TransactionEntry transaction(req->mobileIdentity(),
+	TransactionEntry transaction(mobileIdentity,
 		req->serviceType(),
 		L3TI,
 		setup->calledPartyBCDNumber());
@@ -541,7 +565,6 @@ void Control::MOCStarter(const L3CMServiceRequest* req, LogicalChannel *LCH)
 	gTransactionTable.add(transaction);
 
 	// At this point, we have enough information start the SIP call setup.
-	// We have 2 seconds to repsond to the MS.  ITU-T Q.931 Table 9-1, T303.
 
 	// Now start a call by contacting asterisk.
 	// Engine methods will return their current state.	
@@ -624,7 +647,6 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 				transaction.Q931State(TransactionEntry::CallReceived);
 				break;
 			case SIP::Proceeding:
-				//CLDCOUT("MOC A: SIP:Proceeding, NOT sending progress");
 				CLDCOUT("MOC A: SIP:Proceeding, send progress");
 				TCH->send(L3Progress(1,L3TI));
 				break;
@@ -687,15 +709,15 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 	transaction.T313().set();
 	transaction.Q931State(TransactionEntry::ConnectIndication);
 
-	// Get the Connect Acknowledge message.
-	while (transaction.Q931State()!=TransactionEntry::Active) {
-		CLDCOUT("MOC Q.931 state=" << transaction.Q931State());
-		if (updateGSMSignalling(transaction,TCH,1000)) return abortCall(transaction,TCH,L3Cause(0x7F));
-	}
-
 	// The call is open.
 	transaction.SIP().MOCInitRTP();
 	transaction.SIP().MOCSendACK();
+
+	// Get the Connect Acknowledge message.
+	while (transaction.Q931State()!=TransactionEntry::Active) {
+		CLDCOUT("MOC Q.931 state=" << transaction.Q931State());
+		if (updateGSMSignalling(transaction,TCH,T313ms)) return abortCall(transaction,TCH,L3Cause(0x7F));
+	}
 
 	// At this point, everything is ready to run the call.
 	callManagementLoop(transaction,TCH);
@@ -707,11 +729,10 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 
 
 
-void Control::MTCStarter(const L3PagingResponse *resp, LogicalChannel *LCH)
+void Control::MTCStarter(TransactionEntry& transaction, LogicalChannel *LCH)
 {
-	assert(resp);
 	assert(LCH);
-	CLDCOUT("MTC on " << LCH->type() << ": " << *resp);
+	CLDCOUT("MTC on " << LCH->type() << " transaction: "<< transaction);
 
 	// Determine if very early assigment already happened.
 	bool veryEarly = false;
@@ -726,21 +747,16 @@ void Control::MTCStarter(const L3PagingResponse *resp, LogicalChannel *LCH)
 		if (TCH==NULL) return;
 	}
 
-	// Find the transction table entry that was created when the phone was paged.
-	CLDCOUT("MTC: find TransactionEntry for " << resp->mobileIdentity());
-	TransactionEntry transaction;
-	if (!gTransactionTable.findByMobileID(resp->mobileIdentity(),transaction)) {
-		CLDCOUT("WARNING -- MTC attempt with no transaction record");
-		return;
-	}
-	CLDCOUT("MTC: transaction: "<< transaction);
+
+	// Get transaction identifiers.
 	if (!veryEarly) TCH->transactionID(transaction.ID());	
 	LCH->transactionID(transaction.ID());	
 	unsigned L3TI = transaction.TIValue();
 
 	// GSM 04.08 5.2.2.1
 	CLDCOUT("MTC: sending GSM Setup");
-	LCH->send(L3Setup(0,L3TI));
+	// FIXME -- Insert Calling Party BCD Number, see bug #125.
+	LCH->send(L3Setup(0,L3TI,L3CallingPartyBCDNumber(transaction.calling())));
 	transaction.T303().set();
 	transaction.Q931State(TransactionEntry::CallPresent);
 
@@ -846,45 +862,6 @@ void Control::MTCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 	callManagementLoop(transaction,TCH);
 }
 
-
-void Control::ShortMessageServiceStarter(const L3CMServiceRequest*resp, 
-						SDCCHLogicalChannel *SDCCH)
-
-{
-#ifdef SMS
-	SDCCH->openSAPI3();
-	CLDCOUT("SMS-Starter Sending CMServiceAccept ")
-
-	SDCCH->send(L3CMServiceAccept());
-
-	CMProcessor cm_proc;
-	RLProcessor rl_proc;
-	TLProcessor tl_proc;
-
-	cm_proc.TIFlag(0);
-	cm_proc.TIValue(3);
-	cm_proc.downstream(SDCCH);	
-	cm_proc.upstream(&rl_proc);
-	cm_proc.mState = CMProcessor::MO_Idle;
-	cm_proc.open();
-
-	rl_proc.downstream(&cm_proc);
-	rl_proc.upstream(&tl_proc);
-	rl_proc.open();
-
-	tl_proc.downstream(&rl_proc);
-	
-	sleep(1);
-	TLMessage * msg = tl_proc.mUplinkFIFO.read();
-	CLDCOUT(" ControlLayer SMS = "<<*msg)
-	sleep(1);
-	tl_proc.writeHighSide( SubmitReport("08162312394401"), SM_RL_REPORT_REQ );
-	
-
-
-	while(1){ sleep(1); };
-#endif
-}
 
 
 

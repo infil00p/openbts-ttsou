@@ -6,6 +6,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,6 +28,7 @@
 
 
 
+#include <time.h>
 #include "GSML3MMElements.h"
 
 using namespace std;
@@ -41,13 +45,14 @@ ostream& GSM::operator<<(ostream& os, L3CMServiceType::TypeCode code)
 {
 	switch (code) {
 		case L3CMServiceType::MobileOriginatedCall: os << "MOC"; break;
-		case L3CMServiceType::EmergencyCall: os << "Emergency"; break;
+		case L3CMServiceType::EmergencyCall: os << "Emergency-MOC"; break;
 		case L3CMServiceType::ShortMessage: os << "SMS"; break;
 		case L3CMServiceType::SupplementaryService: os << "SS"; break;
 		case L3CMServiceType::VoiceCallGroup: os << "VGCS"; break;
 		case L3CMServiceType::VoiceBroadcast: os << "VBS"; break;
 		case L3CMServiceType::LocationService: os << "LCS"; break;
-		case L3CMServiceType::MobileTerminatedCall: os << "MOT"; break;
+		case L3CMServiceType::MobileTerminatedCall: os << "MTC"; break;
+		case L3CMServiceType::MobileTerminatedShortMessage: os << "MOSMS"; break;
 		default: os << "?" << (int)code << "?";
 	}
 	return os;
@@ -83,15 +88,8 @@ void L3NetworkName::writeV(L3Frame& dest, size_t &wp) const
 	for (unsigned i=0; i<sz; i++) {
 		dest.writeField(wp,mName[i],16);
 	}
-/*
 	// FIXME -- 7-bit would be more compact
 	// and supported by more handsets
-	// GSM 7-bit -- broken
-	dest.writeField(wp,0x10,8);
-	for (int i=0; i<sz; i++) {
-		dest.writeField(wp,encodeGSMChar(mName[i]),7);
-	}
-*/
 }
 
 
@@ -99,4 +97,82 @@ void L3NetworkName::text(std::ostream& os) const
 {
 	os << mName;
 }
+
+
+void L3TimeZoneAndTime::writeV(L3Frame& dest, size_t& wp) const
+{
+	// See GSM 03.40 9.2.3.11.
+
+	// Break out the time into fields.
+	struct tm fields;
+	const time_t seconds = mTime.sec();
+	localtime_r(&seconds,&fields);
+	// Write the fields in BCD format.
+	// year
+	unsigned year = fields.tm_year % 100;
+	dest.writeField(wp, year % 10, 4);
+	dest.writeField(wp, year / 10, 4);
+	// month
+	unsigned month = fields.tm_mon + 1;
+	dest.writeField(wp, month % 10, 4);
+	dest.writeField(wp, month / 10, 4);
+	// day
+	dest.writeField(wp, fields.tm_mday % 10, 4);
+	dest.writeField(wp, fields.tm_mday / 10, 4);
+	// hour
+	dest.writeField(wp, fields.tm_hour % 10, 4);
+	dest.writeField(wp, fields.tm_hour / 10, 4);
+	// minute
+	dest.writeField(wp, fields.tm_min % 10, 4);
+	dest.writeField(wp, fields.tm_min / 10, 4);
+	// second
+	dest.writeField(wp, fields.tm_sec % 10, 4);
+	dest.writeField(wp, fields.tm_sec / 10, 4);
+	// time zone, in 1/4 steps with a sign bit
+	int zone = fields.tm_gmtoff / (15*60);
+	unsigned zoneSign = (zone < 0);
+	zone = abs(zone);
+	dest.writeField(wp, zoneSign, 1);
+	dest.writeField(wp, zone / 10, 3);
+	dest.writeField(wp, zone % 10, 4);
+}
+	
+	
+void L3TimeZoneAndTime::parseV(const L3Frame& src, size_t& rp)
+{
+	// See GSM 03.40 9.2.3.11.
+
+	// Read it all into a localtime struct tm,
+	// then covert.
+	struct tm fields;
+	// year
+	fields.tm_year = 2000 + src.readField(rp,4) + src.readField(rp,4)*10;
+	// month
+	fields.tm_mon = 1 + src.readField(rp,4) + src.readField(rp,4)*10;
+	// day
+	fields.tm_mday = src.readField(rp,4) + src.readField(rp,4)*10;
+	// hour
+	fields.tm_hour = src.readField(rp,4) + src.readField(rp,4)*10;
+	// minute
+	fields.tm_min = src.readField(rp,4) + src.readField(rp,4)*10;
+	// second
+	fields.tm_sec = src.readField(rp,4) + src.readField(rp,4)*10;
+	// zone
+	unsigned zoneSign = src.readField(rp,1);
+	unsigned zone = src.readField(rp,3) + src.readField(rp,4);
+	if (zoneSign) zone = -zone;
+	fields.tm_gmtoff = zone * 15 * 60;
+	// convert
+	mTime = Timeval(timegm(&fields),0);
+}
+
+void L3TimeZoneAndTime::text(ostream& os) const
+{
+	char timeStr[26];
+	const time_t seconds = mTime.sec();
+	ctime_r(&seconds,timeStr);
+	timeStr[24]='\0';
+	os << timeStr;
+}
+
 

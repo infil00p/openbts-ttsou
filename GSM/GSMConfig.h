@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -44,6 +47,14 @@
 
 namespace GSM {
 
+
+/**
+	The channel type to request in paging.
+	Request SDCCHType for early assignment or
+	TCHFType for very early assignment.
+*/
+const GSM::ChannelType gINVITEChannel = GSM::TCHFType;
+//const GSM::ChannelType gINVITEChannel = GSM::SDCCHType;
 
 class CCCHLogicalChannel;
 class SDCCHLogicalChannel;
@@ -132,6 +143,8 @@ class GSMConfig {
 	/** The network "short name" displayed on some handsets. */
 	L3NetworkName mShortName;
 #endif
+
+	time_t mStartTime;
 
 	public:
 	
@@ -225,6 +238,9 @@ class GSMConfig {
 	TCHFACCHLogicalChannel *getTCH();
 	//@}
 
+
+	/** Return number of seconds since starting. */
+	time_t uptime() const { return ::time(NULL)-mStartTime; }
 };
 
 

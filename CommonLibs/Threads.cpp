@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -87,8 +90,8 @@ Mutex::~Mutex()
 /** Block for the signal up to the cancellation timeout. */
 void Signal::wait(Mutex& wMutex, unsigned timeout) const
 {
-	struct timespec waitTime = Timeval(timeout).timespec();
-	// FIXME -- With -O3 optimzation in OS X this doesn't block.  See bug #320.
+	Timeval then(timeout);
+	struct timespec waitTime = then.timespec();
 	pthread_cond_timedwait(&mSignal,&wMutex.mMutex,&waitTime);
 }
 

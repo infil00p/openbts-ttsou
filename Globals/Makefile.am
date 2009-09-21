@@ -21,30 +21,10 @@
 include $(top_srcdir)/Makefile.common
 
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
+CXXFLAGS = -O3 -g
 
-# NOT COMPILED, ONLY HERE TO GET IN DISTRIBUTION TARBALL
-#noinst_LTLIBRARIES = libSMS.la
+noinst_LTLIBRARIES =
 
-#libSMS_la_SOURCES =
-EXTRA_DIST = \
-	README.SMS \
-	CMMessage.cpp \
-	CMProcessor.cpp \
-	RLMessage.cpp \
-	RLProcessor.cpp \
-	SMSMessages.cpp \
-	SMSProcessors.cpp \
-	SMSTransfer.cpp \
-	TLMessage.cpp \
-	TLProcessor.cpp
+noinst_PROGRAMS = 
 
-noinst_HEADERS = \
-	CMMessage.h \
-	CMProcessor.h \
-	RLMessage.h \
-	RLProcessor.h \
-	SMSMessages.h \
-	SMSProcessors.h \
-	SMSTransfer.h \
-	TLMessage.h \
-	TLProcessor.h
+noinst_HEADERS = Globals.h

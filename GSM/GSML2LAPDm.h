@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -101,7 +104,7 @@ class L2DL {
 	virtual void writeLowSide(const GSM::L2Frame&) = 0;
 
 	/** The L2->L3 interface. */
-	virtual L3Frame* readHighSide(unsigned timeout=gBigReadTimeout) = 0;
+	virtual L3Frame* readHighSide(unsigned timeout=3600000) = 0;
 
 };
 
@@ -128,7 +131,7 @@ class CCCHL2 : public L2DL {
 
 	void writeLowSide(const GSM::L2Frame&) { assert(0); }
 
-	L3Frame* readHighSide(unsigned timeout=gBigReadTimeout) { assert(0); return NULL; }
+	L3Frame* readHighSide(unsigned timeout=3600000) { assert(0); return NULL; }
 
 	void writeHighSide(const GSM::L3Frame&);
 
@@ -243,7 +246,7 @@ class L2LAPDm : public L2DL {
 		Read the L3 output, with a timeout.
 		Caller is responsible for deleting returned object.
 	*/
-	L3Frame* readHighSide(unsigned timeout=gBigReadTimeout)
+	L3Frame* readHighSide(unsigned timeout=3600000)
 		{ return mL3Out.read(timeout); }
 
 	/**
@@ -360,9 +363,10 @@ class L2LAPDm : public L2DL {
 		Send the idle frame, GMS 04.06 5.4.2.3.
 		This sends one idle frame to L1, but that sets up the modulator to start
 		generating the idle pattern repeatedly.  See README.IdleFilling.
-			- This should be called when a channel is first opened.
+			- This should be called in SAP0 when a channel is first opened.
 			- This should be called after sending any frame
 				when no further outgoing frames are pending.
+			- This should be called after receiving a REJ frame.
 			- This need not be called when the channel is closed,
 				as L1 will generate its own filler pattern that is more
 				appropriate in this condition.
@@ -464,6 +468,9 @@ class FACCHL2 : public L2LAPDm {
 
 	/** GSM 04.06 5.8.2.1 */
 	unsigned N200() const { return 34; }
+
+	/** FACCH does not need idle frames. */
+	void sendIdle() {};
 
 	public:
 

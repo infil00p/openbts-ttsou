@@ -7,6 +7,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -75,6 +78,23 @@ void L3LocationAreaIdentity::parseV( const L3Frame& src, size_t &rp )
 }
 
 
+bool L3LocationAreaIdentity::operator==(const L3LocationAreaIdentity& other) const
+{
+	// MCC
+	if (mMCC[0]!=other.mMCC[0]) return false;
+	if (mMCC[1]!=other.mMCC[1]) return false;
+	if (mMCC[2]!=other.mMCC[2]) return false;
+	// MNC
+	if (mMNC[0]!=other.mMNC[0]) return false;
+	if (mMNC[1]!=other.mMNC[1]) return false;
+	if (mMNC[2]!=other.mMNC[2]) return false;
+	// LAC
+	if (mLAC!=other.mLAC) return false;
+	// So everything matched.
+	return true;
+}
+
+
 void L3LocationAreaIdentity::text(ostream& os) const
 {
 	os << "MCC=" << mMCC[0] << mMCC[1] << mMCC[2];
@@ -106,6 +126,14 @@ bool L3MobileIdentity::operator==(const L3MobileIdentity& other) const
 	if (mType==TMSIType) return (mTMSI==other.mTMSI);
 	return (strcmp(mDigits,other.mDigits)==0);
 }
+
+bool L3MobileIdentity::operator<(const L3MobileIdentity& other) const
+{
+	if (other.mType != mType) return mType > other.mType;
+	if (mType == TMSIType) return mTMSI > other.mTMSI;
+	return strcmp(mDigits,other.mDigits)>0;
+}
+
 
 size_t L3MobileIdentity::lengthV() const
 {

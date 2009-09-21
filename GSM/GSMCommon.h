@@ -4,6 +4,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -79,10 +82,14 @@ extern const BitVector gRACHSynchSequence;
 
 /**@name Support for GSM 7-bit alphabet, GSM 03.38 6.2.1. */
 //@{
-/** Indexed by GSM 7-bit, returns ASCII. */
-static const char gGSMAlphabet[] = "@\243$\245\350\351\371\354\362\347\n\330\370\r\305\345D_FGLOPCSTZ \306\346\337\311 !\"#\244%&\'()*+,-./0123456789:;<=>?\241ABCDEFGHIJKLMNOPQRSTUVWXYZ\304\326\321\334\247\277abcdefghijklmnopqrstuvwxyz\344\366\361\374\341";
-char encodeGSMChar(char ascii);
-inline char decodeGSMChar(char sms) { return gGSMAlphabet[(unsigned)sms]; }
+/**
+	Indexed by GSM 7-bit, returns ISO-8859-1.
+	We do not support the extended table, so 0x1B is a space.
+	FIXME -- ISO-8859-1 doesn't support Greek!
+*/
+static const unsigned char gGSMAlphabet[] = "@\243$\245\350\351\371\354\362\347\n\330\370\r\305\345D_FGLOPCSTZ \306\346\337\311 !\"#\244%&\'()*+,-./0123456789:;<=>?\241ABCDEFGHIJKLMNOPQRSTUVWXYZ\304\326\321\334\247\277abcdefghijklmnopqrstuvwxyz\344\366\361\374\341";
+unsigned char encodeGSMChar(unsigned char ascii);
+inline unsigned char decodeGSMChar(unsigned char sms) { return gGSMAlphabet[(unsigned)sms]; }
 //@}
 
 
@@ -112,34 +119,36 @@ const unsigned T3122ms = 2000;		///< RR access holdoff time (GSM 04.08 3.3.1.1.3
 //@}
 /**@name GSM timeouts for mobility management, GSM 04.08 11.2. */
 //@{
-const unsigned T3212ms = 8*360000;	///< location updating period (in 6-min increments, 0-255)
-//const unsigned T3212ms = 0;	///< location updating period (in 6-min increments, 0-255), 0 disables
+const unsigned T3260 = 12000;		///< ID request timeout
 //@}
 //@}
 
 
 
 
-/** GSM 04.08 Table 10.5.118 */
+/** GSM 04.08 Table 10.5.118 and GSM 03.40 9.1.2.5 */
 enum TypeOfNumber {
 	UnknownTypeOfNumber = 0,
 	InternationalNumber = 1,
 	NationalNumber = 2,
 	NetworkSpecificNumber = 3,
-	ShortCodeNumber = 4
+	ShortCodeNumber = 4,
+	AlphanumericNumber = 5,
+	AbbreviatedNumber = 6
 };
 
 std::ostream& operator<<(std::ostream&, TypeOfNumber);
 
 
-/** GSM 04.08 Table 10.5.118 */
+/** GSM 04.08 Table 10.5.118 and GSM 03.40 9.1.2.5 */
 enum NumberingPlan {
 	UnknownPlan = 0,
 	E164Plan = 1,
 	X121Plan = 3,
 	F69Plan = 4,
 	NationalPlan = 8,
-	PrivatePlan = 9
+	PrivatePlan = 9,
+	ERMESPlan = 10
 };
 
 std::ostream& operator<<(std::ostream&, NumberingPlan);
@@ -148,16 +157,17 @@ std::ostream& operator<<(std::ostream&, NumberingPlan);
 
 /** Codes for GSM band types, GSM 05.05 2.  */
 enum GSMBand {
-	GSM850=0,			///< US cellular
-	EGSM900,			///< extended GSM
-	DCS1800,			///< worldwide DCS band
-	PCS1900				///< US PCS band
+	GSM850=850,			///< US cellular
+	EGSM900=900,		///< extended GSM
+	DCS1800=1800,		///< worldwide DCS band
+	PCS1900=1900		///< US PCS band
 };
 
 
 /**@name Actual radio carrier frequencies, in kHz, GSM 05.05 2 */
 //@{
 unsigned uplinkFreqKHz(GSMBand wBand, unsigned wARFCN);
+unsigned uplinkOffsetKHz(GSMBand);
 unsigned downlinkFreqKHz(GSMBand wBand, unsigned wARFCN);
 //@}
 
@@ -271,7 +281,7 @@ std::ostream& operator<<(std::ostream& os, L3PD val);
 /** The GSM hyperframe is largest time period in the GSM system, GSM 05.02 4.3.3. */
 const int32_t gHyperframe = 2048UL * 26UL * 51UL;
 
-/** Get a clock difference, within the modulus. */
+/** Get a clock difference, within the modulus, v1-v2. */
 int32_t FNDelta(int32_t v1, int32_t v2);
 
 /**
@@ -294,19 +304,22 @@ class Time {
 
 	private:
 
-	int mFN;			///< frame number in the hyperframe
-	unsigned mTN;			///< timeslot number
+	int mFN;				///< frame number in the hyperframe
+	int mTN;			///< timeslot number
 
 	public:
 
-	Time(int wFN=0, unsigned wTN=0)
+	Time(int wFN=0, int wTN=0)
 		:mFN(wFN),mTN(wTN)
 	{ }
 
 
 	/** Move the time forward to a given position in a given modulus. */
-	void rollForward(unsigned wFN, unsigned modulus)
-		{ while ((mFN % modulus) != wFN) mFN++; }
+	void rollForward(int wFN, unsigned modulus)
+	{
+		assert(modulus<gHyperframe);
+		while ((mFN % modulus) != wFN) mFN=(mFN+1)%gHyperframe;
+	 }
 
 	/**@name Accessors. */
 	//@{
@@ -325,37 +338,46 @@ class Time {
 		return *this;
 	}
 
-    Time& decTN(int step=1)
+    Time& decTN(unsigned step=1)
     {
-        if ((int)mTN<step) mFN = *this - Time(1,0);
-        if (mTN-step < 0) mTN = (mTN-step+8) % 8;
-	    else mTN = (mTN-step) % 8;
+		assert(step<=8);
+		mTN -= step;
+		if (mTN<0) {
+			mTN+=8;
+			mFN-=1;
+			if (mFN<0) mFN+=gHyperframe;
+		}
         return *this;
     }
 
-	Time& incTN(int step=1)
+	Time& incTN(unsigned step=1)
 	{
-		mFN = mFN + (mTN + step)/8;
-		mTN = (mTN+step) % 8;
+		assert(step<=8);
+		mTN += step;
+		if (mTN>7) {
+			mTN-=8;
+			mFN = (mFN+1) % gHyperframe;
+		}
 		return *this;
 	}
 
 	Time& operator+=(int step)
 	{
-		mFN = (mFN+step) % gHyperframe;
+		// Remember the step might be negative.
+		mFN += step;
+		if (mFN<0) mFN+=gHyperframe;
+		mFN = mFN % gHyperframe;
 		return *this;
 	}
+
+	Time operator-(int step) const
+		{ return operator+(-step); }
 
 	Time operator+(int step) const
 	{
 		Time newVal = *this;
 		newVal += step;
 		return newVal;
-	}
-
-	Time operator-(int step) const
-	{
-		return operator+(-step);
 	}
 
 	Time operator+(const Time& other) const
@@ -445,6 +467,7 @@ std::ostream& operator<<(std::ostream& os, const Time& ts);
 
 /**
 	A class for calculating the current GSM frame number.
+	Has built-in concurrency protections.
 */
 class Clock {
 

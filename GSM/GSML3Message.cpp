@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,11 +30,9 @@
 #include "GSML3CCMessages.h"
 
 
-#ifdef SMS
-#include "SMSTransfer.h"
-#include "CMMessage.h"
-using namespace SMS;
-#endif
+//#include <SMSTransfer.h>
+//#include <SMSMessages.h>
+//using namespace SMS;
 
 
 using namespace std;
@@ -43,7 +44,6 @@ using namespace GSM;
 void L3Message::parse(const L3Frame& source)
 {
 	size_t rp = 16;
-	//FIXME -- A consistency check of PD and MTI would be good.
 	parseBody(source,rp);
 }
 
@@ -146,9 +146,7 @@ GSM::L3Message* GSM::parseL3(const GSM::L3Frame& source)
 			case L3RadioResourcePD: return parseL3RR(source);
 			case L3MobilityManagementPD: return parseL3MM(source);
 			case L3CallControlPD: return parseL3CC(source);
-#ifdef SMS
-			case L3SMSPD: return parseSMS(source);
-#endif
+			//case L3SMSPD: return parseSMS(source);
 			default:
 				CERR("NOTICE -- L3 parsing failed for unsupported protocol " << PD);
 				return NULL;
@@ -168,6 +166,7 @@ GSM::L3Message* GSM::parseL3(const GSM::L3Frame& source)
 void L3ProtocolElement::parseLV(const L3Frame& source, size_t &rp)
 {
 	size_t expectedLength = source.readField(rp,8);
+	if (expectedLength==0) return;
 	size_t rpEnd = rp + 8*expectedLength;
 	parseV(source, rp, expectedLength);
 	if (rpEnd != rp) {

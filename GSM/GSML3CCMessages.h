@@ -5,6 +5,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -73,6 +76,9 @@ class L3CCMessage : public L3Message {
 		/**@name DTMF */
 		//@{
 		StartDTMF=0x35,
+		StopDTMF=0x31,
+		StopDTMFAcknowledge=0x32,
+		StartDTMFAcknowledge=0x36,
 		StartDTMFReject=0x37,
 		//@}
 		/**@name error reporting */
@@ -139,7 +145,7 @@ class L3Release : public L3CCMessage {
 		mHaveCause(true),mCause(wCause)
 	{}
 
-	int MTI() const { return (int) Release; }
+	int MTI() const { return Release; }
 	void writeBody( L3Frame &dest, size_t &wp ) const;
 	void parseBody( const L3Frame &src, size_t &rp );
 	size_t bodyLength() const;
@@ -167,7 +173,7 @@ public:
 		mCallState(wCallState)
 	{}
 	
-	int MTI() const { return (int) CCStatus; }
+	int MTI() const { return CCStatus; }
 	void writeBody( L3Frame &dest, size_t &wp ) const;
 	void parseBody( const L3Frame &src, size_t &rp );
 	size_t bodyLength() const { return 4; }
@@ -198,7 +204,7 @@ class L3ReleaseComplete : public L3CCMessage {
 		mHaveCause(true),mCause(wCause)
 	{}
 
-	int MTI() const { return (int) ReleaseComplete; }
+	int MTI() const { return ReleaseComplete; }
 	void writeBody( L3Frame &dest, size_t &wp ) const;
 	void parseBody( const L3Frame &src, size_t &rp );
 	size_t bodyLength() const;
@@ -245,29 +251,32 @@ public:
 	{ }
 
 	
-	L3Setup(unsigned wTIFlag, unsigned wTIValue, const L3BearerCapability& wCapability)
+	L3Setup(unsigned wTIFlag, unsigned wTIValue, const L3CalledPartyBCDNumber& wCalledPartyBCDNumber)
 		:L3CCMessage(wTIFlag,wTIValue), 
-		mHaveBearerCapability(true), mBearerCapability(wCapability),
+		mHaveBearerCapability(false),
 		mHaveCallingPartyBCDNumber(false),
+		mHaveCalledPartyBCDNumber(true),mCalledPartyBCDNumber(wCalledPartyBCDNumber)
+	{ }
+	
+	L3Setup(unsigned wTIFlag, unsigned wTIValue, const L3CallingPartyBCDNumber& wCallingPartyBCDNumber)
+		:L3CCMessage(wTIFlag,wTIValue), 
+		mHaveBearerCapability(false),
+		mHaveCallingPartyBCDNumber(true),mCallingPartyBCDNumber(wCallingPartyBCDNumber),
 		mHaveCalledPartyBCDNumber(false)
 	{ }
 
 
+
+
 	/** Accessors */
 	//@{
-	void calledPartyBCDNumber ( const L3CalledPartyBCDNumber &wCalledPartyBCDNumber )
-	{
-		mCalledPartyBCDNumber = wCalledPartyBCDNumber;
-		mHaveCalledPartyBCDNumber=true;
-	}
-
 	bool haveCalledPartyBCDNumber() const { return mHaveCalledPartyBCDNumber; }
 
 	const L3CalledPartyBCDNumber& calledPartyBCDNumber() const
 		{ assert(mHaveCalledPartyBCDNumber); return mCalledPartyBCDNumber; }
 	//@}
 
-	int MTI() const { return (int) Setup; }
+	int MTI() const { return Setup; }
 	void writeBody( L3Frame &dest, size_t &wp ) const;
 	void parseBody( const L3Frame &src, size_t &rp );
 
@@ -299,7 +308,7 @@ public:
 		mHaveProgress(false)
 	{}
 	
-	int MTI() const { return (int) CallProceeding; }
+	int MTI() const { return CallProceeding; }
 	void writeBody( L3Frame & dest, size_t &wp ) const;
 	void parseBody( const L3Frame &src, size_t &wp );
 	size_t bodyLength() const;
@@ -334,7 +343,7 @@ class L3Alerting : public L3CCMessage
 		mHaveProgress(true),mProgress(wProgress)
 	{}
 
-	int MTI() const { return (int) Alerting; }
+	int MTI() const { return Alerting; }
 	void writeBody(L3Frame &dest, size_t &wp) const;
 	void parseBody(const L3Frame& src, size_t &rp);
 	size_t bodyLength() const;
@@ -370,7 +379,7 @@ class L3Connect : public L3CCMessage
 		mHaveProgress(true),mProgress(wProgress)
 	{}
 
-	int MTI() const { return (int) Connect; }
+	int MTI() const { return Connect; }
 	void writeBody( L3Frame &dest, size_t &wp ) const;
 	void parseBody(const L3Frame &src, size_t &wp);
 	size_t bodyLength() const;
@@ -389,7 +398,7 @@ public:
 		:L3CCMessage(wTIFlag,wTIValue)
 	{}
 
-	int MTI() const { return (int) ConnectAcknowledge; }
+	int MTI() const { return ConnectAcknowledge; }
 	void writeBody( L3Frame &dest, size_t &wp ) const {}
 	void parseBody( const L3Frame &src, size_t &rp ) {}
 	size_t bodyLength() const { return 0; }
@@ -412,7 +421,7 @@ public:
 		mCause(wCause)
 	{}
 
-	int MTI() const { return (int) Disconnect; }
+	int MTI() const { return Disconnect; }
 	void writeBody( L3Frame &dest, size_t &wp ) const;
 	void parseBody( const L3Frame &src, size_t &rp );
 	size_t bodyLength() const { return mCause.lengthLV(); }
@@ -437,8 +446,9 @@ public:
 		mHaveCause(false)
 	{}
 
-	int MTI() const { return (int) CallConfirmed; }
-	void parseBody( const L3Frame &src, size_t &rp );
+	int MTI() const { return CallConfirmed; }
+	void writeBody(L3Frame&, size_t&) const { abort(); }
+	void parseBody(const L3Frame &src, size_t &rp);
 	size_t bodyLength() const;
 
 	void text(std::ostream& os) const;
@@ -452,22 +462,47 @@ class L3StartDTMF : public L3CCMessage {
 
 	private:
 
-	bool mHaveKey;
 	L3KeypadFacility mKey;
 
 	public:
 
 	L3StartDTMF(unsigned wTIFlag=0, unsigned wTIValue=7)
-		:L3CCMessage(wTIFlag,wTIValue),
-		mHaveKey(false)
+		:L3CCMessage(wTIFlag,wTIValue)
 	{}
 
-	int MTI() const { return (int) StartDTMF; }
-	void parseBody(const L3Frame &src, size_t &rp);
-	size_t bodyLength() const;
+	const L3KeypadFacility& key() const { return mKey; }
+	int MTI() const { return StartDTMF; }
+	void writeBody(L3Frame&, size_t&) const { abort(); }
+	void parseBody(const L3Frame &src, size_t &rp) { mKey.parseTV(0x2c,src,rp); }
+	size_t bodyLength() const { return mKey.lengthTV(); }
 
 	void text(std::ostream& os) const;
 };
+
+
+/** GSM 04.08 9.3.25 */
+class L3StartDTMFAcknowledge : public L3CCMessage {
+
+	private:
+
+	L3KeypadFacility mKey;
+
+	public:
+
+	L3StartDTMFAcknowledge(unsigned wTIFlag, unsigned wTIValue, const L3KeypadFacility& wKey)
+		:L3CCMessage(wTIFlag,wTIValue),
+		mKey(wKey)
+	{}
+
+	int MTI() const { return StartDTMFAcknowledge; }
+	void writeBody(L3Frame &dest, size_t &wp) const { mKey.writeTV(0x2C,dest,wp); }
+	void parseBody(const L3Frame &, size_t&) { abort(); };
+	size_t bodyLength() const { return mKey.lengthTV(); }
+
+	void text(std::ostream& os) const;
+};
+
+
 
 
 /** GSM 04.08 9.3.26 */
@@ -485,12 +520,49 @@ class L3StartDTMFReject : public L3CCMessage {
 		mCause(wCause)
 	{}
 
-	int MTI() const { return (int) StartDTMFReject; }
-	void writeBody(L3Frame &src, size_t &rp) const;
+	int MTI() const { return StartDTMFReject; }
+	void parseBody(const L3Frame&, size_t&) { abort(); }
+	void writeBody(L3Frame &src, size_t &rp) const { mCause.writeLV(src,rp); }
 	size_t bodyLength() const { return mCause.lengthLV(); }
 
 	void text(std::ostream& os) const;
 };
+
+
+/** GSM 04.08 9.3.29 */
+class L3StopDTMF : public L3CCMessage {
+
+	public:
+
+	L3StopDTMF(unsigned wTIFlag=0, unsigned wTIValue=7)
+		:L3CCMessage(wTIFlag,wTIValue)
+	{}
+
+	int MTI() const { return StopDTMF; }
+	void writeBody(L3Frame&, size_t&) const { abort(); }
+	void parseBody(const L3Frame &src, size_t &rp) { }
+	size_t bodyLength() const { return 0; };
+};
+
+
+/** GSM 04.08 9.3.30 */
+class L3StopDTMFAcknowledge : public L3CCMessage {
+
+	public:
+
+	L3StopDTMFAcknowledge(unsigned wTIFlag, unsigned wTIValue)
+		:L3CCMessage(wTIFlag,wTIValue)
+	{}
+
+	int MTI() const { return StopDTMFAcknowledge; }
+	void writeBody(L3Frame&, size_t&) const { }
+	void parseBody(const L3Frame &src, size_t &rp) { abort(); };
+	size_t bodyLength() const { return 0; }
+};
+
+
+
+
 
 /** GSM 04.08 9.3.17 */
 class L3Progress : public L3CCMessage
@@ -508,7 +580,7 @@ class L3Progress : public L3CCMessage
 		:L3CCMessage(wTIFlag,wTIValue)
 	{}
 
-	int MTI() const { return (int) Progress; }
+	int MTI() const { return Progress; }
 	void writeBody( L3Frame &dest, size_t &wp ) const;
 	void parseBody(const L3Frame &src, size_t &wp);
 	size_t bodyLength() const;

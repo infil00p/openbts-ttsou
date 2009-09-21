@@ -7,6 +7,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -46,7 +49,8 @@ class L3CMServiceType : public L3ProtocolElement {
 		VoiceCallGroup=9,
 		VoiceBroadcast=10,
 		LocationService=11,
-		MobileTerminatedCall=100			///< non-standard code
+		MobileTerminatedCall=100,				///< non-standard code
+		MobileTerminatedShortMessage=101		///< non-standard code
 	};
 		
 	private:
@@ -60,9 +64,14 @@ class L3CMServiceType : public L3ProtocolElement {
 	{}
 
 	TypeCode type() const { return mType; }
+
+	bool operator==(const L3CMServiceType& other) const
+		{ return mType == other.mType; }
 	
-	void parseV( const L3Frame &src, size_t &rp );
 	size_t lengthV() const { return 0; }	
+	void writeV(L3Frame&, size_t&) const { abort(); }
+	void parseV(const L3Frame &src, size_t &rp);
+	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -84,9 +93,10 @@ public:
 		:L3ProtocolElement(),mRejectCause(wRejectCause)
 	{}
 
-	void writeV( L3Frame& dest, size_t &wp ) const;
 	size_t lengthV() const { return 1; }	
-
+	void writeV( L3Frame& dest, size_t &wp ) const;
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -111,16 +121,43 @@ public:
 		:L3ProtocolElement()
 	{ strncpy(mName,wName,maxLen); }
 
-	void writeV(L3Frame& dest, size_t &wp) const;
 	size_t lengthV() const { return 1+strlen(mName)*2; }
+	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void text(std::ostream&) const;
+};
 
+/**
+	Time & Time Zone, GSM 04.08 10.5.3.9, GSM 03.40 9.2.3.11.
+	This class is also used in SMS.
+*/
+class L3TimeZoneAndTime : public L3ProtocolElement {
+
+protected:
+
+	Timeval mTime;
+
+public:
+
+	L3TimeZoneAndTime(const Timeval& wTime = Timeval())
+		:L3ProtocolElement(),
+		mTime(wTime)
+	{}
+
+	const Timeval& time() const { return mTime; }
+	void time(const Timeval& wTime) { mTime=wTime; }
+
+	size_t lengthV() const { return 7; }
+	void writeV(L3Frame&, size_t&) const;
+	void parseV(const L3Frame& src, size_t &rp);
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 };
 
 
 
-
-}
+} // namespace GSM
 
 #endif
 

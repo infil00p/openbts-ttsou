@@ -7,12 +7,72 @@ AsteriskConfig	Asterisk configuration files for use with OpenBTS.
 CommonLib	Common-use libraries, mostly C++ wrappers for basic facilities.
 Control		Control-layer functions for the protocols of GSM 04.08 and SIP.
 GSM		The GSM stack.
-RFHardware	Design documents for RF hardware components.
 SIP		Components of the SIP state machines ued by the control layer.
-SMS		The SMS stack (incomplete).
 TRXManager	The interface between the GSM stack and the radio.
 Transceiver	The software transceiver and specific installation tests.
 apps		OpenBTS application binaries.
 doc		Project documentation.
 tests		Test fixtures for subsets of OpenBTS components.
+
+
+
+OpenBTS uses the following UDP port assignments:
+
+5060 -- Asterisk
+5061 -- reserved for local SIP softphone
+5062 -- OpenBTS SIP interface
+5063 -- reserved for local SIMPLE server
+5700-range -- OpenBTS-transceiver interface
+
+These can be controlled in the configuration file, apps/OpenBTS.config.
+
+
+
+Release history:
+
+Rel.	La. Town Name	SVN Reposiory	SVN Rev	Comments
+
+1.0	(none)		SF.net		??		completed L1, L2
+
+1.1	Arnaudville	GNU Radio	r10019 (trunk)
+
+1.2	Breaux Bridge	GNU Radio	r10088 (trunk)	GNU Build, very early assignment
+
+1.3	Carencro	KSP		r1 (trunk)	first post-injunction release
+
+1.4	Donaldsonville	KSP		r23 (trunk)	fixed Ubuntu build error
+
+1.5	Eunice		KSP		r39 (trunk)	fixed L2 bugs related to segmentation
+							removed incomplete SMS directory
+							moved "abort" calls into L3 subclasses
+
+1.6	New Iberia	KSP		r130 (trunk)	import of all 2.2 improvements to non-SMS release
+
+
+2.0	St. Francisville KSP		r54 (smswork)	SMS support
+							file-based configuration
+
+2.1	Grand Coteau	KSP		r70 (smswork)	DTMF support
+							fixed more Linux-related build errors
+								-lpthread
+								TLMessage constructor
+							expanded stack to prevent overflows in Linux
+							moved gSIPInterface to main app
+							fixed iterator bug in Pager
+
+2.2	Houma		KSP		r122 (smswork)	added LEGAL notice
+							removed Assert classes
+							stop paging on page response
+							fixed Pager-spin bug
+							fixed Transceiver spin bugs
+							fixed 2^32 microsecond rollover bug
+							reduced stack footprints in Transceiver
+							fixed SMS timestamps
+							check LAI before using TMSI in LUR
+							reduced memory requirement by 75%
+							removed PagerTest
+							fixed stale-transaction bug in paging handler
+							fixed USRP clock rollover bug
+							faster call connection
+							new USRPDevice design
 

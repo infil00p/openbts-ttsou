@@ -25,16 +25,17 @@ SUBDIRS = \
 	config \
 	AsteriskConfig \
 	CommonLibs \
+	Globals \
 	SIP \
 	GSM \
-	SMS \
 	Transceiver \
 	TRXManager \
 	Control \
-	RFHardware \
 	apps \
 	doc
 
 EXTRA_DIST = \
 	INSTALLATION \
+	LEGAL \
+	COPYING \
 	README

@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,7 +34,7 @@ int main() {
 
   usrp->make();
 
-  unsigned timestamp;
+  TIMESTAMP timestamp;
 
 
   usrp->setTxFreq(890.0e6);
@@ -59,16 +62,16 @@ int main() {
 
   timestamp = 19000;
   while (1) {
-    short readBuf[150*2];
-    int rd = usrp->readSamples(readBuf,150,&underrun,timestamp);
+    short readBuf[512*2];
+    int rd = usrp->readSamples(readBuf,512,&underrun,timestamp);
     if (rd) {
-      cout << "Data recvd. at time: " << timestamp << endl;
-      for (int i = 0; i < 150; i++) {
+      cout << "rcvd. data@:" << timestamp << endl;
+      /*for (int i = 0; i < 512; i++) {
         uint32_t *wordPtr = (uint32_t *) &readBuf[2*i];
         *wordPtr = usrp_to_host_u32(*wordPtr); 
 	printf ("%d: %d %d\n", timestamp+i,readBuf[2*i],readBuf[2*i+1]);
-      }
-      timestamp +=150;
+      } */
+      timestamp += rd;
     }
   }
 

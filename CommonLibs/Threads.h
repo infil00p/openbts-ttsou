@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,7 +29,7 @@
 
 #include <pthread.h>
 #include <iostream>
-#include "Assert.h"
+#include <assert.h>
 
 class Mutex;
 
@@ -99,8 +102,18 @@ class Signal {
 
 	~Signal() { pthread_cond_destroy(&mSignal); }
 
-	/** Block for the signal up to the cancellation timeout. */
-	void wait(Mutex& wMutex, unsigned timeout=1000000000) const;
+	/**
+		Block for the signal up to the cancellation timeout.
+		Under Linux, spurious returns are possible.
+	*/
+	void wait(Mutex& wMutex, unsigned timeout) const;
+
+	/**
+		Block for the signal.
+		Under Linux, spurious returns are possible.
+	*/
+	void wait(Mutex& wMutex) const
+		{ pthread_cond_wait(&mSignal,&wMutex.mMutex); }
 
 	void signal() { pthread_cond_signal(&mSignal); }
 
@@ -120,6 +133,7 @@ class Thread {
 
 	pthread_t mThread;
 	pthread_attr_t mAttrib;
+	// FIXME -- Can this be reduced now?
 	const static size_t mStackSize=4*65536;
 	
 

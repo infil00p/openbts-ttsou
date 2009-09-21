@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,14 +29,16 @@
 
 int main() {
 
+  //srandomdev();
+
   USRPDevice *usrp = new USRPDevice(400.0e3); //533.333333333e3); //400e3);
   usrp->make();
   RadioInterface* radio = new RadioInterface(usrp,3);
-  Transceiver trx(5700,"127.0.0.1",SAMPSPERSYM,GSM::Time(2,0),radio);
-  trx.transmitFIFO(radio->transmitFIFO());
-  trx.receiveFIFO(radio->receiveFIFO());
+  Transceiver *trx = new Transceiver(5700,"127.0.0.1",SAMPSPERSYM,GSM::Time(2,0),radio);
+  trx->transmitFIFO(radio->transmitFIFO());
+  trx->receiveFIFO(radio->receiveFIFO());
 
-  trx.start();
-
-  while(1) { sleep(1); }
+  trx->start();
+  //int i = 0;
+  while(1) { sleep(1); }//i++; if (i==60) break;}
 }

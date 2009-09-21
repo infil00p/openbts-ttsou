@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,9 +29,6 @@
 	SWLOOPBACK	compile for software loopback testing
 */ 
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
 
 #define NDEBUG
 #include <string.h>
@@ -140,8 +140,8 @@ USRPDevice::USRPDevice (double _desiredSampleRate)
   double masterClockRate = (double) 64.0e6;
   decimRate = (unsigned int) round(masterClockRate/_desiredSampleRate);
   actualSampleRate = masterClockRate/decimRate;
-  m_uRx.reset();
-  m_uTx.reset();
+  m_uRx = NULL;
+  m_uTx = NULL;
 
 #ifdef SWLOOPBACK 
   samplePeriod = 1.0e6/actualSampleRate;
@@ -159,7 +159,7 @@ bool USRPDevice::make(bool wSkipRx)
 #ifndef SWLOOPBACK 
   string rbf = "std_inband.rbf";
   //string rbf = "inband_1rxhb_1tx.rbf"; 
-  m_uRx.reset();
+  m_uRx = NULL;
   if (!skipRx) {
   try {
     m_uRx = (usrp_standard_rx::make(0,decimRate,1,-1,
@@ -169,13 +169,9 @@ bool USRPDevice::make(bool wSkipRx)
   
   catch(...) {
     COUT("make failed on Rx");
+    delete m_uRx;
     return false;
   }
-  }
-
-  if (!m_uRx) {
-    COUT("make failed on Rx");
-    return false;
   }
 
   try {
@@ -185,14 +181,10 @@ bool USRPDevice::make(bool wSkipRx)
   
   catch(...) {
     COUT("make failed on Tx");
+    delete m_uTx;
     return false;
   }
   
-  if (!m_uTx) {
-    COUT("make failed on Tx");
-    return false;
-  }
-
   if (!skipRx) m_uRx->stop();
   m_uTx->stop();
   
@@ -247,17 +239,22 @@ bool USRPDevice::start()
     m_uRx->write_aux_dac(1,0,(int) ceil(0.2*4096.0/3.3)); // set to maximum gain 
   }
 
-  currData = new short[currDataSize];
-  currTimestamp = 0;
-  currLen = 0;
+  data = new short[currDataSize];
+  dataStart = 0;
+  dataEnd = 0;
+  timeStart = 0;
+  timeEnd = 0;
   timestampOffset = 0;
   latestWriteTimestamp = 0;
+  lastPktTimestamp = 0;
+  hi32Timestamp = 0;
+  isAligned = false;
+
  
   if (!skipRx) 
   started = (m_uRx->start() && m_uTx->start());
   else
   started = m_uTx->start();
-
   return started;
 #else
   gettimeofday(&lastReadTime,NULL);
@@ -296,37 +293,45 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
   
   timestamp += timestampOffset;
   
-  if (currLen && (timestamp < currTimestamp))
-    return 0;
+  if (timestamp + len < timeStart) {
+    memset(buf,0,len*2*sizeof(short));
+    return len;
+  }
 
   if (underrun) *underrun = false;
-  
+ 
+  uint32_t *readBuf = NULL;
+ 
   while (1) {
     //guestimate USB read size
     int readLen=0;
-    if (currTimestamp && currLen) {
-      int numSamplesNeeded = (timestamp + len) - (currTimestamp + currLen);
+    {
+      int numSamplesNeeded = timestamp + len - timeEnd;
       if (numSamplesNeeded <=0) break;
       readLen = 512 * ((int) ceil((float) numSamplesNeeded/126.0));
     }
-    else 
-      readLen = 512;
     
     // read USRP packets, parse and save A/D data as needed
-    uint32_t readBuf[readLen/4];
+    if (readBuf!=NULL) delete[] readBuf;
+    readBuf = new uint32_t[readLen/4];
     readLen = m_uRx->read((void *)readBuf,readLen,overrun);
     for(int pktNum = 0; pktNum < (readLen/512); pktNum++) {
       // tmpBuf points to start of a USB packet
       uint32_t* tmpBuf = (uint32_t *) (readBuf+pktNum*512/4);
       TIMESTAMP pktTimestamp = usrp_to_host_u32(tmpBuf[1]);
-      bool incrementHi32 = ((currTimestamp & 0x0ffffffffll) > pktTimestamp);
-      //pktTimestamp = ((currTimestamp >> 32) << 32) | pktTimestamp;
-      //COUT("pktNum: " << pktNum << ", pktstamp: " << pktTimestamp << ", currStamp: " << currTimestamp << ", currLen: " << currLen);
-      if (incrementHi32) {COUT("increment!!!"); pktTimestamp += 0x0100000000ll;} 
       uint32_t word0 = usrp_to_host_u32(tmpBuf[0]);
       uint32_t chan = (word0 >> 16) & 0x1f;
       unsigned payloadSz = word0 & 0x1ff;
-      //printf("first two bytes: %0x %0x\n",word0,pktTimestamp);
+      DCOUT("first two bytes: " << hex << word0 << " " << dec << pktTimestamp);
+
+      bool incrementHi32 = ((lastPktTimestamp & 0x0ffffffffll) > pktTimestamp);
+      if (incrementHi32 && (timeStart!=0)) {
+           COUT("high 32 increment!!!"); 
+           hi32Timestamp++;
+      }
+      pktTimestamp = (((TIMESTAMP) hi32Timestamp) << 32) | pktTimestamp;
+      lastPktTimestamp = pktTimestamp;
+
       if (chan == 0x01f) {
 	// control reply, check to see if its ping reply
         uint32_t word2 = usrp_to_host_u32(tmpBuf[2]);
@@ -335,6 +340,7 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
 	  timestampOffset = pktTimestamp - pingTimestamp + PINGOFFSET;
 	  DCOUT("updating timestamp offset to: " << timestampOffset);
           timestamp += timestampOffset;
+	  isAligned = true;
 	}
 	continue;
       }
@@ -347,43 +353,49 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
 	CERR("WARNING -- UNDERRUN in TRX->USRP interface");
       }
       if (RSSI) *RSSI = (word0 >> 21) & 0x3f;
-      if (!currLen && (pktTimestamp + payloadSz/2/sizeof(short) > timestamp + 10000))
-	continue;
       
-      if (pktTimestamp + payloadSz/2/sizeof(short) < timestamp) {
-        //COUT("resetting... pktTimestamp: " <<  pktTimestamp << ", payloadSz: " << payloadSz << ", timestamp: " << timestamp);
-	currTimestamp = 0;
-	currLen = 0;
-	continue;
+      if (!isAligned) continue;
+      
+      unsigned cursorStart = pktTimestamp - timeStart + dataStart;
+      while (cursorStart*2 > currDataSize) {
+	cursorStart -= currDataSize/2;
       }
-      if (!currLen) currTimestamp = pktTimestamp;
-      if (currTimestamp+currLen < pktTimestamp) {
-         DCOUT("Missing packet, compensating...")
-         currLen = pktTimestamp - currTimestamp;
+      if (cursorStart*2 + payloadSz/2 > currDataSize) {
+	// need to circle around buffer
+	memcpy(data+cursorStart*2,tmpBuf+2,(currDataSize-cursorStart*2)*sizeof(short));
+	memcpy(data,tmpBuf+2+(currDataSize/2-cursorStart),payloadSz-(currDataSize-cursorStart*2)*sizeof(short));
       }
-      // currLen counts complex short samples.  currData is *short, tmpBuf is *unint_32.
-      if ((currLen*2+payloadSz)<=currDataSize) memcpy(currData+currLen*2,tmpBuf+2,payloadSz);
-      currLen += (payloadSz/2/sizeof(short));
+      else {
+	memcpy(data+cursorStart*2,tmpBuf+2,payloadSz);
+      }
+      if (pktTimestamp + payloadSz/2/sizeof(short) > timeEnd) 
+	timeEnd = pktTimestamp+payloadSz/2/sizeof(short);
+
+      DCOUT("timeStart: " << timeStart << ", timeEnd: " << timeEnd << ", pktTimestamp: " << pktTimestamp);
+
     }	
-    if (currTimestamp + currLen > timestamp + len) break; 
   }     
  
   // copy desired data to buf
-  short *newDataPtr = NULL;
-  if (timestamp >= currTimestamp) {
-    short *dataPtr = currData + (timestamp-currTimestamp)*2;
-    memcpy(buf,dataPtr,len*2*sizeof(short));
-    newDataPtr = dataPtr + len*2;
+  unsigned bufStart = dataStart+(timestamp-timeStart);
+  if (bufStart + len < currDataSize/2) { 
+    DCOUT("bufStart: " << bufStart);
+    memcpy(buf,data+bufStart*2,len*2*sizeof(short));
+    memset(data+bufStart*2,0,len*2*sizeof(short));
   }
-  else
-    newDataPtr = currData;
-  
-  // remove copied data from out local buffer
-  currTimestamp = timestamp + len;
-  unsigned copySize = sizeof(short)*(currLen*2 - (newDataPtr-currData));
-  if (copySize<currDataSize) memcpy(currData,newDataPtr,copySize);
-  currLen -= (newDataPtr-currData)/2;
-  
+  else {
+    DCOUT("len: " << len << ", currDataSize/2: " << currDataSize/2 << ", bufStart: " << bufStart);
+    unsigned firstLength = (currDataSize/2-bufStart);
+    DCOUT("firstLength: " << firstLength);
+    memcpy(buf,data+bufStart*2,firstLength*2*sizeof(short));
+    memset(data+bufStart*2,0,firstLength*2*sizeof(short));
+    memcpy(buf+firstLength*2,data,(len-firstLength)*2*sizeof(short));
+    memset(data,0,(len-firstLength)*2*sizeof(short));
+  }
+  dataStart = (bufStart + len) % (currDataSize/2);
+  timeStart = timestamp + len;
+  if (readBuf!=NULL) delete[] readBuf;
+ 
   return len;
   
 #else
@@ -436,7 +448,7 @@ int USRPDevice::writeSamples(short *buf, int len, bool *underrun,
   len = len*2*sizeof(short);
   int numPkts = (int) ceil((float)len/(float)504);
   unsigned isEnd = (numPkts < 2);
-  uint32_t outPkt[128*numPkts];
+  uint32_t *outPkt = new uint32_t[128*numPkts];
   int pktNum = 0;
   while (numWritten < len) {
     // pkt is pointer to start of a USB packet
@@ -454,7 +466,8 @@ int USRPDevice::writeSamples(short *buf, int len, bool *underrun,
     pktNum++;
   }
   m_uTx->write((const void*) outPkt,sizeof(uint32_t)*128*numPkts,NULL);
-  
+  delete[] outPkt;  
+
   samplesWritten += len/2/sizeof(short);
   return len/2/sizeof(short);
 #else
@@ -474,7 +487,7 @@ bool USRPDevice::updateAlignment(TIMESTAMP timestamp)
   uint32_t *wordPtr = (uint32_t *) data;
   *wordPtr = host_to_usrp_u32(*wordPtr);
   bool tmpUnderrun;
-  if (writeSamples((short *) data,1,&tmpUnderrun,timestamp,true)) {
+  if (writeSamples((short *) data,1,&tmpUnderrun,timestamp & 0x0ffffffffll,true)) {
     pingTimestamp = timestamp;
     return true;
   }

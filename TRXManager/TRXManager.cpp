@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -182,7 +185,7 @@ void ::ARFCNManager::writeHighSide(const GSM::TxBurst& burst)
 	*wp++ = (FN>>8) & 0x0ff;
 	*wp++ = (FN) & 0x0ff;
 	// power level
-	///TODO We hard-code gain to 0 dB for now.
+	/// FIXME -- We hard-code gain to 0 dB for now.
 	*wp++ = 0;
 	// copy data
 	const char *dp = burst.begin();

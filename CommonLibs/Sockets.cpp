@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,7 +35,6 @@
 
 
 
-/** A local function to resolve IP host names. */
 bool resolveAddress(struct sockaddr_in *address, const char *host, unsigned short port)
 {
 	struct hostent *hp = gethostbyname(host);
@@ -95,12 +97,29 @@ int DatagramSocket::write( const char * message)
 }
 
 
+int DatagramSocket::send(const struct sockaddr* dest, const char * message, size_t length )
+{
+	assert(length<=MAX_UDP_LENGTH);
+	int retVal = sendto(mSocketFD, message, length, 0, dest, addressSize());
+	if (retVal == -1 ) perror("DatagramSocket::send() failed");
+	return retVal;
+}
+
+int DatagramSocket::send(const struct sockaddr* dest, const char * message)
+{
+	size_t length=strlen(message)+1;
+	return send(dest,message,length);
+}
+
+
+
+
 
 int DatagramSocket::read(char* buffer)
 {
-	socklen_t temp_len = sizeof(mReturnAddr);
+	socklen_t temp_len = sizeof(mSource);
 	int length = recvfrom(mSocketFD, (void*)buffer, MAX_UDP_LENGTH, 0,
-	    (struct sockaddr*)&mReturnAddr,&temp_len);
+	    (struct sockaddr*)&mSource,&temp_len);
 	if ((length==-1) && (errno!=EAGAIN)) {
 		perror("DatagramSocket::read() failed");
 		throw SocketError();

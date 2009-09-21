@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,6 +35,7 @@ using namespace GSM;
 
 void SAPMux::writeHighSide(const L2Frame& frame)
 {
+	// The SAP may or may not be present, depending on the channel type.
 	OBJDCOUT("SAPMux::writeHighSide " << frame);
 	mLock.lock();
 	mDownstream->writeHighSide(frame);
@@ -42,7 +46,7 @@ void SAPMux::writeHighSide(const L2Frame& frame)
 
 void SAPMux::writeLowSide(const L2Frame& frame)
 {
-	OBJDCOUT("SAPMux::writeLowSide " << frame);
+	OBJDCOUT("SAPMux::writeLowSide SAP" << frame.SAPI() << " " << frame);
 	unsigned SAPI = frame.SAPI();	
 	bool data = frame.primitive()==DATA;
 	if (data && (!mUpstream[SAPI])) {

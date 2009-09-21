@@ -18,7 +18,7 @@ dnl You should have received a copy of the GNU General Public License
 dnl along with this program.  If not, see <http://www.gnu.org/licenses/>.
 dnl
 
-AC_INIT(openbts,1.1svn)
+AC_INIT(openbts,1.6NewIberia)
 AC_PREREQ(2.57)
 AC_CONFIG_SRCDIR([config/Makefile.am])
 AC_CONFIG_AUX_DIR([.])	
@@ -69,11 +69,10 @@ AC_CONFIG_FILES([\
     doc/Makefile \
     AsteriskConfig/Makefile \
     CommonLibs/Makefile \
+    Globals/Makefile \
     Control/Makefile \
     GSM/Makefile \
-    RFHardware/Makefile \
     SIP/Makefile \
-    SMS/Makefile \
     Transceiver/Makefile \
     TRXManager/Makefile \
 ])

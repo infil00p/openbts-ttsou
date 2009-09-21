@@ -6,6 +6,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,6 +31,7 @@
 
 #include <vector>
 #include "GSML3Message.h"
+#include <Globals.h>
 
 
 namespace GSM {
@@ -45,16 +49,17 @@ class L3CellOptionsBCCH : public L3ProtocolElement {
 	public:
 
 	/** Sets defaults for no use of DTX or downlink power control. */
-	L3CellOptionsBCCH():L3ProtocolElement()
+	L3CellOptionsBCCH()
+		:L3ProtocolElement(),
+		mPWRC(0),mDTX(2)
 	{
-		// FIXME -- These should be drawn from gBTS.
-		mPWRC=0;					// no power control
-		mDTX=2;						// no DTX
-		mRADIO_LINK_TIMEOUT=15;		// 64-frame timeout
+		mRADIO_LINK_TIMEOUT=gConfig.getNum("GSM.RADIO_LINK_TIMEOUT");
 	}
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -73,17 +78,17 @@ class L3CellOptionsSACCH : public L3ProtocolElement {
 	public:
 
 	/** Sets defaults for no use of DTX or downlink power control. */
-	L3CellOptionsSACCH():L3ProtocolElement()
+	L3CellOptionsSACCH()
+		:L3ProtocolElement(),
+		mPWRC(0),mDTX(2)
 	{
-		/* reasonable defaults */
-		mPWRC=0;					// no power control
-		mDTX=2;						// no DTX
-		// FIXME -- Should RADIO_LINK_TIMEOUT be linked to T3109?
-		mRADIO_LINK_TIMEOUT=15;		// 64-frame timeout
+		mRADIO_LINK_TIMEOUT=gConfig.getNum("GSM.RADIO_LINK_TIMEOUT");
 	}
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 	
 };
@@ -117,6 +122,8 @@ class L3CellSelectionParameters : public L3ProtocolElement {
 
 	size_t lengthV() const { return 2; }
 	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -140,16 +147,18 @@ class L3ControlChannelDescription : public L3ProtocolElement {
 	/** Sets reasonable defaults for a single-ARFCN system .*/
 	L3ControlChannelDescription():L3ProtocolElement()
 	{
-		//FIXME These values need to be tied to some global configuration.
+		// Values dictated by the current implementation are hard-coded.
 		mATT=1;						// IMSI attach/detach
 		mBS_AG_BLKS_RES=2;			// reserve 2 CCCHs for access grant
-		mCCCH_CONF=1;				// C-V beacon
 		mBS_PA_MFRMS=0;				// minimum PCH spacing
-		mT3212=T3212ms/360000;		// registration period, in 6-min increments
+		mCCCH_CONF=gConfig.getNum("GSM.CCCH_CONF");
+		mT3212=gConfig.getNum("GSM.T3212")/6;
 	}
 
 	size_t lengthV() const { return 3; }
 	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -174,6 +183,8 @@ class L3FrequencyList : public L3ProtocolElement {
 
 	size_t lengthV() const { return 16; }
 	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame &src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 	private:
@@ -233,6 +244,8 @@ class L3NeighborCellsDescription : public L3FrequencyList {
 	{}
 
 	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 
 	void text(std::ostream&) const;
 
@@ -257,9 +270,9 @@ class L3NCCPermitted : public L3ProtocolElement {
 	{ }
 
 	size_t lengthV() const { return 1; }
-
 	void writeV(L3Frame& dest, size_t &wp) const;
-
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -280,21 +293,20 @@ class L3RACHControlParameters : public L3ProtocolElement {
 
 	public:
 
-	// FIXME -- These should be drawn from gBTS.
 	/** Default constructor parameters allows all access. */
-	L3RACHControlParameters(
-			unsigned wMaxRetrans=0x03, unsigned wTxInteger=0x0e,
-			unsigned wCellBarAccess=0, unsigned wRE=0,
-			uint16_t wAC=0x0)
+	L3RACHControlParameters()
 		:L3ProtocolElement(),
-		mMaxRetrans(wMaxRetrans),mTxInteger(wTxInteger),
-		mCellBarAccess(wCellBarAccess),mRE(wRE),
-		mAC(wAC)
-	{}
+		mCellBarAccess(0),mRE(0)
+	{
+		mMaxRetrans = gConfig.getNum("GSM.RACH.MaxRetrans");
+		mTxInteger = gConfig.getNum("GSM.RACH.TxInteger");
+		mAC = gConfig.getNum("GSM.RACH.AC");
+	}
 
 	size_t lengthV() const { return 3; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -318,10 +330,10 @@ public:
 		mPageMode(wPageMode)
 	{}
 
+	size_t lengthV() const { return 1; }
 	void writeV( L3Frame& dest, size_t &wp ) const;
 	void parseV( const L3Frame &src, size_t &rp );
-	size_t lengthV() const { return 1; }
-
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -343,9 +355,10 @@ public:
 		mDownlink(0), mTMA(0), mDMOrTBF(0)
 	{}
 
-	void writeV(L3Frame &dest, size_t &wp ) const;
 	size_t lengthV() const { return 1; }
-
+	void writeV(L3Frame &dest, size_t &wp ) const;
+	void parseV( const L3Frame &src, size_t &rp ) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -395,12 +408,10 @@ public:
 	{ }
 	
 
-	void writeV( L3Frame &dest, size_t &wp ) const;
-
-	void parseV(const L3Frame& src, size_t &rp);
-
 	size_t lengthV() const  { return 3; }
-
+	void writeV( L3Frame &dest, size_t &wp ) const;
+	void parseV(const L3Frame& src, size_t &rp);
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -439,9 +450,10 @@ public:
 		mT1p(when.T1()%32),mT2(when.T2()),mT3(when.T3())
 	{}
 
-	void writeV(L3Frame &, size_t &wp ) const;
 	size_t lengthV() const { return 3; }
-
+	void writeV(L3Frame &, size_t &wp ) const;
+	void parseV( const L3Frame &src, size_t &rp ) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -464,10 +476,10 @@ public:
 		mTimingAdvance(wTimingAdvance)
 	{}
 	
-	void writeV( L3Frame &dest, size_t &wp ) const;
-
 	size_t lengthV() const { return 1; }
-
+	void writeV(L3Frame&, size_t &wp) const;
+	void parseV(const L3Frame &src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -488,10 +500,10 @@ class L3RRCause : public L3ProtocolElement
 
 	int causeValue() const { return mCauseValue; }
 
-	void writeV( L3Frame &dest, size_t &wp ) const;
-	void parseV( const L3Frame &src, size_t &rp );
 	size_t lengthV() const { return 1; }
-
+	void writeV(L3Frame&, size_t&) const;
+	void parseV(const L3Frame&, size_t&);
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -512,9 +524,10 @@ public:
 		mCommand(wCommand)
 	{}
 
-	void writeV( L3Frame &dest, size_t &wp ) const;
 	size_t lengthV() const { return 1; }
-
+	void writeV( L3Frame &dest, size_t &wp ) const;
+	void parseV( const L3Frame &src, size_t &rp ) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -548,9 +561,10 @@ public:
 	bool operator==(const L3ChannelMode& other) const { return mMode==other.mMode; }
 	bool operator!=(const L3ChannelMode& other) const { return mMode!=other.mMode; }
 
-	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame& src, size_t& wp);
 	size_t lengthV() const { return 1; }
+	void writeV(L3Frame&, size_t&) const;
+	void parseV(const L3Frame&, size_t&);
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -574,14 +588,12 @@ class L3WaitIndication : public L3ProtocolElement {
 		mValue(seconds)
 	{}
 
+	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const
 		{ dest.writeField(wp,mValue,8); }
-
-	size_t lengthV() const
-		{ return 1; }
-
-	void text(std::ostream& os) const
-		{ os << mValue; }
+	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void text(std::ostream& os) const { os << mValue; }
 
 };
 

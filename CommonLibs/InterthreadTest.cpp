@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,7 +34,6 @@ using namespace std;
 
 InterthreadQueue<int> gQ;
 InterthreadMap<int,int> gMap;
-Semaphore gSem;
 
 void* qWriter(void*)
 {
@@ -86,30 +88,6 @@ void* mapReader(void*)
 }
 
 
-void* semWriter(void*)
-{
-	for (int i=0; i<20; i++) {
-		COUT("sem writer post");
-		gSem.post();
-		if (random()%2) sleep(1);
-	}
-	COUT("sem writer done");
-	return NULL;
-}
-
-void* semReader(void*)
-{
-	for (int i=0; i<20; i++) {
-		COUT("sem reader get (waiting)");
-		gSem.get();
-		COUT("sem read got");
-	}
-	COUT("sem reader get done");
-	return NULL;
-}
-
-
-
 
 
 
@@ -120,22 +98,16 @@ int main(int argc, char *argv[])
 	qReaderThread.start(qReader,NULL);
 	Thread mapReaderThread;
 	mapReaderThread.start(mapReader,NULL);
-	Thread semReaderThread;
-	semReaderThread.start(semReader,NULL);
 
 	Thread qWriterThread;
 	qWriterThread.start(qWriter,NULL);
 	Thread mapWriterThread;
 	mapWriterThread.start(mapWriter,NULL);
-	Thread semWriterThread;
-	semWriterThread.start(semWriter,NULL);
 
 	qReaderThread.join();
 	qWriterThread.join();
 	mapReaderThread.join();
 	mapWriterThread.join();
-	semReaderThread.join();
-	semWriterThread.join();
 }
 
 

@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -75,12 +78,39 @@ uint64_t BitVector::peekField(size_t readIndex, unsigned length) const
 }
 
 
+
+
+uint64_t BitVector::peekFieldReversed(size_t readIndex, unsigned length) const
+{
+	uint64_t accum = 0;
+	char *dp = mStart + readIndex + length - 1;
+	assert(dp<mEnd);
+	for (int i=(length-1); i>=0; i--) {
+		accum = (accum<<1) | ((*dp--) & 0x01);
+	}
+	return accum;
+}
+
+
+
+
 uint64_t BitVector::readField(size_t& readIndex, unsigned length) const
 {
 	const uint64_t retVal = peekField(readIndex,length);
 	readIndex += length;
 	return retVal;
 }
+
+
+uint64_t BitVector::readFieldReversed(size_t& readIndex, unsigned length) const
+{
+	const uint64_t retVal = peekFieldReversed(readIndex,length);
+	readIndex += length;
+	return retVal;
+}
+
+
+
 
 
 void BitVector::fillField(size_t writeIndex, uint64_t value, unsigned length)
@@ -94,9 +124,31 @@ void BitVector::fillField(size_t writeIndex, uint64_t value, unsigned length)
 	}
 }
 
+
+void BitVector::fillFieldReversed(size_t writeIndex, uint64_t value, unsigned length)
+{
+	char *dp = mStart + writeIndex;
+	char *dpEnd = dp + length - 1;
+	assert(dpEnd < mEnd);
+	while (dp<=dpEnd) {
+		*dp++ = value & 0x01;
+		value >>= 1;
+	}
+}
+
+
+
+
 void BitVector::writeField(size_t& writeIndex, uint64_t value, unsigned length)
 {
 	fillField(writeIndex,value,length);
+	writeIndex += length;
+}
+
+
+void BitVector::writeFieldReversed(size_t& writeIndex, uint64_t value, unsigned length)
+{
+	fillFieldReversed(writeIndex,value,length);
 	writeIndex += length;
 }
 
@@ -136,6 +188,7 @@ void BitVector::reverse8()
 
 void BitVector::LSB8MSB()
 {
+	if (size()<8) return;
 	size_t size8 = 8*(size()/8);
 	size_t iTop = size8 - 8;
 	for (size_t i=0; i<=iTop; i+=8) segment(i,8).reverse8();

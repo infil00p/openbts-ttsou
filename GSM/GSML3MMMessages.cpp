@@ -7,6 +7,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -113,7 +116,7 @@ void L3LocationUpdatingRequest::parseBody( const  L3Frame &src, size_t &rp )
 		// skip ciphering ket sequence number
 		rp += 4;
 		// skip LAI
-		rp += 5*8;
+		mLAI.parseV(src,rp);
 		// skip classmark
 		rp += 1*8;
 		// Now parse MobileIdentity.
@@ -124,7 +127,8 @@ void L3LocationUpdatingRequest::parseBody( const  L3Frame &src, size_t &rp )
 void L3LocationUpdatingRequest::text(ostream& os) const
 {
 	L3MMMessage::text(os);
-	os<<"MobileIdentity=("<<mMobileIdentity<<")";
+	os <<"LAI=("<<mLAI<<")";
+	os<<" MobileIdentity=("<<mMobileIdentity<<")";
 }
 
 
@@ -140,15 +144,23 @@ size_t L3LocationUpdatingRequest::bodyLength() const
 
 
 
+size_t L3LocationUpdatingAccept::bodyLength() const
+{
+	if (mHaveMobileIdentity) return mLAI.lengthV() + mMobileIdentity.lengthTLV();
+	else return mLAI.lengthV();
+}
+
 void L3LocationUpdatingAccept::writeBody( L3Frame &dest, size_t &wp ) const
 {
 	mLAI.writeV(dest, wp);
+	if (mHaveMobileIdentity) mMobileIdentity.writeTLV(0x17,dest,wp);
 }
 
 void L3LocationUpdatingAccept::text(ostream& os) const
 {
 	L3MMMessage::text(os);
 	os<<"LAI=("<<mLAI<<")";
+	if (mHaveMobileIdentity) os << "ID=(" << mMobileIdentity << ")";
 }
 
 

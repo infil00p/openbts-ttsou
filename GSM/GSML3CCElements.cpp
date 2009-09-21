@@ -6,6 +6,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -291,6 +294,12 @@ void L3ProgressIndicator::text(ostream& os) const
 void L3KeypadFacility::parseV(const L3Frame& src, size_t &rp)
 {
 	mIA5 = src.readField(rp,8);
+}
+
+
+void L3KeypadFacility::writeV(L3Frame& dest, size_t &wp) const
+{
+	dest.writeField(wp,mIA5,8);
 }
 
 

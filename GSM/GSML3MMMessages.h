@@ -6,6 +6,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -105,18 +108,21 @@ class L3LocationUpdatingRequest : public L3MMMessage
 {
 	// For now, we are ignoring everything but the mobile identity.
 	L3MobileIdentity mMobileIdentity; // (LV) 1+len
+	L3LocationAreaIdentity mLAI;
 
 public:
 	L3LocationUpdatingRequest():L3MMMessage() {}
 
 	const L3MobileIdentity& mobileIdentity() const
 		{ return mMobileIdentity; }
+	const L3LocationAreaIdentity& LAI() const
+		{ return mLAI; }
 
 	int MTI() const { return (int)LocationUpdatingRequest; }
 	
-	void parseBody( const L3Frame &src, size_t &rp );	
 	size_t bodyLength() const;
-
+	void writeBody(L3Frame&, size_t&) const { abort(); }
+	void parseBody( const L3Frame &src, size_t &rp );	
 	void text(std::ostream&) const;
 };
 
@@ -127,18 +133,29 @@ class L3LocationUpdatingAccept : public L3MMMessage
 {
 	// LAI = (V) length of 6
 	L3LocationAreaIdentity mLAI;
+	bool mHaveMobileIdentity;
+	L3MobileIdentity mMobileIdentity;
 	
 public:
 
 	L3LocationUpdatingAccept(const L3LocationAreaIdentity& wLAI)
-		:L3MMMessage(),mLAI(wLAI)
+		:L3MMMessage(),mLAI(wLAI),
+		mHaveMobileIdentity(false)
+	{}
+
+	L3LocationUpdatingAccept(
+		const L3LocationAreaIdentity& wLAI,
+		const L3MobileIdentity& wMobileIdentity)
+		:L3MMMessage(),mLAI(wLAI),
+		mHaveMobileIdentity(true),
+		mMobileIdentity(wMobileIdentity)
 	{}
 
 	int MTI() const { return (int)LocationUpdatingAccept; }
 	
+	size_t bodyLength() const;
 	void writeBody( L3Frame &src, size_t &rp ) const;
-	size_t bodyLength() const { return mLAI.lengthV();  }
-
+	void parseBody( const L3Frame& src, size_t &rp ) { abort(); }
 	void text(std::ostream&) const;
 
 };
@@ -150,11 +167,12 @@ class L3MMStatus : public L3MMMessage
 	
 public:
 	L3MMStatus() : L3MMMessage(){}
-	int MTI() const { return (int) MMStatus; }
-	size_t bodyLength() const { return 3;  }
-	
-	void parseBody( const L3Frame& src, size_t &rp );
 
+	int MTI() const { return (int) MMStatus; }
+
+	size_t bodyLength() const { return 3;  }
+	void writeBody(L3Frame&, size_t&) const { abort(); }
+	void parseBody( const L3Frame& src, size_t &rp );
 	void text(std::ostream&) const;
 
 };
@@ -175,10 +193,9 @@ public:
 
 	int MTI() const { return (int)LocationUpdatingReject; }
 	
-	void writeBody( L3Frame &dest, size_t &wp ) const;
-	
 	size_t bodyLength() const { return mRejectCause.lengthV(); }
-
+	void writeBody( L3Frame &dest, size_t &wp ) const;
+	void parseBody( const L3Frame& src, size_t &rp ) { abort(); }
 	void text(std::ostream&) const;
 
 };	
@@ -201,9 +218,9 @@ class L3IMSIDetachIndication : public L3MMMessage {
 
 	int MTI() const { return (int)IMSIDetachIndication; }
 
-	void parseBody( const L3Frame &src, size_t &rp );
 	size_t bodyLength() const { return 1 + mMobileIdentity.lengthLV(); }
-
+	void writeBody(L3Frame&, size_t&) const { abort(); }
+	void parseBody( const L3Frame &src, size_t &rp );
 	void text(std::ostream&) const;
 
 };
@@ -216,8 +233,9 @@ class L3CMServiceAccept : public L3MMMessage {
 
 	int MTI() const { return (int)CMServiceAccept; }
 
-	void writeBody( L3Frame &dest, size_t &wp ) const {}
 	size_t bodyLength() const { return 0; }
+	void writeBody( L3Frame &dest, size_t &wp ) const {}
+	void parseBody( const L3Frame &src, size_t &rp ) { abort(); }
 };
 
 
@@ -229,8 +247,9 @@ class L3CMServiceAbort : public L3MMMessage {
 
 	int MTI() const { return (int)CMServiceAbort; }
 
-	void writeBody( L3Frame &dest, size_t &wp ) const {}
 	size_t bodyLength() const { return 0; }
+	void writeBody( L3Frame &dest, size_t &wp ) const {}
+	void parseBody( const L3Frame &src, size_t &rp );
 };
 
 
@@ -251,9 +270,9 @@ class L3CMServiceReject : public L3MMMessage {
 
 	int MTI() const { return (int)CMServiceReject; }
 
-	void writeBody( L3Frame &dest, size_t &wp ) const;
 	size_t bodyLength() const { return mCause.lengthV(); }
-
+	void writeBody( L3Frame &dest, size_t &wp ) const;
+	void parseBody( const L3Frame &src, size_t &rp ) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -281,11 +300,11 @@ public:
 
 	int MTI() const { return (int)CMServiceRequest; }
 
-	void parseBody( const L3Frame &src, size_t &rp );
-
 	// (1/2) + (1/2) + 4 + 
 	size_t bodyLength() const { return 5+mMobileIdentity.lengthLV(); }
 
+	void writeBody(L3Frame&, size_t&) const { abort(); }
+	void parseBody( const L3Frame &src, size_t &rp );
 	void text(std::ostream&) const;
 };
 
@@ -310,7 +329,9 @@ class L3CMReestablishmentRequest : public L3MMMessage {
 	const L3MobileIdentity& mobileID() const { return mMobileID; }
 
 	int MTI() const { return (int)CMReestablishmentRequest; }
+
 	size_t bodyLength() const { return 1 + 4 + mMobileID.lengthLV(); }
+	void writeBody(L3Frame&, size_t&) const { abort(); }
 	void parseBody( const L3Frame &src, size_t &rp );
 	void text(std::ostream&) const;
 };
@@ -335,8 +356,10 @@ class L3MMInformation : public L3MMMessage {
 	{}
 
 	int MTI() const { return (int)MMInformation; }
+
 	size_t bodyLength() const;
 	void writeBody(L3Frame&,size_t&) const;
+	void parseBody( const L3Frame &src, size_t &rp ) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -354,12 +377,11 @@ class L3IdentityRequest : public L3MMMessage {
 		:L3MMMessage(),mType(wType)
 	{}
 
-	size_t bodyLength() const { return 1; }
-
 	int MTI() const { return IdentityRequest; }
 
+	size_t bodyLength() const { return 1; }
 	void writeBody(L3Frame& dest, size_t& wp) const;
-
+	void parseBody( const L3Frame &src, size_t &rp ) { abort(); }
 	void text(std::ostream&) const;
 };
 
@@ -376,12 +398,11 @@ class L3IdentityResponse : public L3MMMessage {
 
 	const L3MobileIdentity& mobileID() const { return mMobileID; }
 
-	size_t bodyLength() const { return mMobileID.lengthLV(); }
-
 	int MTI() const { return IdentityResponse; }
 
+	size_t bodyLength() const { return mMobileID.lengthLV(); }
+	void writeBody(L3Frame&, size_t&) const { abort(); }
 	void parseBody( const L3Frame &src, size_t &rp );
-
 	void text(std::ostream&) const;
 };
 

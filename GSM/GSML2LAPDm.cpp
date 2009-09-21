@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -277,7 +280,7 @@ void L2LAPDm::open()
 	clearState();
 	mAckSignal.signal();
 	mLock.unlock();
-	sendIdle();
+	if (mSAPI==0) sendIdle();
 }
 
 
@@ -306,8 +309,8 @@ void L2LAPDm::writeHighSide(const L3Frame& frame)
 		case ESTABLISH:
 			// GSM 04.06 5.4.1.2
 			// vISDN datalink.c:lapd_establish_datalink_procedure
-			// The BTS side should never call this.  See note in GSM 04.06 5.4.1.1.
-			assert(mC==0);
+			// The BTS side should never call this in SAP0.  See note in GSM 04.06 5.4.1.1.
+			assert(mSAPI!=0 || mC==0);
 			mLock.lock();
 			if (mState==LinkEstablished) {
 				mLock.unlock();
@@ -332,6 +335,10 @@ void L2LAPDm::writeHighSide(const L3Frame& frame)
 			mState=AwaitingRelease;
 			mLock.unlock();
 			sendUFrameDISC();
+			// Don't return until released.
+			mLock.lock();
+			waitForAck();
+			mLock.unlock();
 			break;
 		case ERROR:
 			// Forced release.
@@ -366,7 +373,7 @@ void L2LAPDm::serviceLoop()
 		// Add 2 ms to prevent race condition due to roundoff error.
 		unsigned timeout = mT200.remaining() + 2;
 		if (!mT200.active()) {
-			if (mState==LinkReleased) timeout=gBigReadTimeout;
+			if (mState==LinkReleased) timeout=3600000;
 			else timeout = T200();
 		}
 		OBJDCOUT("L2LAPDm::serviceLoop read blocking up to " << timeout << " ms, state=" << mState);
@@ -534,6 +541,7 @@ void L2LAPDm::receiveUFrameSABM(const L2Frame& frame)
 			break;
 		default:
 			unexpectedMessage();
+			return;
 	}
 }
 
@@ -552,7 +560,7 @@ void L2LAPDm::receiveUFrameDISC(const L2Frame& frame)
 			// The DM response means we are already disconnected.
 			// GSM 04.06 5.4.5
 			sendUFrameDM(frame.PF());
-			writeL1(RELEASE);
+			if (mSAPI==0) writeL1(RELEASE);
 			break;
 		case ContentionResolution:
 		case LinkEstablished:
@@ -563,7 +571,7 @@ void L2LAPDm::receiveUFrameDISC(const L2Frame& frame)
 			mT200.reset();
 			sendUFrameUA(frame.PF());
 			mL3Out.write(new L3Frame(RELEASE));
-			writeL1(RELEASE);
+			if (mSAPI==0) writeL1(RELEASE);
 			break;
 		case AwaitingRelease:
 			// We can arrive here if both ends sent DISC at the same time.
@@ -572,6 +580,7 @@ void L2LAPDm::receiveUFrameDISC(const L2Frame& frame)
 			break;
 		default:
 			unexpectedMessage();
+			return;
 	}
 }
 
@@ -583,7 +592,10 @@ void L2LAPDm::receiveUFrameUA(const L2Frame& frame)
 	// vISDN datalink.c:lapd_socket_handle_uframe_ua
 
 	OBJDCOUT("L2LAPDm::receiveUFrameUA state=" << mState);
-	if (!frame.PF()) unexpectedMessage();
+	if (!frame.PF()) {
+		unexpectedMessage();
+		return;
+	}
 
 	switch (mState) {
 		case AwaitingEstablish:
@@ -597,10 +609,11 @@ void L2LAPDm::receiveUFrameUA(const L2Frame& frame)
 			mT200.reset();
 			mAckSignal.signal();
 			mL3Out.write(new L3Frame(RELEASE));
-			writeL1(RELEASE);
+			if (mSAPI==0) writeL1(RELEASE);
 			break;
 		default:
 			unexpectedMessage();
+			return;
 	}
 }
 
@@ -625,7 +638,7 @@ void L2LAPDm::receiveUFrameDM(const L2Frame& frame)
 	mT200.reset();
 	mState=LinkReleased;
 	mL3Out.write(new L3Frame(RELEASE));
-	writeL1(RELEASE);
+	if (mSAPI==0) writeL1(RELEASE);
 }
 
 
@@ -652,7 +665,7 @@ void L2LAPDm::receiveSFrame(const L2Frame& frame)
 	switch (frame.SFrameType()) {
 		case L2Control::RRFrame: receiveSFrameRR(frame); break;
 		case L2Control::REJFrame: receiveSFrameREJ(frame); break;
-		default: unexpectedMessage();
+		default: unexpectedMessage(); return;
 	}
 }
 
@@ -696,21 +709,23 @@ void L2LAPDm::receiveSFrameREJ(const L2Frame& frame)
 			mState = LinkEstablished;
 			// continue to next case...
 		case LinkEstablished:
-			mVS = mVA = frame.NR();
+			// HACK -- The spec says to do this but it breaks multiframe transmission.
+			//mVS = mVA = frame.NR();
 			processAck(frame.NR());
 			if (frame.PF()) {
 				if (frame.CR()!=mC) sendSFrameRR(true);
 				else {
 					unexpectedMessage();
-					break;
+					return;
 				}
 			}
-			// TODO -- Is this correct, or should be just send idle?
-			retransmissionProcedure();
+			// HACK -- Is this correct, or should we just send idle?
+			//retransmissionProcedure();
+			sendIdle();
 			break;
 		default:
 			// ignore
-			return;
+			break;
 	}
 	// Send an idle frame to clear any repeating junk on the channel.
 	sendIdle();

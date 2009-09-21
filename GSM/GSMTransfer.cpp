@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -285,7 +288,7 @@ L2Control::FrameType L2Frame::SFrameType() const
 {
 	// Determine S-frame command type.
 	// GSM 04.06 Table 4.
-	char sBits = peekField(8+5,2);
+	char sBits = peekField(8+4,2);
 	static const L2Control::FrameType type[] = {
 		L2Control::RRFrame, L2Control::RNRFrame,
 		L2Control::REJFrame, L2Control::BogusFrame };

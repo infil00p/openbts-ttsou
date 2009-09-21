@@ -23,11 +23,10 @@ include $(top_srcdir)/Makefile.common
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
 
 noinst_PROGRAMS = \
-	OpenBTS850 \
-	OpenBTS900
+	OpenBTS 
 
-OpenBTS850_SOURCES = OpenBTS850.cpp
-OpenBTS850_LDADD = \
+OpenBTS_SOURCES = OpenBTS.cpp
+OpenBTS_LDADD = \
 	$(COMMON_LA) \
 	$(SIP_LA) \
 	$(GSM_LA) \
@@ -36,12 +35,6 @@ OpenBTS850_LDADD = \
 	$(OSIP_LIBS) \
 	$(ORTP_LIBS)
 
-OpenBTS900_SOURCES = OpenBTS900.cpp
-OpenBTS900_LDADD = \
-	$(COMMON_LA) \
-	$(SIP_LA) \
-	$(GSM_LA) \
-	$(TRX_LA) \
-	$(CONTROL_LA) \
-	$(OSIP_LIBS) \
-	$(ORTP_LIBS)
+EXTRA_DIST = \
+	OpenBTS.config
+

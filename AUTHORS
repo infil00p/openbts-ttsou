@@ -151,23 +151,4 @@ Raffi Sevlian, raffisev@gmail.com:
     SIP/SIPMessage.h
     SIP/SIPUtility.cpp
     SIP/SIPUtility.h
-    SMS/CMMessage.cpp
-    SMS/CMMessage.h
-    SMS/CMProcessor.cpp
-    SMS/CMProcessor.h
-    SMS/CMTest.cpp
-    SMS/RLMessage.cpp
-    SMS/RLMessage.h
-    SMS/RLProcessor.cpp
-    SMS/RLProcessor.h
-    SMS/SMSMessages.cpp
-    SMS/SMSMessages.h
-    SMS/SMSProcessors.cpp
-    SMS/SMSProcessors.h
-    SMS/SMSTransfer.cpp
-    SMS/SMSTransfer.h
-    SMS/TLMessage.cpp
-    SMS/TLMessage.h
-    SMS/TLProcessor.cpp
-    SMS/TLProcessor.h
     TRXManager/TRXManager.h

@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -33,6 +36,7 @@
 
 
 #include "Sockets.h"
+#include <Globals.h>
 
 
 namespace SIP {
@@ -52,7 +56,8 @@ enum SIPState  {
 	Active,
 	Clearing,
 	Cleared,
-	Fail
+	Fail,
+	MessageSubmit
 };
 
 
@@ -72,25 +77,28 @@ public:
 	enum Method { SIPRegister =0, SIPUnregister=1 };
 
 private:
-	// Generic Connection Management
-	short local_port;
-	short asterisk_port;
-	std::string asterisk_ip;
 
 	// MOC, MTC information.
-	std::string  o_addr;
-	short rtp_port;
+	std::string  mOAddr;
+	short mRTPPort;
 	std::string mCalledUsername;
 	std::string mCalledDomain;
-	unsigned codec;
+	unsigned mCodec;
 
 	// General SIP tags and ids.	
-	std::string to_tag;
-	std::string from_tag;
-	std::string via_branch;
+	std::string mToTag;
+	std::string mFromTag;
+	std::string mViaBranch;
 	std::string mCallID;
-	std::string sip_username;
+	std::string mSIPUsername;
 	unsigned  mCSeq;
+
+	/**@name SIP UDP parameters */
+	//@{
+	unsigned mSIPPort;
+	char mAsteriskIP[256];
+	char mMessengerIP[256];
+	//@}
 
 	osip_message_t * mINVITE;	///< the INVITE message for this transaction
 	osip_message_t * mOK;		///< the INVITE-OK message for this transaction
@@ -111,21 +119,20 @@ public:
 	int time_outs;
 
 	/** Default contructor. Initialize the object. */
-	SIPEngine( short w_local_port, short w_asterisk_port, 
-	const char * w_asterisk_ip )
-		:local_port(w_local_port), 
-		asterisk_port(w_asterisk_port), asterisk_ip(w_asterisk_ip),
-		mCSeq(random()%1000),
-		mINVITE(NULL), mOK(NULL), mBYE(NULL),
-		session(NULL), mState(NullState),tx_time(0), rx_time(0)
-	{}
-
-	/** Empty constructor. */
 	SIPEngine()
 		:mCSeq(random()%1000),
 		mINVITE(NULL), mOK(NULL), mBYE(NULL),
 		session(NULL), mState(NullState),tx_time(0), rx_time(0)
-	{}
+	{
+		mSIPPort = gConfig.getNum("SIP.Port");
+		const char* wAsteriskIP = gConfig.getStr("Asterisk.IP");
+		assert(strlen(wAsteriskIP)<256);
+		strcpy(mAsteriskIP,wAsteriskIP);
+		const char* wMessengerIP = gConfig.getStr("Messenger.IP");
+		assert(strlen(wMessengerIP)<256);
+		strcpy(mMessengerIP,wMessengerIP);
+	}
+
 
 	/** Destroy held message copies. */
 	~SIPEngine();
@@ -169,28 +176,48 @@ public:
 		Send an invite message.
 		@param called_username SIP userid or E.164 address.
 		@param called_domain SIP user's domain.
-		@param rtp_port UDP port to use for speech (will use this and next port)
-		@param codec Code for codec to be used.
+		@param mRTPPort UDP port to use for speech (will use this and next port)
+		@param wCodec Code for codec to be used.
 		@return New SIP call state.
 	*/
 	SIPState MOCSendINVITE(const char * called_username,
-		const char * called_domain, short rtp_port, unsigned codec);
+		const char * called_domain, short mRTPPort, unsigned wCodec);
 
 	SIPState MOCResendINVITE();
 
 	SIPState MOCWaitForOK();
 
 	SIPState MOCSendACK();
+
+	//@}
+
+	/**@name Messages associated with MOSMS procedure. */
+	//@{
+
+	/**
+		Send an instant message.
+		@param called_username SIP userid or E.164 address.
+		@param called_domain SIP user's domain.
+		@param message_text MESSAGE payload as a C string.
+		@return New SIP call state.
+	*/
+	SIPState MOSMSSendMESSAGE(const char * called_username,
+		const char * called_domain, const char *message_text);
+
+	SIPState MOSMSWaitForOKOrAccepted();
+
+	SIPState MTSMSSendOK();
+
 	//@}
 
 
-	/** Save a copy of an INVITE message in the engine. */
+	/** Save a copy of an INVITE or MESSAGE message in the engine. */
 	void saveINVITE(const osip_message_t *invite);
 
 	/** Save a copy of an OK message in the engine. */
 	void saveOK(const osip_message_t *OK);
 
-	/** Save a copy of an BYE message in the engine. */
+	/** Save a copy of a BYE message in the engine. */
 	void saveBYE(const osip_message_t *BYE);
 
 
@@ -200,10 +227,18 @@ public:
 
 	SIPState MTCSendRinging();
 
-	SIPState MTCSendOK(short wrtp_port, unsigned wcodec);
+	SIPState MTCSendOK(short wRTPPort, unsigned wCodec);
 
 	SIPState MTCWaitForACK();
 	//@}
+
+	/**@name Messages associated with MTSMS procedure. */
+	//@{
+
+	SIPState MTCSendOK();
+
+	//@}
+
 
 
 	/**@name Messages for MOD procedure. */
@@ -237,6 +272,20 @@ public:
 	void InitRTP(const osip_message_t * msg );
 	void MOCInitRTP();
 	void MTCInitRTP();
+
+	/** In-call Signalling */
+	//@{
+
+	/**
+		Send a SIP INFO message, usually for DTMF.
+		Most parameters taken from current SIPEngine state.
+		This call blocks for the response.
+		@param wInfo The DTMF signalling code.
+		@return Success/Fail flag.
+	*/
+	bool sendINFOAndWaitForOK(unsigned wInfo);
+
+	//@}
 
 };
 

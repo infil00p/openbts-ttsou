@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -84,15 +87,19 @@ public:
 
   /** Set clock */
   void set(const GSM::Time& wTime) { mLock.lock(); mClock = wTime; updateSignal.signal(); mLock.unlock();}
+  //void set(const GSM::Time& wTime) { mLock.lock(); mClock = wTime; updateSignal.broadcast(); mLock.unlock();}
 
   /** Increment clock */
   void incTN() { mLock.lock(); mClock.incTN(); updateSignal.signal(); mLock.unlock();}
+  //void incTN() { mLock.lock(); mClock.incTN(); updateSignal.broadcast(); mLock.unlock();}
 
   /** Get clock value */
   GSM::Time get() { mLock.lock(); GSM::Time retVal = mClock; mLock.unlock(); return retVal;}
 
   /** Wait until clock has changed */
   void wait() {mLock.lock(); updateSignal.wait(mLock,1); mLock.unlock();}
+  // FIXME -- If we take away the timeout, a lot of threads don't start.  Why?
+  //void wait() {mLock.lock(); updateSignal.wait(mLock); mLock.unlock();}
 
 };
 

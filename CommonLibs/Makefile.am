@@ -23,7 +23,9 @@ include $(top_srcdir)/Makefile.common
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
 CXXFLAGS = -O3 -g -lpthread
 
-EXTRA_DIST = README.common
+EXTRA_DIST = \
+	example.config \
+	README.common
 
 noinst_LTLIBRARIES = libcommon.la
 
@@ -32,24 +34,28 @@ libcommon_la_SOURCES = \
 	LinkedLists.cpp \
 	Sockets.cpp \
 	Threads.cpp \
-	Timeval.cpp
+	Timeval.cpp \
+	Configuration.cpp
 
 noinst_PROGRAMS = \
 	BitVectorTest \
 	InterthreadTest \
 	SocketsTest \
 	TimevalTest \
-	VectorTest
+	RegexpTest \
+	VectorTest \
+	ConfigurationTest
 
 noinst_HEADERS = \
-	Assert.h \
 	BitVector.h \
 	Interthread.h \
 	LinkedLists.h \
 	Sockets.h \
 	Threads.h \
 	Timeval.h \
-	Vector.h
+	Regexp.h \
+	Vector.h \
+	Configuration.h
 
 BitVectorTest_SOURCES = BitVectorTest.cpp
 BitVectorTest_LDADD = libcommon.la
@@ -68,4 +74,12 @@ TimevalTest_LDADD = libcommon.la
 VectorTest_SOURCES = VectorTest.cpp
 VectorTest_LDADD = libcommon.la
 
+RegexpTest_SOURCES = RegexpTest.cpp
+RegexpTest_LDADD = libcommon.la
+
+ConfigurationTest_SOURCES = ConfigurationTest.cpp
+ConfigurationTest_LDADD = libcommon.la
+
 MOSTLYCLEANFILES += testSource testDestination
+
+

@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -55,22 +58,26 @@ const BitVector GSM::gRACHSynchSequence("010010110111111110011001101010100011110
 
 
 
-char encodeGSMChar(char ascii)
+unsigned char GSM::encodeGSMChar(unsigned char ascii)
 {
 	// Given an ASCII char, return the corresponding GSM char.
-	static char reverseTable[256]={0};
-	static bool init = false;
+	// Do it with a lookup table, generated on the first call.
+	// You might be tempted to replace this init with some more clever NULL-pointer trick.
+	// -- Don't.  This is thread-safe.
+	static char reverseTable[256]={'?'};
+	static volatile bool init = false;
 	if (!init) {
 		for (size_t i=0; i<sizeof(gGSMAlphabet); i++) {
 			reverseTable[(unsigned)gGSMAlphabet[i]]=i;
 		}
+		// Set the flag last to be thread-safe.
 		init=true;
 	}
 	return reverseTable[(unsigned)ascii];
 }
 
 
-char encodeBCDChar(char ascii)
+char GSM::encodeBCDChar(char ascii)
 {
 	// Given an ASCII char, return the corresponding BCD.
 	if ((ascii>='0') && (ascii<='9')) return ascii-'0';
@@ -105,20 +112,26 @@ unsigned GSM::uplinkFreqKHz(GSMBand band, unsigned ARFCN)
 			assert((ARFCN>511)&&(ARFCN<811));
 			return 1850200+200*(ARFCN-512);
 		default:
-			abort();
+			assert(0);
+	}
+}
+
+
+unsigned GSM::uplinkOffsetKHz(GSMBand band)
+{
+	switch (band) {
+		case GSM850: return 45000;
+		case EGSM900: return 45000;
+		case DCS1800: return 95000;
+		case PCS1900: return 80000;
+		default: assert(0);
 	}
 }
 
 
 unsigned GSM::downlinkFreqKHz(GSMBand band, unsigned ARFCN)
 {
-	static unsigned uplinkOffset[] = {
-		45000,	// 850
-		45000,	// 900
-		95000,	// 1800
-		80000	// 1900
-	};
-	return uplinkFreqKHz(band,ARFCN) + uplinkOffset[band];
+	return uplinkFreqKHz(band,ARFCN) + uplinkOffsetKHz(band);
 }
 
 
@@ -126,9 +139,9 @@ unsigned GSM::downlinkFreqKHz(GSMBand band, unsigned ARFCN)
 
 int32_t GSM::FNDelta(int32_t v1, int32_t v2)
 {
-	static const int64_t halfModulus = gHyperframe/2;
+	static const int32_t halfModulus = gHyperframe/2;
 	int32_t delta = v1-v2;
-	if (delta>halfModulus) delta -= gHyperframe;
+	if (delta>=halfModulus) delta -= gHyperframe;
 	else if (delta<-halfModulus) delta += gHyperframe;
 	return (int32_t) delta;
 }
@@ -136,9 +149,9 @@ int32_t GSM::FNDelta(int32_t v1, int32_t v2)
 int GSM::FNCompare(int32_t v1, int32_t v2)
 {
 	int32_t delta = FNDelta(v1,v2);
-	if (delta==0) return 0;
-	else if (delta>0) return 1;
-	else return -1;
+	if (delta>0) return 1;
+	if (delta<0) return -1;
+	return 0;
 }
 
 
@@ -166,10 +179,10 @@ int32_t Clock::FN() const
 {
 	mLock.lock();
 	Timeval now;
-	int deltaSec = now.sec() - mBaseTime.sec();
-	int deltaUSec = now.usec() - mBaseTime.usec();
-	int elapsedUSec = 1000000*deltaSec + deltaUSec;
-	int elapsedFrames = elapsedUSec / gFrameMicroseconds;
+	int32_t deltaSec = now.sec() - mBaseTime.sec();
+	int32_t deltaUSec = now.usec() - mBaseTime.usec();
+	int64_t elapsedUSec = 1000000LL*deltaSec + deltaUSec;
+	int64_t elapsedFrames = elapsedUSec / gFrameMicroseconds;
 	int32_t currentFN = (mBaseFN + elapsedFrames) % gHyperframe;
 	mLock.unlock();
 	return currentFN;
@@ -182,7 +195,7 @@ void Clock::wait(const Time& when) const
 	int32_t target = when.FN();
 	int32_t delta = FNDelta(target,now);
 	if (delta<1) return;
-	const int32_t maxSleep = 51*26;
+	static const int32_t maxSleep = 51*26;
 	if (delta>maxSleep) delta=maxSleep;
 	sleepFrames(delta);
 }
@@ -201,7 +214,7 @@ ostream& GSM::operator<<(ostream& os, TypeOfNumber type)
 		case NationalNumber: os << "national"; break;
 		case NetworkSpecificNumber: os << "network-specific"; break;
 		case ShortCodeNumber: os << "short code"; break;
-		default: os << "?" << type << "?";
+		default: os << "?" << (int)type << "?";
 	}
 	return os;
 }

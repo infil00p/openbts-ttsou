@@ -4,6 +4,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,7 +31,7 @@
 
 #include <string.h>
 #include <iostream>
-#include "Assert.h"
+#include <assert.h>
 
 
 /**
@@ -199,9 +202,9 @@ template <class T> class Vector {
 		@param start The start point in this vector.
 		@param span The number of elements to copy.
 	*/
-	void segmentCopyTo(Vector<T>& other, size_t start, size_t span)
+	void segmentCopyTo(Vector<T>& other, size_t start, size_t span) const
 	{
-		T* base = mStart + start;
+		const T* base = mStart + start;
 		assert(base+span<=mEnd);
 		assert(other.mStart+span<=other.mEnd);
 		memcpy(other.mStart,base,span*sizeof(T));

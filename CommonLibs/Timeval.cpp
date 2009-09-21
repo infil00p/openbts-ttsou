@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -66,6 +69,7 @@ double Timeval::seconds() const
 
 long Timeval::delta(const Timeval& other) const
 {
+	// 2^31 milliseconds is just over 4 years.
 	long deltaS = other.sec() - sec();
 	long deltaUs = other.usec() - usec();
 	return 1000*deltaS + deltaUs/1000;

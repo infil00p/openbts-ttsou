@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,7 +33,7 @@
 #include <sys/un.h>
 #include <errno.h>
 #include <list>
-#include "Assert.h"
+#include <assert.h>
 
 
 
@@ -38,6 +41,8 @@
 
 #define MAX_UDP_LENGTH 1500
 
+/** A function to resolve IP host names. */
+bool resolveAddress(struct sockaddr_in *address, const char *host, unsigned short port);
 
 /** An exception to throw when a critical socket operation fails. */
 class SocketError {};
@@ -50,7 +55,7 @@ protected:
 
 	int mSocketFD;				///< underlying file descriptor
 	char mDestination[256];		///< address to which packets are sent
-	char mReturnAddr[256];		///< return address of most recent received packet
+	char mSource[256];		///< return address of most recent received packet
 
 public:
 
@@ -84,6 +89,12 @@ public:
 	*/
 	int read(char* buffer);
 
+	/** Send a packet to a given destination, other than the default. */
+	int send(const struct sockaddr *dest, const char * buffer, size_t length);
+
+	/** Send a C-style string to a given destination, other than the default. */
+	int send(const struct sockaddr *dest, const char * buffer);
+
 	/** Make the socket non-blocking. */
 	void nonblocking();
 
@@ -115,7 +126,8 @@ public:
 	/** Open and bind the UDP socket to a local port. */
 	void open(unsigned short localPort=0);
 
-protected:
+	/** Give the return address of the most recently received packet. */
+	const struct sockaddr_in* source() const { return (const struct sockaddr_in*)mSource; }
 
 	size_t addressSize() const { return sizeof(struct sockaddr_in); }
 
@@ -133,7 +145,8 @@ public:
 
 	void open(const char* localPath);
 
-protected:
+	/** Give the return address of the most recently received packet. */
+	const struct sockaddr_un* source() const { return (const struct sockaddr_un*)mSource; }
 
 	size_t addressSize() const { return sizeof(struct sockaddr_un); }
 

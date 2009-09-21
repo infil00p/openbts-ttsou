@@ -23,18 +23,42 @@
 */
 
 
+#ifndef REGEXPW_H
+#define REGEXPW_H
 
-#ifndef GSM610TABLES_H
-#define GSM610TABLES_H
+#include <stdlib.h>
+#include <regex.h>
+#include <iostream>
 
 
 
-namespace GSM {
+class Regexp {
 
-/** Table #2 from GSM 05.03 */
-extern unsigned int g610BitOrder[260];
+	private:
 
-}
+	regex_t mRegex;
+
+
+	public:
+
+	Regexp(const char* regexp, int flags=REG_EXTENDED)
+	{
+		int result = regcomp(&mRegex, regexp, flags);
+		if (result) {
+			char msg[256];
+			regerror(result,&mRegex,msg,255);
+			std::cerr << "Regexp compilation of " << regexp << " failed: " << msg << std::endl;
+			abort();
+		}
+	}
+
+	~Regexp()
+		{ regfree(&mRegex); }
+
+	bool match(const char *text, int flags=0) const
+		{ return regexec(&mRegex, text, 0, NULL, flags)==0; }
+
+};
 
 
 #endif

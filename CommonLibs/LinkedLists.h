@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -70,7 +73,10 @@ class PointerFIFO {
 	/** Put an item into the FIFO. */
 	void put(void* val);
 
-	/** Take an item from the FIFO. */
+	/**
+		Take an item from the FIFO.
+		Returns NULL for empty list.
+	*/
 	void* get();
 
 

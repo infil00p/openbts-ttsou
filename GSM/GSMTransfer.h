@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -234,7 +237,9 @@ class L2Address {
 
 	L2Address(unsigned wCR=0, unsigned wSAPI=0, unsigned wLPD=0)
 		:mSAPI(wSAPI),mCR(wCR),mLPD(wLPD)
-	{ }
+	{
+		assert(wSAPI<4);
+	}
 
 	/**@name Obvious accessors. */
 	//@{

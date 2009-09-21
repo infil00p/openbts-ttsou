@@ -4,6 +4,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,17 +34,6 @@
 
 #include "Interthread.h"
 #include "Timeval.h"
-
-/**
-	Set the BTS' UDP port.
-	Asterisk in on 5060, Zoiper on 5061 and the BTS on 5062.
-*/
-#define SIP_UDP_PORT 5062
-
-/**
-	We use a block of 100 ports (50 pairs) for RTP starting at this address.
-*/
-#define RTP_PORT_START 16484
 
 
 #include <GSML3CommonElements.h>
@@ -80,7 +72,7 @@ class TransactionTable;
 #ifndef RACETEST
 const unsigned T301ms=60000;		///< recv ALERT --> recv CONN
 const unsigned T302ms=12000;		///< send SETUP ACK --> any progress
-const unsigned T303ms=10000;			///< send SETUP --> recv CALL CONF or REL COMP
+const unsigned T303ms=10000;		///< send SETUP --> recv CALL CONF or REL COMP
 const unsigned T304ms=20000;		///< recv SETUP ACK --> any progress
 const unsigned T305ms=30000;		///< send DISC --> recv REL or DISC
 const unsigned T308ms=30000;		///< send REL --> rev REL or REL COMP
@@ -106,12 +98,24 @@ const unsigned T313ms=3000;		///< send CONNECT --> recv CONNECT ACK
 /**
 	Common-use function to block on a channel until a given primitive arrives.
 	Any payload is discarded.
-	Does not throw excecptions.
+	@param LCH The logcial channel.
+	@param primitive The primitive to wait for.
+	@param timeout_ms The timeout in milliseconds.
 	@return True on success, false on timeout.
 */
 bool waitForPrimitive(GSM::LogicalChannel *LCH,
 	GSM::Primitive primitive,
-	unsigned timeout_ms=gBigReadTimeout);
+	unsigned timeout_ms);
+
+/**
+	Common-use function to block on a channel until a given primitive arrives.
+	Any payload is discarded.
+	@param LCH The logcial channel.
+	@param primitive The primitive to wait for.
+	@return True on success, false on timeout.
+*/
+void waitForPrimitive(GSM::LogicalChannel *LCH,
+	GSM::Primitive primitive);
 
 /**
 	Get a message from a LogicalChannel.
@@ -119,9 +123,11 @@ bool waitForPrimitive(GSM::LogicalChannel *LCH,
 	Caller must delete the returned pointer.
 	Throws ChannelReadTimeout, UnexpecedPrimitive or UnsupportedMessage on timeout.
 	@param LCH The channel to receive on.
+	@param SAPI The service access point.
 	@return Pointer to message.
 */
-GSM::L3Message* getMessage(GSM::LogicalChannel* LCH);
+// FIXME -- This needs an adjustable timeout.
+GSM::L3Message* getMessage(GSM::LogicalChannel* LCH, unsigned SAPI=0);
 
 /**
 	Clear the state information associated with a TransactionEntry.
@@ -170,14 +176,25 @@ void MOCController(TransactionEntry&, GSM::TCHFACCHLogicalChannel*);
 /**@name MTC */
 //@{
 /** Run the MTC to the point of alerting, doing early assignment if needed. */
-void MTCStarter(const GSM::L3PagingResponse*, GSM::LogicalChannel*);
+void MTCStarter(TransactionEntry&, GSM::LogicalChannel*);
 /** Complete the MTC connection. */
 void MTCController(TransactionEntry&, GSM::TCHFACCHLogicalChannel*);
 //@}
-/**@name MOSMS */
+/**@name SMS */
 //@{
-void ShortMessageServiceStarter(const GSM::L3CMServiceRequest*resp, 
-						GSM::SDCCHLogicalChannel *SDCCH);
+
+/** MOSMS state machine.  */
+void MOSMSController(const GSM::L3CMServiceRequest *req, 
+						GSM::LogicalChannel *LCH);
+/**
+	Basic SMS delivery from an established CM.
+	On exit, SAP3 will be in ABM and LCH will still be open.
+*/
+void deliverSMSToMS(const char *callingPartyDigits, const char* message, unsigned TI, GSM::LogicalChannel *LCH);
+
+/** MTSMS */
+void MTSMSController(TransactionEntry& transaction, 
+						GSM::LogicalChannel *LCH);
 //@}
 
 
@@ -200,7 +217,20 @@ void DCCHDispatcher(GSM::LogicalChannel *DCCH);
 
 
 
+/**
+	Resolve a mobile ID to an IMSI.
+	Returns TMSI, if it is already in the TMSITable.
+	@param sameLAI True if the mobileID is known to have come from this LAI.
+	@param mobID A mobile ID, that may be modified by the function.
+	@param SDCCH The Dm channel to the mobile.
+	@return A TMSI value from the TMSITable or zero if non found.
+*/
+unsigned  resolveIMSI(bool sameLAI, GSM::L3MobileIdentity& mobID, GSM::LogicalChannel* LCH);
 
+
+
+/**@ Paging mechanisms */
+//@{
 
 
 /** An entry in the paging list. */
@@ -208,7 +238,6 @@ class PagingEntry {
 
 	private:
 
-	// FIXME -- We need to support channel type.  See tracker item #316.
 	GSM::ChannelType mType;			///< The needed channel type.
 	GSM::L3MobileIdentity mID;		///< The mobile ID.
 	Timeval mExpiration;			///< The expiration time for this entry.
@@ -238,17 +267,21 @@ class PagingEntry {
 
 };
 
+typedef std::list<PagingEntry> PagingEntryList;
+
 
 /**
 	The pager is a global object that generates paging messages on the CCCH.
 	To page a mobile, add the mobile ID to the pager.
 	The entry will be deleted automatically when it expires.
+	All pager operations are linear time.
+	Not much point in optimizing since the main operation is inherently linear.
 */
 class Pager {
 
 	private:
 
-	std::list<PagingEntry> mPageIDs;		///< List of ID's to be paged.
+	PagingEntryList mPageIDs;				///< List of ID's to be paged.
 	Mutex mLock;							///< Lock for thread-safe access.
 	Signal mPageSignal;						///< signal to wake the paging loop
 	Thread mPagingThread;					///< Thread for the paging loop.
@@ -267,9 +300,19 @@ class Pager {
 		Add a mobile ID to the paging list.
 		@param addID The mobile ID to be paged.
 		@param chanType The channel type to be requested.
-		@param wLife The paging duration in ms, default based on SIP INVITE retry preiod.
+		@param wLife The paging duration in ms, default based on SIP INVITE retry preiod, Timer A.
 	*/
-	void addID(const GSM::L3MobileIdentity& addID, GSM::ChannelType chanType, unsigned wLife=4000);
+	void addID(
+		const GSM::L3MobileIdentity& addID,
+		GSM::ChannelType chanType,
+		unsigned wLife=gConfig.getNum("SIP.Timer.A")
+	);
+
+	/**
+		Remove a mobile ID.
+		This is used to stop the paging when a phone responds.
+	*/
+	void removeID(const GSM::L3MobileIdentity&);
 
 	private:
 
@@ -290,7 +333,14 @@ class Pager {
 void *PagerServiceLoopAdapter(Pager*);
 
 
+//@}	// paging mech
 
+
+
+
+
+/**@name Transaction Table mechanisms. */
+//@{
 
 /**
 	A TransactionEntry object is used to maintain the state of a transaction
@@ -313,7 +363,8 @@ class TransactionEntry {
 		ConnectIndication,
 		Active,
 		DisconnectIndication,
-		ReleaseRequest
+		ReleaseRequest,
+		SMSDelivering
 	};
 
 	private:
@@ -329,6 +380,8 @@ class TransactionEntry {
 
 	SIP::SIPEngine mSIP;						///< the SIP IETF RFC-3621 protocol engine
 	Q931CallState mQ931State;					///< the GSM/ISDN/Q.931 call state
+
+	char mMessage[256];						///< text messaging payload
 
 	/**@name Timers from GSM and Q.931 (network side) */
 	//@{
@@ -380,6 +433,9 @@ class TransactionEntry {
 
 	const GSM::L3CallingPartyBCDNumber& calling() const { return mCalling; }
 
+	const char* message() const { return mMessage; }
+	void message(const char *wMessage) { strncpy(mMessage,wMessage,255); }
+
 	unsigned ID() const { return mID; }
 
 	SIP::SIPEngine& SIP() { return mSIP; }
@@ -413,8 +469,7 @@ class TransactionEntry {
 	void resetTimers();
 
 	/** Retrns true if the transaction is "dead". */
-	bool dead() const
-		{ return ((mQ931State==Paging)&&mT3113.expired()) || (mQ931State==NullState); }
+	bool dead() const;
 
 	private:
 
@@ -440,6 +495,9 @@ class TransactionTable {
 
 	private:
 
+	// FIXME -- We need to support log-time lookup by transaction ID _or_ IMSI.
+	// Right now, it's log-time for transaction ID and linear time for IMSI.
+
 	TransactionMap mTable;
 	mutable Mutex mLock;
 	unsigned mIDCounter;
@@ -447,10 +505,9 @@ class TransactionTable {
 	public:
 
 	TransactionTable()
-	{
-		// Initialize mIDCounter with a random value.
-		mIDCounter = random();
-	}
+		// This assumes the main application uses sdevrandom.
+		:mIDCounter(random())
+	{ }
 
 	/**
 		Return a new ID for use in the table.
@@ -491,7 +548,7 @@ class TransactionTable {
 		@param target A TransactionEntry to accept the found record.
 		@return true is the mobile ID was foind.
 	*/
-	bool findByMobileID(const GSM::L3MobileIdentity& mobileID, TransactionEntry& target) const;
+	bool find(const GSM::L3MobileIdentity& mobileID, TransactionEntry& target) const;
 
 	/**
 		Remove "dead" entries from the table.
@@ -500,6 +557,70 @@ class TransactionTable {
 	void clearDeadEntries();
 };
 
+//@} // Transaction Table
+
+
+
+
+/**@ TMSI mechanisms */
+//@{
+
+typedef std::map<unsigned,std::string> TMSIMap;
+
+class TMSITable {
+
+	private:
+
+	TMSIMap mMap;							///< IMSI/TMSI mapping
+	unsigned mCounter;						///< a counter to generate new TMSIs
+	unsigned mClear;						///< next TMSI to be cleared from the table
+	mutable Mutex mLock;					///< concurrency control
+	static const unsigned mMaxSize = 50000;	///< maximum allowable table size
+
+
+	public:
+
+	TMSITable()
+		:mCounter(time(NULL)),
+		mClear(mCounter)
+	{}
+
+	/**
+		Create a new entry in the table.
+		@param IMSI	The IMSI to create an entry for.
+		@return The assigned TMSI.
+	*/
+	unsigned assign(const char* IMSI);
+
+	/**
+		Find an entry in the table.
+		This is a log-time operation.
+		@param TMSI The TMSI to find.
+		@return Pointer to c-string IMSI or NULL.
+	*/
+	const char* find(unsigned TMSI) const;
+
+	/**
+		Find an entry in the table.
+		This is a linear-time operation.
+		@param IMSI The IMSI to find.
+		@return A TMSI value or zero on failure.
+	*/
+	unsigned find(const char* IMSI) const;
+
+	/**
+		Remove an entry from the table.
+		@param TMSI The TMSI to remove.
+	*/
+	void erase(unsigned TMSI);
+
+
+	private:
+
+	/** Erase entries, oldest first, to limit the table size. */
+	void purge();
+
+};
 
 
 
@@ -578,6 +699,8 @@ class Q931TimerExpired : public ControlLayerException {
 //@{
 /** A single global transaction table in the global namespace. */
 extern Control::TransactionTable gTransactionTable;
+/** A single global TMSI table in the global namespace. */
+extern Control::TMSITable gTMSITable;
 //@}
 
 

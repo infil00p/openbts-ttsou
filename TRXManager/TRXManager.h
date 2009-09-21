@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -125,7 +128,7 @@ class ARFCNManager {
 	/**@name The demux table. */
 	//@{
 	Mutex mTableLock;
-	static const int maxModulus=GSM::gHyperframe;	///< a full hyperframe (could probably be smaller)
+	static const unsigned maxModulus=51*26*4;	///< maximum unified repeat period
 	GSM::L1Decoder* mDemuxTable[8][maxModulus];		///< the demultiplexing table for received bursts
 	//@}
 

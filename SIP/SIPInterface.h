@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,17 +27,48 @@
 #ifndef SIPINTERFACE_H
 #define SIPINTERFACE_H
 
-#include "Interthread.h"
-#include "Sockets.h"
+#include <Globals.h>
+#include <Interthread.h>
+#include <Sockets.h>
 #include <osip2/osip.h>
 
 
+
+namespace GSM {
+
+class L3MobileIdentity;
+
+}
 
 
 namespace SIP {
 
 
-class OSIPMessageFIFO : public InterthreadQueue<osip_message_t> {};
+typedef InterthreadQueue<osip_message_t> _OSIPMessageFIFO;
+
+class OSIPMessageFIFO : public _OSIPMessageFIFO {
+
+	private:
+
+	struct sockaddr_in mReturnAddress;
+
+	public:
+
+	OSIPMessageFIFO(const struct sockaddr_in* wReturnAddress)
+		:_OSIPMessageFIFO()
+	{
+		memcpy(&mReturnAddress,wReturnAddress,sizeof(mReturnAddress));
+	}
+
+
+	const struct sockaddr_in* returnAddress() const { return &mReturnAddress; }
+
+	size_t addressSize() const { return sizeof(mReturnAddress); }
+
+};
+
+
+
 class OSIPMessageFIFOMap : public InterthreadMap<std::string,OSIPMessageFIFO> {};
 
 
@@ -60,10 +94,10 @@ public:
 	void write(const std::string& call_id, osip_message_t * sip_msg );
 
 	/** Read sip message out of map+fifo. used by sip engine. */
-	osip_message_t * read(const std::string& call_id, unsigned readTimeout=gBigReadTimeout);
+	osip_message_t * read(const std::string& call_id, unsigned readTimeout=3600000);
 	
 	/** Create a new entry in the map. */
-	bool add(const std::string& call_id);
+	bool add(const std::string& call_id, const struct sockaddr_in* returnAddress);
 
 	/**
 		Remove a fifo from map (called at the end of a sip interaction).
@@ -85,17 +119,23 @@ std::ostream& operator<<(std::ostream& os, const SIPMessageMap& m);
 
 class SIPInterface 
 {
-	UDPSocket * mSIPSocket;
+	UDPSocket mSIPSocket;
 
-	char mRemoteIP[100];
-	unsigned short mLocalPort;
-	unsigned short mRemotePort;
-	
 	Mutex mSocketLock;
 	Thread mDriveThread;	
 	SIPMessageMap mSIPMap;	
 	
+
+	struct sockaddr_in mAsteriskAddress;
+	struct sockaddr_in mMessengerAddress;
 	
+	/**@name SIP UDP parameters */
+	//@{
+	unsigned mSIPPort;			///< local SIP port
+	unsigned mAsteriskPort;
+	unsigned mMessengerPort;
+	//@}
+
 	
 public:
 	// 2 ways to starte sip interface. 
@@ -107,24 +147,12 @@ public:
 	// SIPInterface si(port0, ip_str, port1);
 	// Then after all that. si.start();
 
-	void remoteAddr( unsigned short wRemotePort, const char *wRemoteIP ){ 
-		mRemotePort = wRemotePort; 
-		strcpy(mRemoteIP, wRemoteIP); 
-	}
 
-	void localAddr(unsigned short wLocalPort ){ mLocalPort = wLocalPort; }
+	/**
+		Create the SIP interface to watch for incoming SIP messages.
+	*/
+	SIPInterface();
 
-	void open()
-	{
-		mSIPSocket = new UDPSocket( mLocalPort, mRemoteIP, mRemotePort);
-	}
-
-
-	SIPInterface(unsigned short wLocalPort, const char * wRemoteIP, unsigned short wRemotePort )
-	{
-		mSIPSocket = new UDPSocket(wLocalPort, wRemoteIP, wRemotePort);
-	}
-		
 	
 	/** Start the SIP drive loop. */
 	void start();
@@ -138,19 +166,33 @@ public:
 	*/
 	bool checkInvite( osip_message_t *);
 
+
+	/**
+		Schedule SMS for delivery.
+	*/
+	void deliverSMS(const GSM::L3MobileIdentity& mobile_id, const char* returnAddress, const char* text);
+
 	// To write a msg to outside, make the osip_message_t 
 	// then call si.write(msg);
 	// to read, you need to have the call_id
 	// then call si.read(call_id)
 
-	void write(osip_message_t * msg);
+	void write(const struct sockaddr_in*, osip_message_t*);
 
-	osip_message_t* read(const std::string& call_id , unsigned readTimeout=gBigReadTimeout)
-	{
-		return mSIPMap.read(call_id, readTimeout);
-	}
+	void writeAsterisk(osip_message_t * msg)
+		{ write(&mAsteriskAddress, msg); }
 
-	SIPMessageMap& map() { return mSIPMap; }	
+	void writeMessenger(osip_message_t * msg)
+		{ write(&mMessengerAddress, msg); }
+
+	osip_message_t* read(const std::string& call_id , unsigned readTimeout=3600000)
+		{ return mSIPMap.read(call_id, readTimeout); }
+
+	bool addCall(const std::string& call_id)
+		{ return mSIPMap.add(call_id,mSIPSocket.source()); }
+
+	bool removeCall(const std::string& call_id)
+		{ return mSIPMap.remove(call_id); }
 
 	int fifoSize(const std::string& call_id )
 	{ 
@@ -158,6 +200,7 @@ public:
 		if(fifo==NULL) return -1;
 		return fifo->size();
 	}	
+
 };
 
 void driveLoop(SIPInterface*);

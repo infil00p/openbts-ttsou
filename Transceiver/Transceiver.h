@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -128,7 +131,7 @@ private:
   double mEnergyThreshold;             ///< threshold to determine if received data is potentially a GSM burst
   GSM::Time prevFalseDetectionTime;    ///< last timestamp of a false energy detection
   int fillerModulus[8];                ///< modulus values of all timeslots, in frames
-  signalVector fillerTable[102][8];    ///< table of modulated filler waveforms for all timeslots
+  signalVector *fillerTable[102][8];   ///< table of modulated filler waveforms for all timeslots
 
   GSM::Time    channelEstimateTime[8]; ///< last timestamp of each timeslot's channel estimate
   signalVector *channelResponse[8];    ///< most recent channel estimate of all timeslots

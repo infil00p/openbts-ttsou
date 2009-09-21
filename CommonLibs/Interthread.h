@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,10 +33,6 @@
 #include <vector>
 #include <queue>
 
-
-
-/** Default timeout for read operations, in ms, about 11.57 days. */
-const size_t gBigReadTimeout = 1000000000;
 
 
 
@@ -79,11 +78,28 @@ template <class T> class InterthreadQueue {
 	}
 
 	/**
+		Blocking read.
+		@return Pointer to object (will not be NULL).
+	*/
+	T* read()
+	{
+		mLock.lock();
+		T* retVal = (T*)mQ.get();
+		while (retVal==NULL) {
+			mWriteSignal.wait(mLock);
+			retVal = (T*)mQ.get();
+		}
+		mReadSignal.signal();
+		mLock.unlock();
+		return retVal;
+	}
+
+	/**
 		Blocking read with a timeout.
 		@param timeout The read timeout in ms.
 		@return Pointer to object or NULL on timeout.
 	*/
-	T* read(unsigned timeout=gBigReadTimeout)
+	T* read(unsigned timeout)
 	{
 		if (timeout==0) return readNoBlock();
 		mLock.lock();
@@ -157,7 +173,11 @@ public:
 
 	~InterthreadMap() { clear(); }
 
-	/** Non-blocking write. */
+	/**
+		Non-blocking write.
+		@param key The index to write to.
+		@param wData Pointer to data, not to be deleted until removed from the map.
+	*/
 	void write(const K &key, D * wData)
 	{
 		mLock.lock();
@@ -175,7 +195,7 @@ public:
 	/**
 		Non-blocking read with element removal.
 		@param key Key to read from.
-		@return Pointer at key or NULL if key not found.
+		@return Pointer at key or NULL if key not found, to be deleted by caller.
 	*/
 	D* getNoBlock(const K& key)
 	{
@@ -196,9 +216,9 @@ public:
 		Blocking read with a timeout and element removal.
 		@param key The key to read from.
 		@param timeout The blocking timeout in ms.
-		@return Pointer at key or NULL on timeout.
+		@return Pointer at key or NULL on timeout, to be deleted by caller.
 	*/
-	D* get(const K &key, unsigned timeout=gBigReadTimeout)
+	D* get(const K &key, unsigned timeout)
 	{
 		if (timeout==0) return getNoBlock(key);
 		mLock.lock();
@@ -218,11 +238,37 @@ public:
 		return retVal;
 	}
 
-	/** Remove an entry and delete it. */
-	void remove(const  K &key )
+	/**
+		Blocking read with and element removal.
+		@param key The key to read from.
+		@return Pointer at key, to be deleted by caller.
+	*/
+	D* get(const K &key)
+	{
+		mLock.lock();
+		typename Map::iterator iter = mMap.find(key);
+		while (iter==mMap.end()) {
+			mWriteSignal.wait(mLock);
+			iter = mMap.find(key);
+		}
+		D* retVal = iter->second;
+		mMap.erase(iter);
+		mLock.unlock();
+		return retVal;
+	}
+
+
+	/**
+		Remove an entry and delete it.
+		@param key The key of the entry to delete.
+		@return True if it was actually found and deleted.
+	*/
+	bool remove(const  K &key )
 	{
 		D* val = getNoBlock(key);
-		if (val!=NULL) delete val;
+		if (!val) return false;
+		delete val;
+		return true;
 	}
 
 
@@ -251,7 +297,7 @@ public:
 		@param timeout The blocking timeout in ms.
 		@return Pointer at key or NULL on timeout.
 	*/
-	D* read(const K &key, unsigned timeout=gBigReadTimeout) const
+	D* read(const K &key, unsigned timeout) const
 	{
 		if (timeout==0) return readNoBlock(key);
 		mLock.lock();
@@ -264,6 +310,24 @@ public:
 		if (iter==mMap.end()) {
 			mLock.unlock();
 			return NULL;
+		}
+		D* retVal = iter->second;
+		mLock.unlock();
+		return retVal;
+	}
+
+	/**
+		Blocking read.
+		@param key The key to read from.
+		@return Pointer at key.
+	*/
+	D* read(const K &key) const
+	{
+		mLock.lock();
+		typename Map::const_iterator iter = mMap.find(key);
+		while (iter==mMap.end()) {
+			mWriteSignal.wait(mLock);
+			iter = mMap.find(key);
 		}
 		D* retVal = iter->second;
 		mLock.unlock();

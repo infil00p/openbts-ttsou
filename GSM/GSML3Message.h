@@ -3,6 +3,9 @@
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
+*
+* This use of this software may be subject to additional restrictions.
+* See the LEGAL file in the main directory for details.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -99,19 +102,15 @@ class L3Message {
 
 	/**
 		Write the L3 message body, a method defined in some subclasses.
-		It can't be pure virtual because it is not needed by all subclasses.
 	*/
-	virtual void writeBody(L3Frame& dest, size_t &writePosition) const
-	{ CERR("unimplemented L3Message::writeBody"); abort(); }
+	virtual void writeBody(L3Frame& dest, size_t &writePosition) const =0;
 
 	/**
 		The parseBody() method starts processing at the first byte following the
 		message type octet in the L3 message, which the caller indicates with the
 		readPosition argument.
-		It can't be pure virtual because it is not needed by all subclasses.
 	*/
-	virtual void parseBody(const L3Frame& source, size_t &readPosition)
-	{ CERR("unimplemented L3Message::parseBody"); abort(); }
+	virtual void parseBody(const L3Frame& source, size_t &readPosition) =0;
 
 
 	public:
@@ -196,24 +195,20 @@ class L3ProtocolElement {
 	  The parseV method decodes L3 message bits from fixed-length value parts.
 	  This is the core parse method for fixed-length parsable elements and
 	  all other parse methods use it.
-	  It can't be pure virtual because it is not needed by all subclasses.
 	  @param src The L3Frame to be parsed.
 	  @param rp Bit index of read position (updated by read).
 	*/
-	virtual void parseV(const L3Frame& src, size_t &rp )
-	{ CERR("unimplemented L3ProtocolElement::parseV"); abort(); }
+	virtual void parseV(const L3Frame& src, size_t &rp ) =0;
 
 	/**
 	  The parseV method decodes L3 message bits from variable-length value parts.
 	  This is the core parse method for variable-length parsable elements and
 	  all other parse methods use it.
-	  It can't be pure virtual because it is not needed by all subclasses.
 	  @param src The L3Frame to be parsed.
 	  @param rp Bit index of read position (updated by read).
 	  @param expectedLength Length of available field, in bytes.
 	*/
-	virtual void parseV(const L3Frame& src, size_t &rp, size_t expectedLength)
-	{ CERR("unimplemented L3ProtocolElement::parseV"); abort(); }
+	virtual void parseV(const L3Frame& src, size_t &rp, size_t expectedLength) =0;
 
 
 	/**
@@ -245,12 +240,10 @@ class L3ProtocolElement {
 		Write the V format.
 		This is the core write method for writable elements and
 		all other write methods use it.
-		It can't be pure virtual because it is not needed by all subclasses.
 		@param dest The target L3Frame.
 		@param wp The write index (updated by write).
 	*/
-	virtual void writeV(L3Frame& dest, size_t &wp) const
-	{ CERR("unimplemented L3ProtocolElement::writeV"); abort(); }
+	virtual void writeV(L3Frame& dest, size_t &wp) const =0;
 
 	/**
 		Write LV format.
