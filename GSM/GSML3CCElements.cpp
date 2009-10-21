@@ -2,7 +2,7 @@
 	@brief Call Control messages, GSM 04.08 9.3
 */
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -29,6 +29,7 @@
 
 
 #include "GSML3CCElements.h"
+#include <Logger.h>
 
 using namespace std;
 using namespace GSM;
@@ -127,7 +128,7 @@ void L3CalledPartyBCDNumber::writeV( L3Frame &dest, size_t &wp ) const
 
 void L3CalledPartyBCDNumber::parseV( const L3Frame &src, size_t &rp, size_t expectedLength ) 
 {
-	DCOUT("L3CalledPartyBCDNumber::parseV rp="<<rp<<" expLen="<<expectedLength)
+	LOG(DEBUG) << "L3CalledPartyBCDNumber::parseV rp="<<rp<<" expLen="<<expectedLength;
 	// ext bit must be 1
 	if (src.readField(rp, 1) != 1) L3_READ_ERROR;	
 	mType = (TypeOfNumber)src.readField(rp, 3);

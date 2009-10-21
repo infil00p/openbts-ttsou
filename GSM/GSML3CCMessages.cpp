@@ -1,7 +1,7 @@
 /** @file Call Control messags, GSM 04.08 9.3.  */
 
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -30,6 +30,7 @@
 
 #include <iostream>
 #include "GSML3CCMessages.h"
+#include <Logger.h>
 
 
 
@@ -55,6 +56,8 @@ ostream& GSM::operator<<(ostream& os, L3CCMessage::MessageType val)
 				os << "Release Complete"; break;		  
 		case L3CCMessage::Setup: 
 				os << "Setup"; break;
+		case L3CCMessage::EmergencySetup:
+				os << "Emergency Setup"; break;
 		case L3CCMessage::CCStatus: 
 				os <<"CC Status"; break;
 		case L3CCMessage::CallConfirmed: 
@@ -69,6 +72,10 @@ ostream& GSM::operator<<(ostream& os, L3CCMessage::MessageType val)
 				os << "Stop DTMF"; break;
 		case L3CCMessage::StopDTMFAcknowledge:
 				os << "Stop DTMF Acknowledge"; break;
+		case L3CCMessage::Hold:
+				os << "Hold"; break;
+		case L3CCMessage::HoldReject:
+				os << "Hold Reject"; break;
 		default: os << hex << "0x" << (int)val << dec;
 	}
 	return os;
@@ -82,6 +89,7 @@ L3CCMessage * GSM::L3CCFactory(L3CCMessage::MessageType MTI)
 		case L3CCMessage::Connect: return new L3Connect();
 		case L3CCMessage::Alerting: return new L3Alerting();
 		case L3CCMessage::Setup: return new L3Setup();
+		case L3CCMessage::EmergencySetup: return new L3EmergencySetup();
 		case L3CCMessage::Disconnect: return new L3Disconnect();
 		case L3CCMessage::CallProceeding: return new L3CallProceeding();
 		case L3CCMessage::Release: return new L3Release();
@@ -92,8 +100,10 @@ L3CCMessage * GSM::L3CCFactory(L3CCMessage::MessageType MTI)
 		case L3CCMessage::StartDTMF: return new L3StartDTMF();
 		case L3CCMessage::StartDTMFReject: return new L3StartDTMFReject();
 		case L3CCMessage::StopDTMF: return new L3StopDTMF();
+		case L3CCMessage::Hold: return new L3Hold();
+		case L3CCMessage::HoldReject: return new L3HoldReject();
 		default: {
-			CERR("WARNING -- no L3 CC factory support for message "<< MTI);
+			LOG(NOTICE) << "no L3 CC factory support for message "<< MTI;
 			return NULL;
 		}
 	}
@@ -107,14 +117,14 @@ L3CCMessage * GSM::parseL3CC(const L3Frame& source)
 {
     // mask out bit #7 (1011 1111) so use 0xbf, see GSM 04.08 Table 10.3/3.
     L3CCMessage::MessageType MTI = (L3CCMessage::MessageType)(0xbf & source.MTI());
-	DCOUT("parseL3CC MTI="<<MTI);
+	LOG(DEBUG) << "parseL3CC MTI="<<MTI;
 
 	L3CCMessage *retVal = L3CCFactory(MTI);
 	if (retVal==NULL) return NULL;
 
 	retVal->TIValue(source.TIValue());
 	retVal->parse(source);
-	DCOUT("parseL3CC " << *retVal);
+	LOG(DEBUG) << "parseL3CC " << *retVal;
 	return retVal;
 }
 
@@ -454,6 +464,16 @@ void L3Progress::text(ostream& os) const
 	os <<" L3Progress = ";
 	os << "progress_indicator=(" << mProgress << ")";
 }
+
+
+
+void L3HoldReject::text(ostream& os) const
+{
+	L3CCMessage::text(os);
+	os << "cause=(" << mCause << ")";
+}
+
+
 
 
 // vim: ts=4 sw=4

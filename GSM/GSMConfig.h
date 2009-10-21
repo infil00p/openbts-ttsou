@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -24,11 +24,6 @@
 
 
 
-/*
-	Compilation flags:
-	NOL3	Comile with minimal references to L3
-*/
-
 #ifndef GSMCONFIG_H
 #define GSMCONFIG_H
 
@@ -38,23 +33,12 @@
 
 #include "GSML3RRElements.h"
 #include "GSML3CommonElements.h"
-
-#ifndef NOL3
 #include "GSML3RRMessages.h"
-#endif
 
 
 
 namespace GSM {
 
-
-/**
-	The channel type to request in paging.
-	Request SDCCHType for early assignment or
-	TCHFType for very early assignment.
-*/
-const GSM::ChannelType gINVITEChannel = GSM::TCHFType;
-//const GSM::ChannelType gINVITEChannel = GSM::SDCCHType;
 
 class CCCHLogicalChannel;
 class SDCCHLogicalChannel;
@@ -99,32 +83,6 @@ class GSMConfig {
 
 	Clock mClock;		///< local copy of BTS master clock
 
-	/**@name System Information messages and related objects. */
-	//@{
-	/**@name Beacon parameters that appear on the BCCH. */
-	//@{
-	L3LocationAreaIdentity mLAI;
-	L3CellIdentity mCI;
-	L3FrequencyList mCellChannelDescription;
-	L3FrequencyList mBCCHFrequencyList;
-	L3NCCPermitted mNCCPermitted;
-	L3ControlChannelDescription mControlChannelDescription;
-	L3CellOptionsBCCH mCellOptionsBCCH;
-	L3CellOptionsSACCH mCellOptionsSACCH;
-	L3CellSelectionParameters mCellSelectionParameters;
-	L3RACHControlParameters mRACHControlParameters;
-	//@}
-#ifndef NOL3
-	/**@name Actual messages. */
-	//@{
-	L3SystemInformationType1 mSI1;
-	L3SystemInformationType2 mSI2;
-	L3SystemInformationType3 mSI3;
-	L3SystemInformationType4 mSI4;
-	L3SystemInformationType5 mSI5;
-	L3SystemInformationType6 mSI6;
-	//@}
-#endif
 	/**@name Encoded L2 frames to be sent on the BCCH. */
 	//@{
 	L2Frame mSI1Frame;
@@ -132,30 +90,24 @@ class GSMConfig {
 	L2Frame mSI3Frame;
 	L2Frame mSI4Frame;
 	//@}
+
 	/**@name Encoded L3 frames to be sent on the SACCH. */
 	//@{
 	L3Frame mSI5Frame;
 	L3Frame mSI6Frame;
 	//@}
-	//@}
-
-#ifndef NOL3
-	/** The network "short name" displayed on some handsets. */
-	L3NetworkName mShortName;
-#endif
 
 	time_t mStartTime;
+
+	L3LocationAreaIdentity mLAI;
+	char mShortName[10];
 
 	public:
 	
 	
 
-	/** Default parameters are for a single-ARFCN system. */
-	GSMConfig(unsigned wNCC, unsigned wBCC,
-			GSMBand,
-			const L3LocationAreaIdentity&,
-			const L3CellIdentity&,
-			const char* wShortName="");
+	/** All parameters come from gConfig. */
+	GSMConfig();
 	
 	/**@name Get references to L2 frames for BCCH SI messages. */
 	//@{
@@ -170,22 +122,19 @@ class GSMConfig {
 	const L3Frame& SI6Frame() const { return mSI6Frame; }
 	//@}
 
-	/**@name Simple accessors */
-	//@{
-	GSMBand band() const { return mBand; }
-	const Clock& clock() const { return mClock; }
-	Clock& clock() { return mClock; }
-	unsigned BCC() const { return mBCC; }
-	Control::Pager& pager() { return mPager; }
-	L3LocationAreaIdentity& LAI() { return mLAI; }
-	L3CellIdentity& CI() { return mCI; }
-#ifndef NOL3
-	const L3NetworkName& shortName() const { return mShortName; }
-#endif
-	//@}
-
 	/** Get the current master clock value. */
 	Time time() const { return mClock.get(); }
+
+	/**@name Accessors. */
+	//@{
+	Control::Pager& pager() { return mPager; }
+	GSMBand band() const { return mBand; }
+	unsigned BCC() const { return mBCC; }
+	unsigned NCC() const { return mNCC; }
+	GSM::Clock& clock() { return mClock; }
+	const L3LocationAreaIdentity& LAI() const { return mLAI; }
+	const char *shortName() const { return mShortName; }
+	//@}
 
 	/** Return the BSIC, NCC:BCC. */
 	unsigned BSIC() const { return (mNCC<<3) | mBCC; }
@@ -193,13 +142,11 @@ class GSMConfig {
 	/** RSSI target for closed loop power control. */
 	int RSSITarget() const { return -10; }
 
-#ifndef NOL3
 	/**
 		Re-encode the L2Frames for system information messages.
 		Called whenever a beacon parameter is changed.
 	*/
-	void encodeSIFrames();
-#endif
+	void regenerateBeacon();
 
 	protected:
 
@@ -219,6 +166,7 @@ class GSMConfig {
 	CCCHLogicalChannel* getAGCH() { return minimumLoad(mAGCHPool); }
 	/** Return a minimum-load PCH. */
 	CCCHLogicalChannel* getPCH() { return minimumLoad(mPCHPool); }
+
 	//@}
 
 
@@ -228,6 +176,12 @@ class GSMConfig {
 	void addSDCCH(SDCCHLogicalChannel *wSDCCH) { mSDCCHPool.push_back(wSDCCH); }
 	/** Return a pointer to a usable channel. */
 	SDCCHLogicalChannel *getSDCCH();
+	/** Return true if an SDCCH is available, but do not allocate it. */
+	bool SDCCHAvailable() const;
+	/** Return number of total SDCCH. */
+	unsigned SDCCHTotal() const { return mSDCCHPool.size(); }
+	/** Return number of active SDCCH. */
+	unsigned SDCCHActive() const;
 	//@}
 
 	/**@name Manage TCH pool. */
@@ -236,6 +190,12 @@ class GSMConfig {
 	void addTCH(TCHFACCHLogicalChannel *wTCH) { mTCHPool.push_back(wTCH); }
 	/** Return a pointer to a usable channel. */
 	TCHFACCHLogicalChannel *getTCH();
+	/** Return true if an TCH is available, but do not allocate it. */
+	bool TCHAvailable() const;
+	/** Return number of total TCH. */
+	unsigned TCHTotal() const { return mTCHPool.size(); }
+	/** Return number of active TCH. */
+	unsigned TCHActive() const;
 	//@}
 
 

@@ -2,7 +2,7 @@
 	@brief Common elements for L3 messages, GSM 04.08 10.5.1.
 */
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -32,6 +32,7 @@
 #define GSMCOMMONELEMENTS_H
 
 #include "GSML3Message.h"
+#include <Globals.h>
 
 
 namespace GSM {
@@ -47,7 +48,7 @@ class L3CellIdentity : public L3ProtocolElement {
 
 	public:
 
-	L3CellIdentity(unsigned wID=0)
+	L3CellIdentity(unsigned wID=gConfig.getNum("GSM.CI"))
 		:mID(wID)
 	{ }
 
@@ -74,16 +75,19 @@ class L3LocationAreaIdentity : public L3ProtocolElement {
 
 	public:
 
-	L3LocationAreaIdentity():L3ProtocolElement() {}
-
 	/**
-		Initialize the LAI with real values.
+		Initialize the LAI with real values, drawn from gConfig by default.
 		@param wMCC MCC as a string (3 digits).
 		@param wMNC MNC as a string (2 or 3 digits).
 		@param wLAC LAC as a number.
 	*/
-	L3LocationAreaIdentity(const char*wMCC, const char* wMNC, unsigned wLAC);
+	L3LocationAreaIdentity(
+		const char*wMCC = gConfig.getStr("GSM.MCC"),
+		const char* wMNC = gConfig.getStr("GSM.MNC"),
+		unsigned wLAC = gConfig.getNum("GSM.LAC")
+	);
 
+	/** Sometimes we need to compare these things. */
 	bool operator==(const L3LocationAreaIdentity&) const;
 
 	size_t lengthV() const { return 5; }

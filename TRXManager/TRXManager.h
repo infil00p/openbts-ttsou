@@ -164,6 +164,13 @@ class ARFCNManager {
 	*/
 	bool tuneLoopback(int wARFCN);
 
+	/** Turn off the transceiver. */
+	bool powerOff();
+
+	/** Turn on the transceiver. */
+	bool powerOn();
+
+
 	/**
 		Set power wrt full scale.
 		@param dB Power level wrt full power.

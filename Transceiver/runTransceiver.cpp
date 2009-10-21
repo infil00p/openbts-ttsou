@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -24,12 +24,27 @@
 
 
 
+
 #include "Transceiver.h"
 #include "GSMCommon.h"
+#include <time.h>
 
-int main() {
+#include <Logger.h>
 
-  //srandomdev();
+using namespace std;
+
+int main(int argc, char *argv[]) {
+
+  // Configure logger.
+  if (argc<2) {
+    cerr << argv[0] << " <logLevel> [logFilePath]" << endl;
+    cerr << "Log levels are ERROR, ALARM, WARN, NOTICE, INFO, DEBUG, DEEPDEBUG" << endl;
+    exit(0);
+  }
+  gSetLogLevel(argv[1]);
+  if (argc>2) gSetLogFile(argv[2]);
+
+  srandom(time(NULL));
 
   USRPDevice *usrp = new USRPDevice(400.0e3); //533.333333333e3); //400e3);
   usrp->make();

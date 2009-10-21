@@ -28,6 +28,7 @@ noinst_LTLIBRARIES = libcontrol.la
 
 libcontrol_la_SOURCES = \
 	CallControl.cpp \
+	SMSControl.cpp \
 	ControlCommon.cpp \
 	MobilityManagement.cpp \
 	RadioResource.cpp \

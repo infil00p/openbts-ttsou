@@ -28,7 +28,7 @@
 #ifndef CONTROLCOMMON_H
 #define CONTROLCOMMON_H
 
-#define CLDCOUT(x) DCOUT("ControlLayer " << x)
+#include <Logger.h>
 
 #include <list>
 
@@ -109,10 +109,9 @@ bool waitForPrimitive(GSM::LogicalChannel *LCH,
 
 /**
 	Common-use function to block on a channel until a given primitive arrives.
-	Any payload is discarded.
+	Any payload is discarded.  Block indefinitely, no timeout.
 	@param LCH The logcial channel.
 	@param primitive The primitive to wait for.
-	@return True on success, false on timeout.
 */
 void waitForPrimitive(GSM::LogicalChannel *LCH,
 	GSM::Primitive primitive);
@@ -150,14 +149,14 @@ void clearTransactionHistory(unsigned transactionID);
 /**@name Functions for mobility manangement operations. */
 //@{
 void CMServiceResponder(const GSM::L3CMServiceRequest* cmsrq, GSM::LogicalChannel* DCCH);
-void IMSIDetachController(const GSM::L3IMSIDetachIndication* idi, GSM::SDCCHLogicalChannel* SDCCH);
+void IMSIDetachController(const GSM::L3IMSIDetachIndication* idi, GSM::LogicalChannel* DCCH);
 void LocationUpdatingController(const GSM::L3LocationUpdatingRequest* lur, GSM::SDCCHLogicalChannel* SDCCH);
 //@}
 
 /**@name Functions for radio resource operations. */
 //@{
 /** Decode RACH bits and send an immediate assignment. */
-void AccessGrantResponder(unsigned requestReference, const GSM::Time& when);
+void AccessGrantResponder(unsigned requestReference, const GSM::Time& when, float timingError);
 /** Find and compelte the in-process transaction associated with a paging repsonse. */
 void PagingResponseHandler(const GSM::L3PagingResponse*, GSM::LogicalChannel*);
 /** Find and compelte the in-process transaction associated with a completed assignment. */
@@ -172,6 +171,8 @@ void AssignmentCompleteHandler(const GSM::L3AssignmentComplete*, GSM::TCHFACCHLo
 void MOCStarter(const GSM::L3CMServiceRequest*, GSM::LogicalChannel*);
 /** Complete the MOC connection. */
 void MOCController(TransactionEntry&, GSM::TCHFACCHLogicalChannel*);
+/** Set up an emergency call, assuming very early assignment. */
+void EmergencyCall(const GSM::L3CMServiceRequest*, GSM::LogicalChannel*);
 //@}
 /**@name MTC */
 //@{
@@ -197,15 +198,6 @@ void MTSMSController(TransactionEntry& transaction,
 						GSM::LogicalChannel *LCH);
 //@}
 
-
-
-
-/**@name Abnormal clearing */
-//@{
-void forceGSMClearing(TransactionEntry& transaction, GSM::LogicalChannel *LCH, const GSM::L3Cause& cause);
-void forceSIPClearing(TransactionEntry& transaction);
-void abortCall(TransactionEntry& transaction, GSM::LogicalChannel *LCH, const GSM::L3Cause& cause);
-//@}
 //@}
 
 /**@name Dispatch controllers for specific channel types. */
@@ -227,6 +219,14 @@ void DCCHDispatcher(GSM::LogicalChannel *DCCH);
 */
 unsigned  resolveIMSI(bool sameLAI, GSM::L3MobileIdentity& mobID, GSM::LogicalChannel* LCH);
 
+/**
+	Resolve a mobile ID to an IMSI.
+	@param mobID A mobile ID, that may be modified by the function.
+	@param SDCCH The Dm channel to the mobile.
+*/
+void  resolveIMSI(GSM::L3MobileIdentity& mobID, GSM::LogicalChannel* LCH);
+
+
 
 
 /**@ Paging mechanisms */
@@ -240,6 +240,7 @@ class PagingEntry {
 
 	GSM::ChannelType mType;			///< The needed channel type.
 	GSM::L3MobileIdentity mID;		///< The mobile ID.
+	unsigned mTransactionID;		///< The associated transaction ID.
 	Timeval mExpiration;			///< The expiration time for this entry.
 
 	public:
@@ -249,8 +250,9 @@ class PagingEntry {
 		@param wID The ID to be paged.
 		@param wLife The number of milliseconds to keep paging.
 	*/
-	PagingEntry(const GSM::L3MobileIdentity& wID, GSM::ChannelType wType, unsigned wLife)
-		:mID(wID),mType(wType),mExpiration(wLife)
+	PagingEntry(const GSM::L3MobileIdentity& wID, GSM::ChannelType wType,
+			unsigned wTransactionID, unsigned wLife)
+		:mID(wID),mType(wType),mTransactionID(wTransactionID),mExpiration(wLife)
 	{}
 
 	/** Access the ID. */
@@ -258,6 +260,8 @@ class PagingEntry {
 
 	/** Access the channel type needed. */
 	const GSM::ChannelType type() const { return mType; }
+
+	unsigned transactionID() const { return mTransactionID; }
 
 	/** Renew the timer. */
 	void renew(unsigned wLife) { mExpiration = Timeval(wLife); }
@@ -305,14 +309,16 @@ class Pager {
 	void addID(
 		const GSM::L3MobileIdentity& addID,
 		GSM::ChannelType chanType,
+		unsigned wTransactionID,
 		unsigned wLife=gConfig.getNum("SIP.Timer.A")
 	);
 
 	/**
 		Remove a mobile ID.
 		This is used to stop the paging when a phone responds.
+		@return The transaction ID associated with this entry.
 	*/
-	void removeID(const GSM::L3MobileIdentity&);
+	unsigned removeID(const GSM::L3MobileIdentity&);
 
 	private:
 
@@ -364,7 +370,8 @@ class TransactionEntry {
 		Active,
 		DisconnectIndication,
 		ReleaseRequest,
-		SMSDelivering
+		SMSDelivering,
+		SMSSubmitting,
 	};
 
 	private:
@@ -396,6 +403,7 @@ class TransactionEntry {
 	GSM::Z100Timer mT310;
 	GSM::Z100Timer mT313;
 	GSM::Z100Timer mT3113;		///< the paging timer, NOT a Q.931 timer
+	GSM::Z100Timer mTR1M;		///< SMS RP-ACK timer, see GSM 04.11 6.2.1.2
 	//@}
 
 	public:
@@ -439,6 +447,7 @@ class TransactionEntry {
 	unsigned ID() const { return mID; }
 
 	SIP::SIPEngine& SIP() { return mSIP; }
+	const SIP::SIPEngine& SIP() const { return mSIP; }
 
 	void Q931State(Q931CallState wState) { mQ931State=wState; }
 	Q931CallState Q931State() const { return mQ931State; }
@@ -455,6 +464,7 @@ class TransactionEntry {
 	GSM::Z100Timer& T310() { return mT310; }
 	GSM::Z100Timer& T313() { return mT313; }
 	GSM::Z100Timer& T3113() { return mT3113; }
+	GSM::Z100Timer& TR1M() { return mTR1M; }
 	//@}
 	//@}
 
@@ -529,11 +539,12 @@ class TransactionTable {
 
 	/**
 		Find an entry and make a copy.
+		(Removes entry if it was dead.)
 		@param wID The transaction ID to search.
 		@param target A place to put the copy.
 		@return True if successful.
 	*/
-	bool find(unsigned wID, TransactionEntry& target) const;
+	bool find(unsigned wID, TransactionEntry& target);
 
 	/**
 		Remove an entry from the table.
@@ -544,17 +555,24 @@ class TransactionTable {
 
 	/**
 		Find an entry by its mobile ID.
+		Also clears dead entries during search.
 		@param mobileID The mobile at to search for.
 		@param target A TransactionEntry to accept the found record.
 		@return true is the mobile ID was foind.
 	*/
-	bool find(const GSM::L3MobileIdentity& mobileID, TransactionEntry& target) const;
+	bool find(const GSM::L3MobileIdentity& mobileID, TransactionEntry& target);
 
 	/**
 		Remove "dead" entries from the table.
 		A "dead" entry is a transaction that is no longer active.
 	*/
 	void clearDeadEntries();
+
+	/**@Access to raw map. */
+	//@{
+	TransactionMap::const_iterator begin() const { return mTable.begin(); }
+	TransactionMap::const_iterator end() const { return mTable.end(); }
+	//@}
 };
 
 //@} // Transaction Table
@@ -614,6 +632,12 @@ class TMSITable {
 	*/
 	void erase(unsigned TMSI);
 
+	/** Clear the table completely. */
+	void clear() { mMap.clear(); }
+
+
+	TMSIMap::const_iterator begin() const { return mMap.begin(); }
+	TMSIMap::const_iterator end() const { return mMap.end(); }
 
 	private:
 

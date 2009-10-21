@@ -2,7 +2,7 @@
 	@brief Elements for Radio Resource messsages, GSM 04.08 10.5.2.
 */
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -50,10 +50,13 @@ class L3CellOptionsBCCH : public L3ProtocolElement {
 
 	/** Sets defaults for no use of DTX or downlink power control. */
 	L3CellOptionsBCCH()
-		:L3ProtocolElement(),
-		mPWRC(0),mDTX(2)
+		:L3ProtocolElement()
 	{
-		mRADIO_LINK_TIMEOUT=gConfig.getNum("GSM.RADIO_LINK_TIMEOUT");
+		// Values dictated by the current implementation are hard-coded.
+		mPWRC=0;
+		mDTX=2;
+		// Configuarable values.
+		mRADIO_LINK_TIMEOUT= gConfig.getNum("GSM.RADIO_LINK_TIMEOUT");
 	}
 
 	size_t lengthV() const { return 1; }
@@ -79,9 +82,12 @@ class L3CellOptionsSACCH : public L3ProtocolElement {
 
 	/** Sets defaults for no use of DTX or downlink power control. */
 	L3CellOptionsSACCH()
-		:L3ProtocolElement(),
-		mPWRC(0),mDTX(2)
+		:L3ProtocolElement()
 	{
+		// Values dictated by the current implementation are hard-coded.
+		mPWRC=0;
+		mDTX=2;
+		// Configuarable values.
 		mRADIO_LINK_TIMEOUT=gConfig.getNum("GSM.RADIO_LINK_TIMEOUT");
 	}
 
@@ -102,10 +108,10 @@ class L3CellSelectionParameters : public L3ProtocolElement {
 
 	private:
 
+	unsigned mACS;
+	unsigned mNECI;
 	unsigned mCELL_RESELECT_HYSTERESIS;
 	unsigned mMS_TXPWR_MAX_CCH;
-	unsigned mACS;
-	static const unsigned mNECI = 0;	// new establishment causes not supported
 	unsigned mRXLEV_ACCESS_MIN;
 
 	public:
@@ -114,10 +120,13 @@ class L3CellSelectionParameters : public L3ProtocolElement {
 	L3CellSelectionParameters()
 		:L3ProtocolElement()
 	{
-		mCELL_RESELECT_HYSTERESIS=6;		// 8 dB reselect
-		mMS_TXPWR_MAX_CCH=0;				// a high power level in all bands
-		mACS=0;								// no additional relesect parameters
-		mRXLEV_ACCESS_MIN=0;				// lowest allowed access level
+		// Values dictated by the current implementation are hard-coded.
+		mACS=0;
+		mNECI=0;
+		// Configurable values.
+		mMS_TXPWR_MAX_CCH=gConfig.getNum("GSM.CS.MS_TXPWR_MAX_CCH");
+		mRXLEV_ACCESS_MIN=gConfig.getNum("GSM.CS.RXLEV_ACCESS_MIN");
+		mCELL_RESELECT_HYSTERESIS=gConfig.getNum("GSM.CS.CELL_RESELECT_HYSTERESIS");
 	}
 
 	size_t lengthV() const { return 2; }
@@ -144,14 +153,15 @@ class L3ControlChannelDescription : public L3ProtocolElement {
 
 	public:
 
-	/** Sets reasonable defaults for a single-ARFCN system .*/
+	/** Sets reasonable defaults for a single-ARFCN system. */
 	L3ControlChannelDescription():L3ProtocolElement()
 	{
 		// Values dictated by the current implementation are hard-coded.
-		mATT=1;						// IMSI attach/detach
 		mBS_AG_BLKS_RES=2;			// reserve 2 CCCHs for access grant
 		mBS_PA_MFRMS=0;				// minimum PCH spacing
-		mCCCH_CONF=gConfig.getNum("GSM.CCCH_CONF");
+		// Configurable values.
+		mATT=gConfig.getNum("GSM.CCD.ATT");
+		mCCCH_CONF=gConfig.getNum("GSM.CCD.CCCH_CONF");
 		mT3212=gConfig.getNum("GSM.T3212")/6;
 	}
 
@@ -180,6 +190,15 @@ class L3FrequencyList : public L3ProtocolElement {
 
 	/** Default constructor creates an empty list. */
 	L3FrequencyList():L3ProtocolElement() {}
+
+	L3FrequencyList(const std::vector<unsigned>& wARFCNs)
+		:L3ProtocolElement(),
+		mARFCNs(wARFCNs)
+	{}
+
+	//void push_back(unsigned ARFCN) { mARFCNs.push_back(ARFCN); }
+	void ARFCNs(const std::vector<unsigned>& wARFCNs) { mARFCNs=wARFCNs; }
+	const std::vector<unsigned>& ARFCNs() const { return mARFCNs; }
 
 	size_t lengthV() const { return 16; }
 	void writeV(L3Frame& dest, size_t &wp) const;
@@ -240,7 +259,7 @@ class L3NeighborCellsDescription : public L3FrequencyList {
 	public:
 
 	L3NeighborCellsDescription()
-		:L3FrequencyList()
+		:L3FrequencyList(gConfig.getVector("GSM.Neighbors"))
 	{}
 
 	void writeV(L3Frame& dest, size_t &wp) const;
@@ -263,11 +282,12 @@ class L3NCCPermitted : public L3ProtocolElement {
 
 	public:
 
-	/** Default allows measurements for all 8 NCCs. */
-	L3NCCPermitted(unsigned wPermitted=0x0ff)
-		:L3ProtocolElement(),
-		mPermitted(wPermitted)
-	{ }
+	/** Get default parameters from gConfig. */
+	L3NCCPermitted()
+		:L3ProtocolElement()
+	{
+		mPermitted = gConfig.getNum("GSM.NCCsPermitted");
+	}
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const;
@@ -295,9 +315,12 @@ class L3RACHControlParameters : public L3ProtocolElement {
 
 	/** Default constructor parameters allows all access. */
 	L3RACHControlParameters()
-		:L3ProtocolElement(),
-		mCellBarAccess(0),mRE(0)
+		:L3ProtocolElement()
 	{
+		// Values ditected by imnplementation are hard-coded.
+		mRE=0;
+		// Configurable values.
+		mCellBarAccess = gConfig.getNum("GSM.RACH.CellBarAccess");
 		mMaxRetrans = gConfig.getNum("GSM.RACH.MaxRetrans");
 		mTxInteger = gConfig.getNum("GSM.RACH.TxInteger");
 		mAC = gConfig.getNum("GSM.RACH.AC");
@@ -583,7 +606,7 @@ class L3WaitIndication : public L3ProtocolElement {
 
 	public:
 
-	L3WaitIndication(unsigned seconds=T3122ms/1000)
+	L3WaitIndication(unsigned seconds)
 		:L3ProtocolElement(),
 		mValue(seconds)
 	{}

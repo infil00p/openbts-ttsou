@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -24,8 +24,10 @@
 
 
 #include "Configuration.h"
+#include <Logger.h>
 #include <fstream>
 #include <iostream>
+#include <string.h>
 
 using namespace std;
 
@@ -33,7 +35,7 @@ bool ConfigurationTable::readFile(const char* filename)
 {
 	ifstream configFile(filename);
 	if (!configFile) {
-		CERR("WARNING -- cannot open " << filename);
+		LOG(WARN) << "cannot open configuration file " << filename;
 		return false;
 	}
 	while (configFile) {
@@ -56,7 +58,7 @@ bool ConfigurationTable::readFile(const char* filename)
 		string key = thisLine.substr(0,pos);
 		string value = thisLine.substr(pos+1);
 		mTable[key]=value;
-		DCOUT("adding to config " << key << ":" << value);
+		LOG(DEBUG) << "configuring " << key << " = " << value;
 	}
 	configFile.close();
 	return true;
@@ -77,6 +79,33 @@ const char* ConfigurationTable::getStr(const string& key) const
 	StringMap::const_iterator where = mTable.find(key);
 	if (where==mTable.end()) throw ConfigurationTableKeyNotFound(key);
 	return where->second.c_str();
+}
+
+
+std::vector<unsigned> ConfigurationTable::getVector(const string& key) const
+{
+	StringMap::const_iterator where = mTable.find(key);
+	if (where==mTable.end()) throw ConfigurationTableKeyNotFound(key);
+	// Make an alterable copy of the string.
+	char* line = strdup(where->second.c_str());
+	std::vector<unsigned> retVal;
+	char *lp=line;
+	while (lp) {
+		retVal.push_back(strtol(lp,NULL,10));
+		strsep(&lp," ");
+	}
+	free(line);
+	return retVal;
+}
+
+
+void ConfigurationTable::dump(ostream& os) const
+{
+	StringMap::const_iterator cfg = mTable.begin();
+	while (cfg != mTable.end()) {
+		os << cfg->first << ": " << cfg->second << endl;
+		++cfg;
+	}
 }
 
 

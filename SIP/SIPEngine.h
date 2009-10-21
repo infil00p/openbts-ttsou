@@ -147,7 +147,7 @@ public:
 	void User( const char * w_username );
 
 	// use this for incoming invite message in SIPInterface.
-	void User( const char * wCallID, const char * w_username );
+	void User( const char * wCallID, const char * w_username , const char *origID);
 
 	/**@name Messages for SIP registration. */
 	//@{
@@ -204,7 +204,7 @@ public:
 	SIPState MOSMSSendMESSAGE(const char * called_username,
 		const char * called_domain, const char *message_text);
 
-	SIPState MOSMSWaitForOKOrAccepted();
+	SIPState MOSMSWaitForSubmit();
 
 	SIPState MTSMSSendOK();
 

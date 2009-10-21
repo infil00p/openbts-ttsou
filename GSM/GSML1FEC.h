@@ -391,6 +391,9 @@ class L1FEC {
 	unsigned TSC() const
 		{ assert(mEncoder); return mEncoder->TSC(); }
 
+	float FER() const
+		{ assert(mDecoder); return mDecoder->FER(); }
+
 	bool recyclable() const
 		{ assert(mDecoder); return mDecoder->recyclable(); }
 

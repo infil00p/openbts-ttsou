@@ -100,12 +100,12 @@ void CCCHLogicalChannel::serviceLoop()
 		L3Frame* frame = mQ.read();
 		if (frame) {
 			LogicalChannel::send(*frame);
-			OBJDCOUT("CCCHLogicalChannel::serviceLoop sending " << *frame);
+			OBJLOG(DEBUG) << "CCCHLogicalChannel::serviceLoop sending " << *frame;
 			delete frame;
 		}
 		if (mQ.size()==0) {
 			LogicalChannel::send(idleFrame);
-			OBJDCOUT("CCCHLogicalChannel::serviceLoop sending idle frame");
+			OBJLOG(DEEPDEBUG) << "CCCHLogicalChannel::serviceLoop sending idle frame";
 		}
 	}
 }
@@ -143,8 +143,12 @@ SDCCHLogicalChannel::SDCCHLogicalChannel(
 	mL1 = new SDCCHL1FEC(wTN,wMapping.LCH());
 	// SAP0 is RR/MM/CC, SAP3 is SMS
 	// SAP1 and SAP2 are not used.
-	mL2[0] = new SDCCHL2(1,0);
-	mL2[3] = new SDCCHL2(1,3);
+	L2LAPDm *SAP0L2 = new SDCCHL2(1,0);
+	L2LAPDm *SAP3L2 = new SDCCHL2(1,3);
+	LOG(DEBUG) << "LAPDm pairs SAP0=" << SAP0L2 << " SAP3=" << SAP3L2;
+	SAP3L2->master(SAP0L2);
+	mL2[0] = SAP0L2;
+	mL2[3] = SAP3L2;
 	mSACCH = new SACCHLogicalChannel(wTN,wMapping.SACCH());
 	connect();
 }
@@ -185,9 +189,9 @@ void SACCHLogicalChannel::serviceLoop()
 	// Later, we can add an incoming FIFO from L2.
 	while (mRunning) {
 		if (active()) {
-			DCOUT("SACCHLogicalChannel::serviceLoop() sending SI5");
+			OBJLOG(DEEPDEBUG) << "SACCHLogicalChannel::serviceLoop() sending SI5";
 			LogicalChannel::send(gBTS.SI5Frame());
-			DCOUT("SACCHLogicalChannel::serviceLoop() sending SI6");
+			OBJLOG(DEEPDEBUG) << "SACCHLogicalChannel::serviceLoop() sending SI6";
 			LogicalChannel::send(gBTS.SI6Frame());
 		} else {
 			sleepFrames(51);

@@ -162,6 +162,7 @@ public:
 	void clear()
 	{
 		mLock.lock();
+		// Delete everything in the map.
 		typename Map::iterator iter = mMap.begin();
 		while (iter != mMap.end()) {
 			delete iter->second;
@@ -201,7 +202,6 @@ public:
 	{
 		mLock.lock();
 		typename Map::iterator iter = mMap.find(key);
-		mLock.unlock();
 		if (iter==mMap.end()) {
 			mLock.unlock();
 			return NULL;
@@ -279,14 +279,10 @@ public:
 	*/
 	D* readNoBlock(const K& key) const
 	{
+		D* retVal=NULL;
 		mLock.lock();
 		typename Map::const_iterator iter = mMap.find(key);
-		mLock.unlock();
-		if (iter==mMap.end()) {
-			mLock.unlock();
-			return NULL;
-		}
-		D* retVal = iter->second;
+		if (iter!=mMap.end()) retVal = iter->second;
 		mLock.unlock();
 		return retVal;
 	}

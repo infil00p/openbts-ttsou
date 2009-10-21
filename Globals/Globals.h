@@ -1,5 +1,6 @@
+/**@file Global system parameters. */
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -24,16 +25,24 @@
 
 /*
 	This file keeps global system parameters.
-	Initially, a lot will be defined as constants.
 */
 
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
 #include <Configuration.h>
+#include <CLI.h>
 
-/** Just about everything goes into the configuration table. */
+/**
+	Just about everything goes into the configuration table.
+	This should be defined in the main body of the top-level application.
+*/
 extern ConfigurationTable gConfig;
 
+/** The OpenBTS welcome message. */
+extern const char* gOpenBTSWelcome;
+
+/** The central parser. */
+extern CommandLine::Parser gParser;
 
 #endif

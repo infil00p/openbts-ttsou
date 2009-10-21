@@ -65,6 +65,7 @@ private:
   Thread mTransmitPriorityQueueServiceLoopThread;///< thread to process transmit bursts from GSM core
 
   GSM::Time mTransmitDeadlineClock;       ///< deadline for pushing bursts into transmit FIFO 
+  GSM::Time mLastClockUpdateTime;         ///< last time clock update was sent up to core
 
   RadioInterface *mRadioInterface;	  ///< associated radioInterface object
 

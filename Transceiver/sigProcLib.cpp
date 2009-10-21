@@ -31,6 +31,8 @@
 #include "sendLPF_961.h"
 #include "rcvLPF_651.h"
 
+#include <Logger.h>
+
 #define TABLESIZE 1024
 
 /** Lookup tables for trigonometric approximation */
@@ -880,7 +882,7 @@ bool detectRACHBurst(signalVector &rxBurst,
   }
   complex *peakPtr = correlatedRACH->begin() + (int) rint(*TOA);
 
-  DCOUT("RACH corr: " << *correlatedRACH);
+  LOG(DEEPDEBUG) << "RACH corr: " << *correlatedRACH;
 
   float numSamples = 0.0;
   for (int i = 57*samplesPerSymbol; i <= 107*samplesPerSymbol;i++) {
@@ -899,14 +901,14 @@ bool detectRACHBurst(signalVector &rxBurst,
   float RMS = sqrtf(valleyPower/(float) numSamples)+0.00001;
   float peakToMean = peakAmpl.abs()/RMS;
 
-  DCOUT("RACH peakAmpl=" << peakAmpl << " RMS=" << RMS << " peakToMean=" << peakToMean);
+  LOG(DEEPDEBUG) << "RACH peakAmpl=" << peakAmpl << " RMS=" << RMS << " peakToMean=" << peakToMean;
   *amplitude = peakAmpl/(gRACHSequence->gain);
 
   *TOA = (*TOA) - gRACHSequence->TOA - 8*samplesPerSymbol;
 
   delete correlatedRACH;
 
-  DCOUT("RACH thresh: " << peakToMean);
+  LOG(DEEPDEBUG) << "RACH thresh: " << peakToMean;
 
   return (peakToMean > detectThreshold);
 }
@@ -926,7 +928,7 @@ bool energyDetect(signalVector &rxBurst,
     windowItr++;
   }
   if (avgPwr) *avgPwr = energy/windowLength;
-  DCOUT("detected energy: " << energy/windowLength);
+  LOG(DEEPDEBUG) << "detected energy: " << energy/windowLength;
   return (energy/windowLength > detectThreshold*detectThreshold);
 }
   
@@ -997,9 +999,9 @@ bool analyzeTrafficBurst(signalVector &rxBurst,
   *TOA = (*TOA)-gMidambles[TSC]->TOA;
  
   (*TOA) = (*TOA) - (66-56)*samplesPerSymbol;
-  DCOUT("TCH peakAmpl=" << amplitude->abs() << " RMS=" << RMS << " peakToMean=" << peakToMean << " TOA=" << *TOA);
+  LOG(DEEPDEBUG) << "TCH peakAmpl=" << amplitude->abs() << " RMS=" << RMS << " peakToMean=" << peakToMean << " TOA=" << *TOA;
 
-  DCOUT("autocorr: " << *correlatedBurst);
+  LOG(DEEPDEBUG) << "autocorr: " << *correlatedBurst;
   
   if (requestChannel && (peakToMean > detectThreshold)) {
     float TOAoffset = gMidambles[TSC]->TOA+(66-56)*samplesPerSymbol;
@@ -1022,7 +1024,7 @@ bool analyzeTrafficBurst(signalVector &rxBurst,
     *channelResponse = new signalVector(channelVector.size());
     correlatedBurst->segmentCopyTo(**channelResponse,(int) floor(TOAoffset+(maxI-5)*samplesPerSymbol),(*channelResponse)->size());
     scaleVector(**channelResponse,complex(1.0,0.0)/gMidambles[TSC]->gain);
-    DCOUT("channelResponse: " << **channelResponse);
+    LOG(DEEPDEBUG) << "channelResponse: " << **channelResponse;
     
     if (channelResponseOffset) 
       *channelResponseOffset = 5*samplesPerSymbol-maxI;
@@ -1078,7 +1080,7 @@ SoftVector *demodulateBurst(const signalVector &rxBurst,
      shapedBurst = decShapedBurst;
   }
 
-  DCOUT("shapedBurst: " << *shapedBurst);
+  LOG(DEEPDEBUG) << "shapedBurst: " << *shapedBurst;
 
   vectorSlicer(shapedBurst);
 

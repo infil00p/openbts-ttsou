@@ -4,6 +4,8 @@ Installation Requirements
 
 OpenBTS compiles to a simple Unix binary and does not require special installation.
 
+One some systems (Ubuntu), you will need to define LIBS = -lpthread prior to running configure.
+
 To run OpenBTS, the following should be installed:
 
 	Asterisk (http://www.asterisk.org), running SIP on port 5060.

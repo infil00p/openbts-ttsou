@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -29,6 +29,8 @@
 #include "GSML1FEC.h"
 #include "GSML2LAPDm.h"
 
+#include <Logger.h>
+
 
 using namespace GSM;
 
@@ -36,7 +38,7 @@ using namespace GSM;
 void SAPMux::writeHighSide(const L2Frame& frame)
 {
 	// The SAP may or may not be present, depending on the channel type.
-	OBJDCOUT("SAPMux::writeHighSide " << frame);
+	OBJLOG(DEEPDEBUG) << "SAPMux::writeHighSide " << frame;
 	mLock.lock();
 	mDownstream->writeHighSide(frame);
 	mLock.unlock();
@@ -46,11 +48,11 @@ void SAPMux::writeHighSide(const L2Frame& frame)
 
 void SAPMux::writeLowSide(const L2Frame& frame)
 {
-	OBJDCOUT("SAPMux::writeLowSide SAP" << frame.SAPI() << " " << frame);
+	OBJLOG(DEEPDEBUG) << "SAPMux::writeLowSide SAP" << frame.SAPI() << " " << frame;
 	unsigned SAPI = frame.SAPI();	
 	bool data = frame.primitive()==DATA;
 	if (data && (!mUpstream[SAPI])) {
-		CERR("NOTICE -- received DATA for unsupported SAP " << SAPI);
+		LOG(NOTICE) << "received DATA for unsupported SAP " << SAPI;
 		return;
 	}
 	if (data) {
@@ -67,7 +69,7 @@ void SAPMux::writeLowSide(const L2Frame& frame)
 
 void LoopbackSAPMux::writeHighSide(const L2Frame& frame)
 {
-	OBJDCOUT("TestSAPMux::writeHighSide " << frame);
+	OBJLOG(DEEPDEBUG) << "TestSAPMux::writeHighSide " << frame;
 	// Substitute primitive
 	L2Frame newFrame(frame);
 	unsigned SAPI = frame.SAPI();	

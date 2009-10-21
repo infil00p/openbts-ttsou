@@ -23,7 +23,6 @@ include $(top_srcdir)/Makefile.common
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES) \
 	     -I$(OSIP_INCLUDEDIR) $(OSIP_CPPFLAGS) \
 	     -I$(ORTP_INCLUDEDIR) $(ORTP_CPPFLAGS)
-AM_CXXFLAGS = -Wall -Wextra
 
 noinst_LTLIBRARIES = libSIP.la
 

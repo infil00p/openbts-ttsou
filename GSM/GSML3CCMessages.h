@@ -1,7 +1,7 @@
 /**@file Messages for Call Control, GSM 04.08 9.3. */
 
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -64,6 +64,7 @@ class L3CCMessage : public L3Message {
 		CallProceeding=0x02,
 		Connect=0x07,
 		Setup=0x05,
+		EmergencySetup=0x0e,
 		ConnectAcknowledge=0x0f,
 		Progress=0x03,
 		//@}
@@ -80,6 +81,11 @@ class L3CCMessage : public L3Message {
 		StopDTMFAcknowledge=0x32,
 		StartDTMFAcknowledge=0x36,
 		StartDTMFReject=0x37,
+		//@}
+		/**@name In-call services */
+		//@{
+		Hold=0x18,
+		HoldReject=0x1a,
 		//@}
 		/**@name error reporting */
 		//@{
@@ -284,6 +290,29 @@ public:
 
 	void text(std::ostream&) const;
 };
+
+
+/**
+	GSM 04.08 9.3.8
+*/
+class L3EmergencySetup : public L3CCMessage
+{
+
+	// We fill in IEs one at a time as we need them.
+
+public:
+
+	L3EmergencySetup(unsigned wTIFlag=0, unsigned wTIValue=7)
+		:L3CCMessage(wTIFlag,wTIValue)
+	{ }
+
+	
+	int MTI() const { return EmergencySetup; }
+	void parseBody( const L3Frame &src, size_t &rp ) {}
+	void writeBody(L3Frame&, size_t&) const { abort(); }
+	size_t bodyLength() const { return 0; }
+};
+
 
 
 
@@ -585,6 +614,48 @@ class L3Progress : public L3CCMessage
 	void parseBody(const L3Frame &src, size_t &wp);
 	size_t bodyLength() const;
 	void text(std::ostream&) const;
+};
+
+
+/** GSM 04.08 9.3.10 */
+class L3Hold : public L3CCMessage 
+{
+public:
+
+	L3Hold(unsigned wTIFlag=0, unsigned wTIValue=7)
+		:L3CCMessage(wTIFlag,wTIValue)
+	{}
+
+	int MTI() const { return Hold; }
+	void writeBody( L3Frame &dest, size_t &wp ) const {}
+	void parseBody( const L3Frame &src, size_t &rp ) {}
+	size_t bodyLength() const { return 0; }
+
+};
+
+
+
+/** GSM 04.08 9.3.12 */
+class L3HoldReject : public L3CCMessage {
+
+	private:
+
+	L3Cause mCause;
+
+	public:
+
+	/** Reject with default cause 0x3f, "service or option not available". */
+	L3HoldReject(unsigned wTIFlag=0, unsigned wTIValue=7, const L3Cause& wCause=L3Cause(0x3f))
+		:L3CCMessage(wTIFlag,wTIValue),
+		mCause(wCause)
+	{}
+
+	int MTI() const { return HoldReject; }
+	void parseBody(const L3Frame&, size_t&) { abort(); }
+	void writeBody(L3Frame &src, size_t &rp) const { mCause.writeLV(src,rp); }
+	size_t bodyLength() const { return mCause.lengthLV(); }
+
+	void text(std::ostream& os) const;
 };
 
 

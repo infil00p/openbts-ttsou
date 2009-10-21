@@ -28,10 +28,7 @@
 #include <iostream>
 
 #include "GSMTransfer.h"
-
-#ifndef NOL3
 #include "GSML3Message.h"
-#endif
 
 
 using namespace std;
@@ -440,13 +437,11 @@ ostream& GSM::operator<<(ostream& os, Primitive prim)
 
 
 
-#ifndef NOL3
 L3Frame::L3Frame(const L3Message& msg, Primitive wPrimitive)
 	:BitVector(msg.bitsNeeded()),mPrimitive(wPrimitive)
 {
 	msg.write(*this);
 }
-#endif
 
 
 

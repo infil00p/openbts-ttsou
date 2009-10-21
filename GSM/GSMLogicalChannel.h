@@ -40,14 +40,10 @@
 #include "GSML3RRElements.h"
 #include "GSMTDMA.h"
 
+#include <Logger.h>
 
 class ARFCNManager;
 class UDPSocket;
-
-/*
-	Compilation flags:
-	NOL3	Minimal L3.
-*/
 
 
 
@@ -55,10 +51,8 @@ namespace GSM {
 
 
 class SACCHLogicalChannel;
-#ifndef NOL3
 class L3Message;
 class L3RRMessage;
-#endif
 
 
 /**
@@ -138,7 +132,7 @@ public:
 	virtual void send(const L3Frame& frame, unsigned SAPI=0)
 	{
 		assert(mL2[SAPI]);
-		DCOUT("LogicalChannel::send in SAP"<< SAPI << " " << frame);
+		LOG(DEEPDEBUG) << "LogicalChannel::send in SAP"<< SAPI << " " << frame;
 		mL2[SAPI]->writeHighSide(frame);
 	}
 
@@ -150,7 +144,6 @@ public:
 	virtual void send(const GSM::Primitive& prim, unsigned SAPI=0)
 		{ assert(mL2[SAPI]); mL2[SAPI]->writeHighSide(L3Frame(prim)); }
 
-#ifndef NOL3
 	/**
 		Serialize and send an L3Message with a given primitive.
 		@param msg The L3 message.
@@ -160,7 +153,6 @@ public:
 			const GSM::Primitive& prim=DATA,
 			unsigned SAPI=0)
 		{ send(L3Frame(msg,prim), SAPI); }
-#endif
 
 	//@} // L3
 
@@ -184,6 +176,9 @@ public:
 
 	/** GSM 04.08 10.5.2.5 type and offset code. */
 	TypeAndOffset typeAndOffset() const { return mL1->typeAndOffset(); }
+
+	/** Receive FER. */
+	float FER() const { return mL1->FER(); }
 
 	//@} // L1
 
@@ -258,14 +253,12 @@ class NDCCHLogicalChannel : public LogicalChannel {
 
 	public:
 
-#ifndef NOL3
 	/** This channel only sends RR protocol messages. */
 	virtual void send(const L3RRMessage& msg)
 		{ LogicalChannel::send((const L3Message&)msg,UNIT_DATA); }
 
 	/** This channel only sends RR protocol messages. */
 	void send(const L3Message&) { assert(0); }
-#endif
 
 };
 
@@ -348,12 +341,10 @@ class CCCHLogicalChannel : public NDCCHLogicalChannel {
 
 	void open();
 
-#ifndef NOL3
 	void send(const L3RRMessage& msg)
 		{ mQ.write(new L3Frame((const L3Message&)msg,UNIT_DATA)); }
 
 	void send(const L3Message&) { assert(0); }
-#endif
 
 	/** This is a loop in its own thread that empties mQ. */
 	void serviceLoop();

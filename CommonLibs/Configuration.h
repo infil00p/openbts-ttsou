@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -29,8 +29,10 @@
 #include <assert.h>
 #include "Threads.h"
 #include <map>
+#include <vector>
 #include <string>
 #include <stdlib.h>
+#include <iostream>
 
 
 /** A class for configuration file errors. */
@@ -91,6 +93,19 @@ class ConfigurationTable {
 		Throw ConfigurationTableKeyNotFound if not found.
 	*/
 	long getNum(const std::string& key) const { return strtol(getStr(key),NULL,10); }
+
+	/**
+		Get a numeric vector from the table.
+	*/
+	std::vector<unsigned> getVector(const std::string& key) const;
+
+	/** Set or change a value in the table.  */
+	void set(const std::string& key, const std::string& value)
+		{ mTable[key]=value; }
+
+	/** Dump the table to a stream. */
+	void dump(std::ostream&) const;
+
 };
 
 #endif

@@ -115,11 +115,14 @@ const unsigned T3107ms = 3000;		///< L1 timeout for TCH/FACCH assignment
 const unsigned T3109ms = 10000;		///< L1 timeout for an existing channel
 const unsigned T3111ms = 2*T200ms;	///< L1 timeout for reassignment of a channel
 const unsigned T3113ms = 10000;		///< timeout for paging response
-const unsigned T3122ms = 2000;		///< RR access holdoff time (GSM 04.08 3.3.1.1.3.2)
 //@}
 /**@name GSM timeouts for mobility management, GSM 04.08 11.2. */
 //@{
-const unsigned T3260 = 12000;		///< ID request timeout
+const unsigned T3260ms = 12000;		///< ID request timeout
+//@}
+/**@name GSM timeouts for SMS. GSM 04.11 */
+//@{
+const unsigned TR1Mms = 30000;		///< RP-ACK timeout
 //@}
 //@}
 
@@ -164,6 +167,7 @@ enum GSMBand {
 };
 
 
+
 /**@name Actual radio carrier frequencies, in kHz, GSM 05.05 2 */
 //@{
 unsigned uplinkFreqKHz(GSMBand wBand, unsigned wARFCN);
@@ -171,6 +175,12 @@ unsigned uplinkOffsetKHz(GSMBand);
 unsigned downlinkFreqKHz(GSMBand wBand, unsigned wARFCN);
 //@}
 
+
+/** Internal codes for assigment types; must match in CLI. */
+enum AssignmentType {
+	EarlyAssignment = 0,
+	VeryEarlyAssignment = 1
+};
 
 
 /**@name GSM Logical channel (LCH) types. */
@@ -272,6 +282,17 @@ enum L3PD {
 
 
 std::ostream& operator<<(std::ostream& os, L3PD val);
+
+
+
+
+/**@name Tables related to Tx-integer; GSM 04.08 3.3.1.1.2 and 10.5.2.29. */
+//@{
+/** "T" parameter, from GSM 04.08 10.5.2.29.  Index is TxInteger. */
+extern const unsigned RACHSpreadSlots[];
+/** "S" parameter, from GSM 04.08 3.3.1.1.2.  Index is TxInteger. */
+extern const unsigned RACHWaitSParam[];
+//@}
 
 
 

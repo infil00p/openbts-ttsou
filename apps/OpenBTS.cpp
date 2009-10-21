@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -24,16 +24,24 @@
 
 
 
-#include "TRXManager.h"
-#include "GSML1FEC.h"
-#include "GSMConfig.h"
-#include "GSMSAPMux.h"
-#include "GSML3RRMessages.h"
-#include "GSMLogicalChannel.h"
+#include <TRXManager.h>
+#include <GSML1FEC.h>
+#include <GSMConfig.h>
+#include <GSMSAPMux.h>
+#include <GSML3RRMessages.h>
+#include <GSMLogicalChannel.h>
 
-#include "SIPInterface.h"
-#include "Globals.h"
+#include <SIPInterface.h>
+#include <Globals.h>
 
+#include <Logger.h>
+#include <CLI.h>
+
+#include <unistd.h>
+#include <string.h>
+#include <signal.h>
+
+using namespace std;
 using namespace GSM;
 
 // Load configuration from a file.
@@ -48,46 +56,61 @@ SIP::SIPInterface gSIPInterface;
 
 
 // Configure the BTS object based on the config file.
-GSMConfig gBTS(
-	gConfig.getNum("GSM.NCC"),
-	gConfig.getNum("GSM.BCC"),
-	(GSMBand)gConfig.getNum("GSM.Band"),
-	L3LocationAreaIdentity(
-		gConfig.getStr("GSM.MCC"),
-		gConfig.getStr("GSM.MNC"),
-		gConfig.getNum("GSM.LAC")),
-	L3CellIdentity(gConfig.getNum("GSM.CI")),
-	gConfig.getStr("GSM.ShortName"));
-// ARFCN is set with the ARFCNManager::tune method after the BTS is running.
-const unsigned ARFCN=gConfig.getNum("GSM.ARFCN");
+// So don't create this until AFTER loading the config file.
+GSMConfig gBTS;
 
+// Our interface to the software-defined radio.
 TransceiverManager gTRX(1, gConfig.getStr("TRX.IP"), gConfig.getNum("TRX.Port"));
 
 
 
 int main(int argc, char *argv[])
 {
-	//srandomdev();
+	srandom(time(NULL));
 
-	CERR("INFO -- OpenBTS  Copyright (C) 2008, 2009 Free Software Foundation, Inc.");
-	CERR("INFO -- This program comes with ABSOLUTELY NO WARRANTY;");
-	CERR("INFO -- This is free software; you are welcome to redistribute it under the terms of GPLv3.");
-	CERR("INFO -- Use of this software may be subject to other legal restrictions,");
-	CERR("INFO -- including patent licsensing and radio spectrum licensing.");
-	CERR("INFO -- All users of this software are expected to comply with applicable regulations");
+	COUT("\n\n" << gOpenBTSWelcome << "\n");
+	COUT("\nStarting the system...");
+
+	gSetLogLevel(gConfig.getStr("LogLevel"));
+	if (gConfig.defines("LogFileName")) {
+		gSetLogFile(gConfig.getStr("LogFileName"));
+	}
+
+	// Start the transceiver binary.
+	const char *TRXPath = gConfig.getStr("TRX.Path");
+	const char *TRXLogLevel = gConfig.getStr("TRX.LogLevel");
+	const char *TRXLogFileName = NULL;
+	if (gConfig.defines("TRX.LogFileName")) TRXLogFileName=gConfig.getStr("TRX.LogFileName");
+	pid_t transceiverPid = vfork();
+	assert(transceiverPid>=0);
+	if (transceiverPid==0) {
+		execl(TRXPath,"transceiver",TRXLogLevel,TRXLogFileName,NULL);
+		LOG(ERROR) << "cannot start transceiver";
+		_exit(0);
+	}
 
 	gSIPInterface.start();
 	gTRX.start();
 
 	// Set up the interface to the radio.
-	ARFCNManager* radio = gTRX.ARFCN(0);
 	// Get a handle to the C0 transceiver interface.
-      	radio->tune(ARFCN);
+	ARFCNManager* radio = gTRX.ARFCN(0);
+
+	// Tuning.
+	// Make sure its off for tuning.
+	radio->powerOff();
+	// Tune.
+      	radio->tune(gConfig.getNum("GSM.ARFCN"));
 	// C-V on C0T0
 	radio->setSlot(0,5);
+
+	// Channel combinations.
 	// C-I on C0T1-C0T7
 	for (unsigned i=1; i<8; i++) radio->setSlot(i,1);
        	radio->setTSC(gBTS.BCC());
+
+	// Turn on and power up.
+	radio->powerOn();
        	radio->setPower(gConfig.getNum("GSM.PowerAttenDB"));
 
 	// set up a combination V beacon set
@@ -157,18 +180,34 @@ int main(int argc, char *argv[])
 		gBTS.addTCH(&TCH[i]);
 	}
 
+
+	/*
+		Note: The number of different paging subchannels on       
+		the CCCH is:                                        
+                                                           
+		MAX(1,(3 - BS-AG-BLKS-RES)) * BS-PA-MFRMS           
+			if CCCH-CONF = "001"                        
+		(9 - BS-AG-BLKS-RES) * BS-PA-MFRMS                  
+			for other values of CCCH-CONF               
+	*/
+
 	// Set up the pager.
 	// Set up paging channels.
-	gBTS.addPCH(&CCCH0);
-	gBTS.addPCH(&CCCH1);
 	gBTS.addPCH(&CCCH2);
 	// Start the paging generator
 	// Don't start the pager until some PCHs exist!!
 	gBTS.pager().start();
 
-	// Just sleep now.
+	LOG(INFO) << "system ready";
+	COUT("\n\nWelcome to OpenBTS.  Type \"help\" to see available commands.");
+        // FIXME: We want to catch control-d (emacs keybinding for exit())
+
 	while (1) {
-		sleep(20);
-		CERR("NOTICE -- uptime " << gBTS.uptime() << " seconds, frame " << gBTS.time());
+		char inbuf[1024];
+		cout << "\nOpenBTS> ";
+		cin.getline(inbuf,1024,'\n');
+		if (strcmp(inbuf,"exit")==0) break;
+		gParser.process(inbuf,cout,cin);
 	}
+	kill(transceiverPid,SIGKILL);
 }

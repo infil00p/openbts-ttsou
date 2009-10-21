@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -22,118 +22,92 @@
 
 */
 
-/*
-	(c) Kestrel Signal Processing, Inc. 2007, 2008
-	David Burgess, Raffi Sevlian
-*/
 
 #include "GSMConfig.h"
 #include "GSMTransfer.h"
 #include "GSMLogicalChannel.h"
+#include <Logger.h>
 
 
-/*
-	Compilation flags
-	NOL3	Minimal references to L3
-*/
 
 using namespace std;
 using namespace GSM;
 
 
 
-#ifndef NOL3
-GSMConfig::GSMConfig(unsigned wNCC, unsigned wBCC,
-		GSMBand wBand,
-		const L3LocationAreaIdentity& wLAI,
-		const L3CellIdentity& wCI,
-		const char* wShortName)
-	:mNCC(wNCC),mBCC(wBCC),
-	mBand(wBand),
-	mLAI(wLAI),mCI(wCI),
-	mSI5Frame(UNIT_DATA),mSI6Frame(UNIT_DATA),
-	mShortName(wShortName),
+GSMConfig::GSMConfig()
+	:mSI5Frame(UNIT_DATA),mSI6Frame(UNIT_DATA),
 	mStartTime(::time(NULL))
 {
-	assert(wNCC<8);
-	assert(wBCC<8);
-	encodeSIFrames();
+	mBand = (GSMBand)gConfig.getNum("GSM.Band");
+	regenerateBeacon();
 }
-#else
-GSMConfig::GSMConfig(unsigned wNCC, unsigned wBCC,
-		GSMBand wBand,
-		const L3LocationAreaIdentity& wLAI,
-		const L3CellIdentity& wCI,
-		const char* wShortName)
-	:mNCC(wNCC),mBCC(wBCC),
-	mBand(wBand),
-	mLAI(wLAI),mCI(wCI)
-{
-	assert(wNCC<8);
-	assert(wBCC<8);
-}
-#endif
 
 
-#ifndef NOL3
-void GSMConfig::encodeSIFrames()
+
+
+void GSMConfig::regenerateBeacon()
 {
+	// Update everything from the configuration.
+
+	// BSIC components
+	mNCC = gConfig.getNum("GSM.NCC");
+	assert(mNCC<8);
+	mBCC = gConfig.getNum("GSM.BCC");
+	assert(mBCC<8);
+
+	// MCC/MNC/LAC
+	mLAI = L3LocationAreaIdentity();
+
+	// Short name
+	const char* shortName = gConfig.getStr("GSM.ShortName");
+	assert(strlen(shortName)<9);
+	strcpy(mShortName,shortName);
+	
+	// Now regenerate all of the system information messages.
+
 	// an L3 frame to use
 	L3Frame l3(UNIT_DATA);
 
 	// SI1
-	mSI1.RACHControlParameters(mRACHControlParameters);
-	mSI1.cellChannelDescription(mCellChannelDescription);
-	mSI1.write(l3);
+	L3SystemInformationType1 SI1;
+	SI1.write(l3);
 	L2Header SI1Header(L2Length(l3.length()));
 	mSI1Frame = L2Frame(SI1Header,l3);
-	DCOUT("mSI1Frame " << mSI1Frame);
+	LOG(DEBUG) << "mSI1Frame " << mSI1Frame;
 
 	// SI2
-	mSI2.BCCHFrequencyList(mBCCHFrequencyList);
-	mSI2.NCCPermitted(mNCCPermitted);
-	mSI2.RACHControlParameters(mRACHControlParameters);
-	mSI2.write(l3);
+	L3SystemInformationType2 SI2;
+	SI2.write(l3);
 	L2Header SI2Header(L2Length(l3.length()));
 	mSI2Frame = L2Frame(SI2Header,l3);
-	DCOUT("mSI2Frame " << mSI2Frame);
+	LOG(DEBUG) << "mSI2Frame " << mSI2Frame;
 
 	// SI3
-	mSI3.CI(mCI);
-	mSI3.LAI(mLAI);
-	mSI3.controlChannelDescription(mControlChannelDescription);
-	mSI3.cellOptions(mCellOptionsBCCH);
-	mSI3.cellSelectionParameters(mCellSelectionParameters);
-	mSI3.RACHControlParameters(mRACHControlParameters);
-	mSI3.write(l3);
+	L3SystemInformationType3 SI3;
+	SI3.write(l3);
 	L2Header SI3Header(L2Length(l3.length()));
 	mSI3Frame = L2Frame(SI3Header,l3);
-	DCOUT("mSI3Frame " << mSI3Frame);
+	LOG(DEBUG) << "mSI3Frame " << mSI3Frame;
 
 	// SI4
-	mSI4.LAI(mLAI);
-	mSI4.cellSelectionParameters(mCellSelectionParameters);
-	mSI4.RACHControlParameters(mRACHControlParameters);
-	mSI4.write(l3);
+	L3SystemInformationType4 SI4;
+	SI4.write(l3);
 	L2Header SI4Header(L2Length(l3.length()));
 	mSI4Frame = L2Frame(SI4Header,l3);
-	DCOUT("mSI4Frame " << mSI4Frame);
+	LOG(DEBUG) << "mSI4Frame " << mSI4Frame;
 
 	// SI5
-	mSI5.BCCHFrequencyList(mBCCHFrequencyList);
-	mSI5.write(mSI5Frame);
-	DCOUT("mSI5Frame " << mSI5Frame);
+	L3SystemInformationType5 SI5;
+	SI5.write(mSI5Frame);
+	LOG(DEBUG) << "mSI5Frame " << mSI5Frame;
 
 	// SI6
-	mSI6.CI(mCI);
-	mSI6.LAI(mLAI);
-	mSI6.cellOptions(mCellOptionsSACCH);
-	mSI6.NCCPermitted(mNCCPermitted);
-	mSI6.write(mSI6Frame);
-	DCOUT("mSI6Frame " << mSI6Frame);
+	L3SystemInformationType6 SI6;
+	SI6.write(mSI6Frame);
+	LOG(DEBUG) "mSI6Frame " << mSI6Frame;
 
 }
-#endif
 
 
 
@@ -162,16 +136,18 @@ CCCHLogicalChannel* GSMConfig::minimumLoad(CCCHList &chanList)
 
 
 
-template <class ChanType> ChanType* getChan(vector<ChanType*> chanList)
+template <class ChanType> ChanType* getChan(vector<ChanType*>& chanList)
 {
 	const unsigned sz = chanList.size();
 	if (sz==0) return NULL;
 	// Start the search from a random point in the list.
-	unsigned pos = random() % sz;
+	//unsigned pos = random() % sz;
+	// HACK -- Try in-order allocation for debugging.
 	for (unsigned i=0; i<sz; i++) {
-		ChanType *chan = chanList[pos];
+		ChanType *chan = chanList[i];
+		//ChanType *chan = chanList[pos];
 		if (chan->recyclable()) return chan;
-		pos = (pos+1) % sz;
+		//pos = (pos+1) % sz;
 	}
 	return NULL;
 }
@@ -197,6 +173,63 @@ TCHFACCHLogicalChannel *GSMConfig::getTCH()
 	if (chan) chan->open();
 	mLock.unlock();
 	return chan;
+}
+
+
+
+template <class ChanType> bool chanAvailable(const vector<ChanType*>& chanList)
+{
+	for (unsigned i=0; i<chanList.size(); i++) {
+		ChanType *chan = chanList[i];
+		if (chanList[i]->recyclable()) return true;
+	}
+	return false;
+}
+
+
+
+bool GSMConfig::SDCCHAvailable() const
+{
+	mLock.lock();
+	bool retVal = chanAvailable<SDCCHLogicalChannel>(mSDCCHPool);
+	mLock.unlock();
+	return retVal;
+}
+
+bool GSMConfig::TCHAvailable() const
+{
+	mLock.lock();
+	bool retVal = chanAvailable<TCHFACCHLogicalChannel>(mTCHPool);
+	mLock.unlock();
+	return retVal;
+}
+
+
+
+
+
+
+
+template <class ChanType> unsigned countActive(const vector<ChanType*>& chanList)
+{
+	unsigned active = 0;
+	const unsigned sz = chanList.size();
+	// Start the search from a random point in the list.
+	for (unsigned i=0; i<sz; i++) {
+		if (!chanList[i]->recyclable()) active++;
+	}
+	return active;
+}
+
+
+unsigned GSMConfig::SDCCHActive() const
+{
+	return countActive(mSDCCHPool);
+}
+
+unsigned GSMConfig::TCHActive() const
+{
+	return countActive(mTCHPool);
 }
 
 

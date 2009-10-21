@@ -1,6 +1,6 @@
 /**@file GSM/SIP Mobility Management, GSM 04.08. */
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -56,28 +56,36 @@ void Control::CMServiceResponder(const L3CMServiceRequest* cmsrq, LogicalChannel
 {
 	assert(cmsrq);
 	assert(DCCH);
-	CLDCOUT("CMServiceResponder " << *cmsrq);
+	LOG(INFO) << "CMServiceResponder " << *cmsrq;
 	switch (cmsrq->serviceType().type()) {
 		case L3CMServiceType::MobileOriginatedCall:
 			MOCStarter(cmsrq,DCCH);
 			break;
+		case L3CMServiceType::ShortMessage:
+			MOSMSController(cmsrq,DCCH);
+			break;
+		case L3CMServiceType::EmergencyCall:
+			EmergencyCall(cmsrq,DCCH);
+			break;
 		default:
-			CLDCOUT("CMServiceResponder service not supported");
+			LOG(NOTICE) << "CMServiceResponder service not supported";
 			// Cause 0x20 means "serivce not supported".
 			DCCH->send(L3CMServiceReject(0x20));
 			DCCH->send(L3ChannelRelease());
 	}
+	// The transaction may or may not be cleared,
+	// depending on the assignment type.
 }
 
 
 
 
 /** Controller for the IMSI Detach transaction, GSM 04.08 4.3.4. */
-void Control::IMSIDetachController(const L3IMSIDetachIndication* idi, SDCCHLogicalChannel* SDCCH)
+void Control::IMSIDetachController(const L3IMSIDetachIndication* idi, LogicalChannel* DCCH)
 {
 	assert(idi);
-	assert(SDCCH);
-	CLDCOUT("IMSIDetachController " << *idi);
+	assert(DCCH);
+	LOG(INFO) << "IMSIDetachController " << *idi;
 
 	// The IMSI detach maps to a SIP unregister with the local Asterisk server.
 	try { 
@@ -89,14 +97,34 @@ void Control::IMSIDetachController(const L3IMSIDetachIndication* idi, SDCCHLogic
 		}
 	}
 	catch(SIPTimeout) {
-		CERR("WARNING -- SIP registration timed out.  Is Asterisk running?");
+		LOG(ALARM) "SIP registration timed out.  Is Asterisk running?";
 	}
 	// No reponse required, so just close the channel.
-	SDCCH->send(L3ChannelRelease());
+	DCCH->send(L3ChannelRelease());
 	// Many handsets never complete the transaction.
 	// So force a shutdown of the channel.
-	SDCCH->send(ERROR);
+	DCCH->send(ERROR);
 }
+
+
+
+
+/**
+	Send a given welcome message from a given short code.
+	@return true if it was sent
+*/
+bool sendWelcomeMessage(const char* messageName, const char* shortCodeName, SDCCHLogicalChannel* SDCCH)
+{
+	if (!gConfig.defines(messageName)) return false;
+	LOG(INFO) << "sending " << messageName << " message to handset";
+	// This returns when delivery is acked in L3.
+	deliverSMSToMS(
+		gConfig.getStr(shortCodeName),
+		gConfig.getStr(messageName),
+		random()%7,SDCCH);
+	return true;
+}
+
 
 
 /**
@@ -108,7 +136,7 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 {
 	assert(SDCCH);
 	assert(lur);
-	CLDCOUT("LocationUpdatingController " << *lur);
+	LOG(INFO) << "LocationUpdatingController " << *lur;
 
 	// The location updating request gets mapped to a SIP
 	// registration with the local Asterisk server.
@@ -120,21 +148,24 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 	// locked up until the battery is removed.
 
 	// Resolve an IMSI and see if there's a pre-existing IMSI-TMSI mapping.
+	// This operation will throw an exception, caught in a higher scope,
+	// if it fails in the GSM domain.
 	L3MobileIdentity mobID = lur->mobileIdentity();
 	bool sameLAI = (lur->LAI() == gBTS.LAI());
 	unsigned assignedTMSI = resolveIMSI(sameLAI,mobID,SDCCH);
-
+	// IMSIAttach set to true if this is a new registration.
+	bool IMSIAttach = (assignedTMSI==0);
 	// Try to register the IMSI with Asterisk.
 	// This will be set true if registration succeeded in the SIP world.
 	bool success = false;
 	try {
 		SIPEngine engine;
 		engine.User(mobID.digits());
-		CLDCOUT("LocationUpdatingController waiting for registration");
+		LOG(DEBUG) << "LocationUpdatingController waiting for registration";
 		success = engine.Register(); 
 	}
 	catch(SIPTimeout) {
-		CERR("WARNING -- SIP registration timed out.  Is Asterisk running?");
+		LOG(ALARM) "SIP registration timed out.  Is Asterisk running?";
 		// Reject with a "network failure" cause code, 0x11.
 		SDCCH->send(L3LocationUpdatingReject(0x11));
 		// Release the channel and return.
@@ -142,28 +173,49 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 		return;
 	}
 
-	if (!success) {
-		CLDCOUT("LocationUpdatingController : SIPRegistration -> FAILED")
-		// Reject cause 0x03, IMSI not in VLR
-		SDCCH->send(L3LocationUpdatingReject(0x03));
-		// Release the channel and return.
-		SDCCH->send(L3ChannelRelease());
-		return;
+	// This allows us to configure Open Registration
+	bool openRegistration = false;
+	if (gConfig.defines("Control.OpenRegistration")) {
+		openRegistration = gConfig.getNum("Control.OpenRegistration");
 	}
 
-	// If we are here, registration was successful.
+	// We fail closed unless we're configured otherwise
+	if (!success && !openRegistration) {
+		LOG(INFO) << "LocationUpdatingController registration FAILED: " << mobID;
+		// Reject cause 0x03, IMSI not in VLR
+		SDCCH->send(L3LocationUpdatingReject(0x03));
+		sendWelcomeMessage( "Control.FailedRegistrationWelcomeMessage",
+			"Control.FailedRegistrationWelcomeShortCode", SDCCH);
+	}
 
-	CLDCOUT("LocationUpdatingController : SIPRegistration -> SUCCESS")
+	// If success is true, we had a normal registration.
+	// Otherwise, we are here because of open registration.
+	// Either way, we're going to register a phone if we arrive here.
+
+	if (success) LOG(INFO) << "LocationUpdatingController registration SUCCESS: " << mobID;
+	else LOG(INFO) << "LocationUpdatingController registration ALLOWED: " << mobID;
+
+
 	// Send the "short name".
 	// TODO -- Set the handset clock in this message, too.
 	SDCCH->send(L3MMInformation(gBTS.shortName()));
-
-	// Accept. Need a TMSI assignment, too?
+	// Accept. Make a TMSI assignment, too, if needed.
 	if (assignedTMSI) SDCCH->send(L3LocationUpdatingAccept(gBTS.LAI()));
 	else SDCCH->send(L3LocationUpdatingAccept(gBTS.LAI(),gTMSITable.assign(mobID.digits())));
+	// If this is an IMSI attach, send a welcome message.
+	if (IMSIAttach) {
+		if (success) {
+			sendWelcomeMessage( "Control.NormalRegistrationWelcomeMessage",
+				"Control.NormalRegistrationWelcomeShortCode", SDCCH);
+		} else {
+			sendWelcomeMessage( "Control.OpenRegistrationWelcomeMessage",
+				"Control.OpenRegistrationWelcomeShortCode", SDCCH);
+		}
+	}
 
-	// Close the channel.
+	// Release the channel and return.
 	SDCCH->send(L3ChannelRelease());
+	return;
 }
 
 

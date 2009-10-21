@@ -1,5 +1,5 @@
 dnl
-dnl Copyright 2008 Free Software Foundation, Inc.
+dnl Copyright 2008, 2009 Free Software Foundation, Inc.
 dnl
 dnl This software is distributed under the terms of the GNU Public License.
 dnl See the COPYING file in the main directory for details.
@@ -18,7 +18,7 @@ dnl You should have received a copy of the GNU General Public License
 dnl along with this program.  If not, see <http://www.gnu.org/licenses/>.
 dnl
 
-AC_INIT(openbts,1.6NewIberia)
+AC_INIT(openbts,2.4Kinder)
 AC_PREREQ(2.57)
 AC_CONFIG_SRCDIR([config/Makefile.am])
 AC_CONFIG_AUX_DIR([.])	
@@ -73,8 +73,11 @@ AC_CONFIG_FILES([\
     Control/Makefile \
     GSM/Makefile \
     SIP/Makefile \
+    SMS/Makefile \
+    Transceiver52M/Makefile \
     Transceiver/Makefile \
     TRXManager/Makefile \
+    CLI/Makefile \
 ])
 
 AC_OUTPUT

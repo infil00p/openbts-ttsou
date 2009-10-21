@@ -24,16 +24,6 @@
 
 
 
-/*
-	(c) Kestrel Signal Processing, Inc. 2007, 2008
-	David Burgess, Raffi Sevlian
-*/
-
-/*
-	Compilation flags:
-	NOL3	Compile without referencing L3Message classes.
-*/
-
 #ifndef GSMTRANSFER_H
 #define GSMTRANSFER_H
 
@@ -50,9 +40,7 @@ namespace GSM {
 // Forward references.
 class TxBurst;
 class RxBurst;
-#ifndef NOL3
 class L3Message;
-#endif
 
 /**@name Positions of stealing bits within a normal burst, GSM 05.03 3.1.4. */
 //@{
@@ -559,6 +547,12 @@ class L2Frame : public BitVector {
 	/** Return the CR bit, GSM 04.06 3.3.2.  Assumes A or B header. */
 	bool CR() const { return mStart[6] & 0x01; }
 
+	/** Return truw if this a DCCH idle frame. */
+	bool DCCHIdle() const
+	{
+		return peekField(0,32)==0x0103012B;
+	}
+
 	//@}
 
 	Primitive primitive() const { return mPrimitive; }
@@ -607,10 +601,8 @@ class L3Frame : public BitVector {
 		:BitVector(source.L3Part()),mPrimitive(DATA)
 	{ }
 
-#ifndef NOL3
 	/** Serialize a message into the frame. */
 	L3Frame(const L3Message& msg, Primitive wPrimitive=DATA);
-#endif
 
 	/** Protocol Discriminator, GSM 04.08 10.2. */
 	L3PD PD() const { return (L3PD)peekField(4,4); }

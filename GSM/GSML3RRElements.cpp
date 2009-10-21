@@ -3,7 +3,7 @@
 */
 
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -28,6 +28,8 @@
 
 
 #include "GSML3RRElements.h"
+
+#include <Logger.h>
 
 
 
@@ -174,7 +176,7 @@ void L3FrequencyList::writeV(L3Frame& dest, size_t &wp) const
 	// bit map
 	unsigned delta = spread();
 	unsigned numBits = 8*lengthV() - 17;
-	if (numBits<delta) CERR("WARNING -- L3FrequencyList cannot encode full ARFCN set");
+	if (numBits<delta) LOG(ALARM) << "L3FrequencyList cannot encode full ARFCN set";
 	for (unsigned i=0; i<numBits; i++) {
 		unsigned thisARFCN = baseARFCN + 1 + i;
 		if (contains(thisARFCN)) dest.writeField(wp,1,1);

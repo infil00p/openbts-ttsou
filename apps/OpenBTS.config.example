@@ -1,0 +1,281 @@
+# Sample OpenBTS configuration file.
+# Format of each line is. <key><space><value>
+# The key name can contain no spaces.
+# Everything between the first space and the end of the line becomes the value.
+# Comments must start with "#" at the beginning of the line.
+# Blank lines are OK.
+
+# As a gerenal rule, non-valid configuration values will crash OpenBTS.
+
+
+#
+# Logging parameters
+#
+
+# The initial global logging level: ERROR, WARNING, NOTICE, INFO, DEBUG, DEEPDEBUG
+LogLevel INFO
+
+# The log file path.  If not set, logging goes to stdout.
+LogFileName test.out
+
+
+#
+# Transceiver parameters
+#
+
+# Transceiver interface
+# This TRX.IP is not really adjustable.  Just leave it as 127.0.0.1.
+TRX.IP 127.0.0.1
+# This value is hard-coded in the transcevier.  Just leave it alone.
+TRX.Port 5700
+
+# Path to transceiver binary
+TRX.Path ../Transceiver/transceiver
+
+# TRX logging.
+# Logging level.
+TRX.LogLevel NOTICE
+# Logging file.  If not defined, logs to stdout.
+TRX.LogFileName test.out
+
+
+
+
+#
+# SIP, RTP, servers
+#
+
+# Asterisk PBX
+#Asterisk.IP 192.168.0.15
+Asterisk.IP 127.0.0.1
+Asterisk.Port 5060
+
+# Messaging server
+Messenger.IP 127.0.0.1
+Messenger.Port 5063
+
+# Local SIP/RTP ports
+SIP.Port 5062
+RTP.Start 16484
+RTP.Range 98
+
+# If Asterisk is 127.0.0.1, this is also 127.0.0.1.
+# Otherwise, this should be the local IP address of the interface used to contact asterisk.
+SIP.IP 127.0.0.1
+# This is broken; use localhost. SIP.IP 192.168.0.16
+
+
+# Local SMS port for short code delivery.
+SMSLoopback.Port 5064
+
+
+#
+# Special extensions.
+#
+
+# Routing extension for emergency calls.
+PBX.Emergency 2101
+
+
+#
+# SIP parameters
+#
+
+# SIP registration period in seconds.
+# Ideally, this should be slightly longer than GSM.T3212.
+SIP.RegistrationPeriod 3600
+
+#
+# SIP Internal Timers.  All timer values are given in millseconds.
+# These are from RFC-3261 Table A.
+#
+
+# SIP Timer A, the INVITE retry period, RFC-3261 Section 17.1.1.2
+SIP.Timer.A 1000
+
+
+
+#
+# SMS parameters
+#
+# ISDN address of source SMSC when we fake out a source SMSC.
+SMS.FakeSrcSMSC 0000
+# ISDN address of destination SMSC when a fake value is needed.
+SMS.DefaultDestSMSC 0000
+
+
+# The SMS HTTP gateway.
+# Comment out if you don't have one.
+SMS.HTTP.Gateway api.clickatell.com
+
+# IF SMS.HTTP.Gateway IS DEFINED, SMS.HTTP.AccessString MUST ALSO BE DEFINED.
+SMS.HTTP.AccessString sendmsg?user=xxxx&password=xxxx&api_id=xxxx
+
+
+
+
+
+# Open Registration and Self-Provisioning
+# This is a bool and if set to 1, OpenBTS will allow all handsets to register
+Control.OpenRegistration 1
+
+
+#
+# "Welcome" messages sent during IMSI attach attempts.
+# ANY WELCOME MESSAGE MUST BE LESS THAN 161 CHARACTERS.
+# ANY DEFINED WELCOME MESSAGE MUST ALSO HAVE A DEFINED SHORT CODE.
+# Comment out any message you don't want to use.
+#
+
+# The message sent upon full successful registration, all the way through the Asterisk server.
+Control.NormalRegistrationWelcomeMessage Welcome to OpenBTS!
+Control.NormalRegistrationWelcomeShortCode 0000
+
+# Then message sent to accpeted open registrations.
+# IF OPEN REGISTRATION IS ENABLED, THIS MUST ALSO BE DEFINED.
+Control.OpenRegistrationWelcomeMessage You're doing it wrong! Welcome anyway!
+Control.OpenRegistrationWelcomeShortCode 23
+
+# Then message send to failed registrations.
+Control.FailedRegistrationWelcomeMessage You're doing it wrong! Go away!
+Control.FailedRegistrationWelcomeShortCode 666
+
+
+
+
+#
+# GSM
+#
+
+# Network and cell identity.
+
+# Network Color Code, 0-7
+GSM.NCC 0
+# Basesation Color Code, 0-7
+GSM.BCC 0
+# Mobile Country Code, 3 digits.
+# MCC MUST BE 3 DIGITS.  Prefix with 0s if needed.
+#GSM.MCC 901
+# Test code is 001.
+GSM.MCC 001
+# Mobile Network Code, 2 or 3 digits.
+#GSM.MNC 55
+# Test code is 01.
+GSM.MNC 01
+# Location Area Code, 0-65535
+GSM.LAC 667
+# Cell ID, 0-65535
+GSM.CI 10
+# Network "short name" to display on the handset.
+# SHORT NAME MUST BE LESS THAN 8 CHARACTERS.
+GSM.ShortName OpenBTS
+
+# Assignment type for call setup.
+# This is defined in an enum AssignmentType in GSMCommon.h.
+# 0=Early, 1=VeryEarly.
+GSM.AssignmentType 1
+
+# Band and Frequency
+
+# Valid band values are 850, 900, 1800, 1900.
+GSM.Band 900
+#GSM.Band 850
+
+# Valid ARFCN range depends on the band.
+GSM.ARFCN 29
+# ARCN 975 is inside the US ISM-900 band.
+#GSM.ARFCN 975
+# ARFCN 207 was what we ran at BM2008, I think.
+#GSM.ARFCN 207
+
+# Neightbor list
+GSM.Neighbors 975 978
+#GSM.Neighbors 207
+
+# Downlink tx power level, dB wrt full power
+GSM.PowerAttenDB 0
+
+# Beacon parameters.
+
+# L1 radio link timeout advertised on BCCH.
+# This is the RAW parameter sent on the BCCH.
+# See GSM 10.5.2.3 for encoding.
+# Value of 15 gives 64-frame timeout, about 30 seconds on the TCH.
+# This should be coordinated with T3109.
+GSM.RADIO_LINK_TIMEOUT 15
+
+# Control Channel Description (CCD)
+
+# Attach/detach flag.
+# Set to 1 to use attach/detach procedure, 0 otherwise.
+# This will make initial registration more prompt.
+# It will also cause an un-regstration if the handset powers off.
+GSM.CCD.ATT 1
+
+# CCCH_CONF
+# See GSM 10.5.2.11 for encoding.
+# Value of 1 means we are using a C-V beacon.
+GSM.CCD.CCCH_CONF 1
+
+# RACH Parameters
+
+# Maximum RACH retransmission attempts
+# This is the RAW parameter sent on the BCCH.
+# See GSM 04.08 10.5.2.29 for encoding.
+GSM.RACH.MaxRetrans 3
+
+# Parameter to spread RACH busts over time.
+# This is the RAW parameter sent on the BCCH.
+# See GSM 04.08 10.5.2.29 for encoding.
+GSM.RACH.TxInteger 14
+
+# Access class flags.
+# This is the RAW parameter sent on the BCCH.
+# See GSM 04.08 10.5.2.29 for encoding.
+# Set to 0 to allow full access.
+GSM.RACH.AC 0
+
+GSM.RACH.CellBarAccess 0
+
+# NCCs Permitted.
+# An 8-bit mask of allowed NCCs.
+# Unless you are coordinating with another carrier,
+# this should probably just select your own NCC.
+GSM.NCCsPermitted 1
+
+# Cell Selection Parameters (CS)
+
+GSM.CS.MS_TXPWR_MAX_CCH 0
+GSM.CS.RXLEV_ACCESS_MIN 0
+
+# Cell Reselection Hysteresis
+# See GSM 04.08 10.5.2.4, Table 10.5.23 for encoding.
+# Encoding is 2N dB, value values of N are 0..7 for 0..14 dB.
+GSM.CS.CELL_RESELECT_HYSTERESIS 7
+
+
+
+
+
+#
+# GSM Timers.  All timer values are given in milliseconds unless stated otherwise.
+# These come from GSM 04.08 11.2.
+#
+
+# T3212, registration timer.
+# Unlike most timers, this is given in MINUTES.
+# Actual period will be rounded down to a multiple of 6 minutes.
+# Any value below 6 minutes disables periodic registration, which is probably a bad idea.
+# Valid range is 6..1530.
+# Ideally, this should be slightly less than the SIP.RegistrationPeriod.
+GSM.T3212 6
+
+# T3122, RACH holdoff timer.
+# This value can vary internally between the min and max ends of the range.
+# When congestion occurs, T3122 grows exponentially.
+GSM.T3122Min 2000
+# T3211Max MUST BE NO MORE THAN 255 ms.
+GSM.T3122Max 255000
+
+
+

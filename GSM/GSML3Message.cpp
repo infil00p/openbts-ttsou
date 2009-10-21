@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -28,6 +28,7 @@
 #include "GSML3RRMessages.h"
 #include "GSML3MMMessages.h"
 #include "GSML3CCMessages.h"
+#include <Logger.h>
 
 
 //#include <SMSTransfer.h>
@@ -138,7 +139,7 @@ GSM::L3Message* GSM::parseL3(const GSM::L3Frame& source)
 {
 	if (source.size()==0) return NULL;
 
-	DCOUT("GSM::parseL3 "<< source)
+	LOG(DEBUG) << "GSM::parseL3 "<< source;
 	L3PD PD = source.PD();
 	
 	try {
@@ -148,13 +149,13 @@ GSM::L3Message* GSM::parseL3(const GSM::L3Frame& source)
 			case L3CallControlPD: return parseL3CC(source);
 			//case L3SMSPD: return parseSMS(source);
 			default:
-				CERR("NOTICE -- L3 parsing failed for unsupported protocol " << PD);
+				LOG(WARN) << "L3 parsing failed for unsupported protocol " << PD;
 				return NULL;
 		}
 	}
 
 	catch (L3ReadError) {
-		CERR("NOTICE -- L3 parsing failed for " << source);
+		LOG(NOTICE) << "L3 parsing failed for " << source;
 		return NULL;
 	}
 }
@@ -170,7 +171,7 @@ void L3ProtocolElement::parseLV(const L3Frame& source, size_t &rp)
 	size_t rpEnd = rp + 8*expectedLength;
 	parseV(source, rp, expectedLength);
 	if (rpEnd != rp) {
-		CERR("NOTICE -- LV element does not match expected length");
+		LOG(NOTICE) << "LV element does not match expected length";
 		L3_READ_ERROR;
 	}
 }

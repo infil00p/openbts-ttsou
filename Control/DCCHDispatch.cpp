@@ -1,7 +1,7 @@
 /**@file Idle-mode dispatcher for dedicated control channels. */
 
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -63,7 +63,7 @@ void DCCHDispatchMM(const L3MMMessage* req, LogicalChannel *DCCH)
 			CMServiceResponder(dynamic_cast<const L3CMServiceRequest*>(req),DCCH);
 			break;
 		default:
-			CERR("NOTICE -- (ControlLayer) unhandled MM message " << MTI << " on " << DCCH->type());
+			LOG(NOTICE) << "(ControlLayer) unhandled MM message " << MTI << " on " << DCCH->type();
 			throw UnsupportedMessage();
 	}
 }
@@ -76,7 +76,7 @@ void DCCHDispatchMM(const L3MMMessage* req, LogicalChannel *DCCH)
 */
 void DCCHDispatchRR(const L3RRMessage* req, LogicalChannel *DCCH)
 {
-	CLDCOUT("DCCHDispatchRR: cheking MTI"<< (L3RRMessage::MessageType)req->MTI() )
+	LOG(DEBUG) << "DCCHDispatchRR: checking MTI"<< (L3RRMessage::MessageType)req->MTI();
 
 	assert(req);
 	L3RRMessage::MessageType MTI = (L3RRMessage::MessageType)req->MTI();
@@ -89,7 +89,7 @@ void DCCHDispatchRR(const L3RRMessage* req, LogicalChannel *DCCH)
 										dynamic_cast<TCHFACCHLogicalChannel*>(DCCH));
 			break;
 		default:
-			CERR("NOTICE -- (ControlLayer) unhandled RR message " << MTI << " on " << DCCH->type());
+			LOG(NOTICE) << "(ControlLayer) unhandled RR message " << MTI << " on " << DCCH->type();
 			throw UnsupportedMessage();
 	}
 }
@@ -105,11 +105,11 @@ void Control::DCCHDispatcher(LogicalChannel *DCCH)
 	while (1) {
 		try {
 			// Wait for a transaction to start.
-			CLDCOUT("DCCHDisptacher waiting for " << DCCH->type() << " ESTABLISH");
+			LOG(DEBUG) << "DCCHDisptacher waiting for " << DCCH->type() << " ESTABLISH";
 			waitForPrimitive(DCCH,ESTABLISH);
 			// Pull the first message and dispatch a new transaction.
 			const L3Message *message = getMessage(DCCH);
-			CLDCOUT("DCCHDispatcher got " << *message);
+			LOG(DEBUG) << "DCCHDispatcher got " << *message;
 			// Each protocol has it's own sub-dispatcher.
 			switch (message->PD()) {
 				case L3MobilityManagementPD:
@@ -119,8 +119,8 @@ void Control::DCCHDispatcher(LogicalChannel *DCCH)
 					DCCHDispatchRR(dynamic_cast<const L3RRMessage*>(message),DCCH);
 					break;
 				default:
-					CERR("NOTICE -- (ControlLayer) unhandled protocol " 
-						<< message->PD() << " on DCCH");
+					LOG(NOTICE) << "(ControlLayer) unhandled protocol " 
+						<< message->PD() << " on DCCH";
 					throw UnsupportedMessage();
 			}
 			delete message;
@@ -130,49 +130,49 @@ void Control::DCCHDispatcher(LogicalChannel *DCCH)
 
 		catch (ChannelReadTimeout except) {
 			clearTransactionHistory(except.transactionID());
-			CERR("NOTICE -- ChannelReadTimeout");
+			LOG(NOTICE) << "ChannelReadTimeout";
 			// Cause 0x03 means "abnormal release, timer expired".
 			DCCH->send(L3ChannelRelease(0x03));
 		}
 		catch (UnexpectedPrimitive except) {
 			clearTransactionHistory(except.transactionID());
-			CERR("NOTICE -- UnexpectedPrimitive");
+			LOG(NOTICE) << "UnexpectedPrimitive";
 			// Cause 0x62 means "message type not not compatible with protocol state".
 			DCCH->send(L3ChannelRelease(0x62));
 		}
 		catch (UnexpectedMessage except) {
 			clearTransactionHistory(except.transactionID());
-			CERR("NOTICE -- UnexpectedMessage");
+			LOG(NOTICE) << "UnexpectedMessage";
 			// Cause 0x62 means "message type not not compatible with protocol state".
 			DCCH->send(L3ChannelRelease(0x62));
 		}
 		catch (UnsupportedMessage except) {
 			clearTransactionHistory(except.transactionID());
-			CERR("NOTICE -- UnsupportedMessage");
+			LOG(NOTICE) << "UnsupportedMessage";
 			// Cause 0x61 means "message type not implemented".
 			DCCH->send(L3ChannelRelease(0x61));
 		}
 		catch (Q931TimerExpired except) {
 			clearTransactionHistory(except.transactionID());
-			CERR("NOTICE -- Q.931 T3xx timer expired");
+			LOG(NOTICE) << "Q.931 T3xx timer expired";
 			// Cause 0x03 means "abnormal release, timer expired".
 			DCCH->send(L3ChannelRelease(0x03));
 		}
 		catch (SIP::SIPTimeout) {
-			CERR("NOTICE -- Uncaught SIP Timeout");
+			LOG(WARN) << "Uncaught SIPTimeout, will leave a stray transcation";
 			// Cause 0x03 means "abnormal release, timer expired".
 			DCCH->send(L3ChannelRelease(0x03));
 		}
 		catch (SIP::SIPError) {
-			CERR("NOTICE -- Uncaught SIP Error");
+			LOG(WARN) << "Uncaught SIPError, will leave a stray transcation";
 			// Cause 0x01 means "abnormal release, unspecified".
 			DCCH->send(L3ChannelRelease(0x01));
 		}
 
-		CLDCOUT("DCCHDisptacher waiting for " << DCCH->type() << " RELEASE");
 		//FIXME -- What's the GSM 04.08 Txxx value for this?
 		// Probably N200 * T200
-		waitForPrimitive(DCCH,RELEASE,20000);
+		//LOG(DEBUG) << "DCCHDisptacher waiting for " << DCCH->type() << " RELEASE";
+		//waitForPrimitive(DCCH,RELEASE,20000);
 	}
 }
 

@@ -60,7 +60,8 @@ TransactionEntry::TransactionEntry()
 	mT301(T301ms), mT302(T302ms), mT303(T303ms),
 	mT304(T304ms), mT305(T305ms), mT308(T308ms),
 	mT310(T310ms), mT313(T313ms),
-	mT3113(GSM::T3113ms)
+	mT3113(GSM::T3113ms),
+	mTR1M(GSM::TR1Mms)
 {
 	mMessage[0]='\0';
 }
@@ -72,12 +73,12 @@ TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	mSubscriber(wSubscriber),mService(wService),
 	mTIFlag(1), mTIValue(0),
 	mCalling(wCalling),
-	mSIP(),
 	mQ931State(NullState),
 	mT301(T301ms), mT302(T302ms), mT303(T303ms),
 	mT304(T304ms), mT305(T305ms), mT308(T308ms),
 	mT310(T310ms), mT313(T313ms),
-	mT3113(GSM::T3113ms)
+	mT3113(GSM::T3113ms),
+	mTR1M(GSM::TR1Mms)
 {
 	mMessage[0]='\0';
 }
@@ -90,12 +91,12 @@ TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	mSubscriber(wSubscriber),mService(wService),
 	mTIFlag(0), mTIValue(wTIValue),
 	mCalled(wCalled),
-	mSIP(),
 	mQ931State(NullState),
 	mT301(T301ms), mT302(T302ms), mT303(T303ms),
 	mT304(T304ms), mT305(T305ms), mT308(T308ms),
 	mT310(T310ms), mT313(T313ms),
-	mT3113(GSM::T3113ms)
+	mT3113(GSM::T3113ms),
+	mTR1M(GSM::TR1Mms)
 {
 	mMessage[0]='\0';
 }
@@ -107,12 +108,12 @@ TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	:mID(gTransactionTable.newID()),
 	mSubscriber(wSubscriber),mService(wService),
 	mTIValue(wTIValue),mCalling(wCalling),
-	mSIP(),
 	mQ931State(NullState),
 	mT301(T301ms), mT302(T302ms), mT303(T303ms),
 	mT304(T304ms), mT305(T305ms), mT308(T308ms),
 	mT310(T310ms), mT313(T313ms),
-	mT3113(GSM::T3113ms)
+	mT3113(GSM::T3113ms),
+	mTR1M(GSM::TR1Mms)
 {
 	mMessage[0]='\0';
 }
@@ -121,36 +122,41 @@ TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 
 bool TransactionEntry::timerExpired() const
 {
+	// FIXME -- If we were smart, this would be a table.
 	if (mT301.expired()) {
-		OBJDCOUT("TransactionEntry T301 expired");
+		OBJLOG(DEBUG) << "TransactionEntry T301 expired";
 		return true;
 	}
 	if (mT302.expired()) {
-		OBJDCOUT("TransactionEntry T302 expired");
+		OBJLOG(DEBUG) << "TransactionEntry T302 expired";
 		return true;
 	}
 	if (mT303.expired()) {
-		OBJDCOUT("TransactionEntry T303 expired");
+		OBJLOG(DEBUG) << "TransactionEntry T303 expired";
 		return true;
 	}
 	if (mT304.expired()) {
-		OBJDCOUT("TransactionEntry T304 expired");
+		OBJLOG(DEBUG) << "TransactionEntry T304 expired";
 		return true;
 	}
 	if (mT305.expired()) {
-		OBJDCOUT("TransactionEntry T305 expired");
+		OBJLOG(DEBUG) << "TransactionEntry T305 expired";
 		return true;
 	}
 	if (mT308.expired()) {
-		OBJDCOUT("TransactionEntry T308 expired");
+		OBJLOG(DEBUG) << "TransactionEntry T308 expired";
 		return true;
 	}
 	if (mT310.expired()) {
-		OBJDCOUT("TransactionEntry T310 expired");
+		OBJLOG(DEBUG) << "TransactionEntry T310 expired";
 		return true;
 	}
 	if (mT313.expired()) {
-		OBJDCOUT("TransactionEntry T313 expired");
+		OBJLOG(DEBUG) << "TransactionEntry T313 expired";
+		return true;
+	}
+	if (mTR1M.expired()) {
+		OBJLOG(DEBUG) << "Transaction Entry TR1M expired";
 		return true;
 	}
 	return false;
@@ -167,6 +173,7 @@ void TransactionEntry::resetTimers()
 	mT308.reset();
 	mT310.reset();
 	mT313.reset();
+	mTR1M.reset();
 }
 
 
@@ -193,6 +200,8 @@ ostream& Control::operator<<(ostream& os, TransactionEntry::Q931CallState state)
 		case TransactionEntry::Active: os << "active"; break;
 		case TransactionEntry::DisconnectIndication: os << "disconnect indication"; break;
 		case TransactionEntry::ReleaseRequest: os << "release request"; break;
+		case TransactionEntry::SMSDelivering: os << "SMS delivery"; break;
+		case TransactionEntry::SMSSubmitting: os << "SMS submission"; break;
 		default: os << "?" << (int)state << "?";
 	}
 	return os;
@@ -201,8 +210,12 @@ ostream& Control::operator<<(ostream& os, TransactionEntry::Q931CallState state)
 ostream& Control::operator<<(ostream& os, const TransactionEntry& entry)
 {
 	os << "ID=" << entry.ID();
-	os << " TI=(" << entry.TIFlag() << "," << entry.TIValue() << ")";
+	os << " TI=(" << entry.TIFlag() << "," << entry.TIValue() << ") ";
+	os << entry.subscriber();
+	if (entry.called().digits()[0]) os << " to=" << entry.called().digits();
+	if (entry.calling().digits()[0]) os << " from=" << entry.calling().digits();
 	os << " Q.931State=" << entry.Q931State();
+	os << " SIPState=" << entry.SIP().state();
 	if (entry.message()[0]) os << " message=\"" << entry.message() << "\"";
 	return os;
 }
@@ -219,7 +232,6 @@ unsigned TransactionTable::newID()
 
 void TransactionTable::add(const TransactionEntry& value)
 {
-	clearDeadEntries();
 	mLock.lock();
 	mTable[value.ID()]=value;
 	mLock.unlock();
@@ -233,7 +245,7 @@ void TransactionTable::update(const TransactionEntry& value)
 	mLock.lock();
 	if (mTable.find(value.ID())==mTable.end()) {
 		mLock.unlock();
-		CERR("WARNING -- attempt to update non-existent transaction entry with key " << value.ID());
+		LOG(WARN) << "attempt to update non-existent transaction entry with key " << value.ID();
 		return;
 	}
 	mTable[value.ID()]=value;
@@ -243,27 +255,31 @@ void TransactionTable::update(const TransactionEntry& value)
 
 
 
-bool TransactionTable::find(unsigned key, TransactionEntry& target) const
+bool TransactionTable::find(unsigned key, TransactionEntry& target)
 {
 	// ID==0 is a non-valid special case.
 	assert(key);
-	bool retVal=false;
 	mLock.lock();
-	TransactionMap::const_iterator itr = mTable.find(key);
-	if (itr!=mTable.end()) {
-		if (!itr->second.dead()) {
-			target = itr->second;
-			retVal=true;
-		}
+	TransactionMap::iterator itr = mTable.find(key);
+	if (itr==mTable.end()) {
+		mLock.unlock();
+		return false;
+	}
+	if (itr->second.dead()) {
+		mTable.erase(itr);
+		mLock.unlock();
+		return false;
 	}
 	mLock.unlock();
-	return retVal;
+	target = itr->second;
+	return true;
 }
 
 
 
 bool TransactionTable::remove(unsigned key)
 {
+	// ID==0 is a non-valid special case.
 	assert(key);
 	mLock.lock();
 	bool retVal = mTable.erase(key);
@@ -280,7 +296,7 @@ void TransactionTable::clearDeadEntries()
 	while (itr!=mTable.end()) {
 		if (!itr->second.dead()) ++itr;
 		else {
-			CLDCOUT("TransactionTable::clearDeadEntries erasing " << itr->first);
+			LOG(DEBUG) << "TransactionTable::clearDeadEntries erasing " << itr->first;
 			TransactionMap::iterator old = itr;
 			itr++;
 			mTable.erase(old);
@@ -291,22 +307,24 @@ void TransactionTable::clearDeadEntries()
 
 
 
-bool TransactionTable::find(const L3MobileIdentity& mobileID, TransactionEntry& target) const
+bool TransactionTable::find(const L3MobileIdentity& mobileID, TransactionEntry& target)
 {
 	// Yes, it's linear time.
 	// Even in a 6-ARFCN system, it should rarely be more than a dozen entries.
 
+	// Since clearDeadEntries is also linear, do that here, too.
+
 	// Brtue force search.
 	bool foundIt = false;
 	mLock.lock();
+	clearDeadEntries();
 	TransactionMap::const_iterator itr = mTable.begin();
 	while (itr!=mTable.end()) {
 		const TransactionEntry& transaction = itr->second;
 		if (transaction.subscriber()==mobileID) {
-			if (!transaction.dead()) {
-				foundIt = true;
-				target = transaction;
-			}
+			// No need to check dead(), since we just cleared the table.
+			foundIt = true;
+			target = transaction;
 			break;
 		}
 		++itr;
@@ -321,7 +339,7 @@ bool TransactionTable::find(const L3MobileIdentity& mobileID, TransactionEntry& 
 void Control::clearTransactionHistory( TransactionEntry& transaction )
 {
 	SIP::SIPEngine& engine = transaction.SIP();
-	CLDCOUT("clearTransactions "<<engine.callID()<<" "<< transaction.ID())
+	LOG(DEBUG) << "clearTransactions "<<engine.callID()<<" "<< transaction.ID();
 	gSIPInterface.removeCall(engine.callID());
 	gTransactionTable.remove(transaction.ID());
 }
@@ -390,6 +408,8 @@ void TMSITable::erase(unsigned TMSI)
 void TMSITable::purge()
 {
 	mLock.lock();
+	// We rely on the fact the TMSIs are assigned in numeric order
+	// to erase the oldest first.
 	while ( (mMap.size()>mMaxSize) && (mClear!=mCounter) )
 		mMap.erase(mClear++);
 	mLock.unlock();
@@ -405,7 +425,7 @@ bool Control::waitForPrimitive(LogicalChannel *LCH, Primitive primitive, unsigne
 	while (waiting) {
 		L3Frame *req = LCH->recv(timeout_ms);
 		if (req==NULL) {
-			CERR("NOTICE -- (ControlLayer) waitForPrimitive timed out at uptime " << gBTS.uptime() << " frame " << gBTS.time());
+			LOG(NOTICE) << "(ControlLayer) waitForPrimitive timed out at uptime " << gBTS.uptime() << " frame " << gBTS.time();
 			return false;
 		}
 		waiting = (req->primitive()!=primitive);
@@ -435,23 +455,23 @@ void Control::waitForPrimitive(LogicalChannel *LCH, Primitive primitive)
 
 L3Message* Control::getMessage(LogicalChannel *LCH, unsigned SAPI)
 {
-	//unsigned timeout_ms = LCH->N200() * T200ms;
-	L3Frame *rcv = LCH->recv(LCH->N200()*T200ms,SAPI);
+	unsigned timeout_ms = LCH->N200() * T200ms;
+	L3Frame *rcv = LCH->recv(timeout_ms,SAPI);
 	if (rcv==NULL) {
-		CERR("NOTICE -- getMessage timed out");
+		LOG(NOTICE) << "getMessage timed out";
 		throw ChannelReadTimeout();
 	}
-	CLDCOUT("getMessage got " << *rcv);
+	LOG(DEBUG) << "getMessage got " << *rcv;
 	Primitive primitive = rcv->primitive();
 	if (primitive!=DATA) {
-		CERR("NOTICE -- getMessage got unexpected primitive " << primitive);
+		LOG(NOTICE) << "getMessage got unexpected primitive " << primitive;
 		delete rcv;
 		throw UnexpectedPrimitive();
 	}
 	L3Message *msg = parseL3(*rcv);
 	delete rcv;
 	if (msg==NULL) {
-		CERR("NOTICE -- getMessage got unparsed message");
+		LOG(NOTICE) << "getMessage got unparsed message";
 		throw UnsupportedMessage();
 	}
 	return msg;
@@ -461,67 +481,13 @@ L3Message* Control::getMessage(LogicalChannel *LCH, unsigned SAPI)
 
 
 
-/**
-	Force clearing on the GSM side.
-	@param transaction The call transaction record.
-	@param LCH The logical channel.
-	@param cause The L3 abort cause.
-*/
-void Control::forceGSMClearing(TransactionEntry& transaction, LogicalChannel *LCH, const L3Cause& cause)
-{
-	if (transaction.Q931State()==TransactionEntry::NullState) return;
-	CLDCOUT("forceGSMClearing from call state " << transaction.Q931State());
-	if (!transaction.clearing()) {
-		LCH->send(L3Disconnect(1-transaction.TIFlag(),transaction.TIValue(),cause));
-	}
-	LCH->send(L3ReleaseComplete(0,transaction.TIValue()));
-	LCH->send(L3ChannelRelease());
-	transaction.resetTimers();
-	transaction.Q931State(TransactionEntry::NullState);
-	LCH->send(RELEASE);
-}
 
-
-/**
-	Force clearing on the SIP side.
-	@param transaction The call transaction record.
-*/
-void Control::forceSIPClearing(TransactionEntry& transaction)
-{
-	if (transaction.SIP().state()==SIP::Cleared) return;
-	CLDCOUT("forceSIPClearing from call state " << transaction.SIP().state());
-	if (transaction.SIP().state()!=SIP::Clearing) {
-		transaction.SIP().MODSendBYE();
-	} else {
-		transaction.SIP().MODResendBYE();
-	}
-	// FIXME -- We need to loop here and wait for the OK or timeout from the SIP side.
-}
-
-
-
-/**
-	Abort the call.
-	@param transaction The call transaction record.
-	@param LCH The logical channel.
-	@param cause The L3 abort cause.
-*/
-void Control::abortCall(TransactionEntry& transaction, LogicalChannel *LCH, const L3Cause& cause)
-{
-	CLDCOUT("abortCall transction: " << transaction);
-	forceGSMClearing(transaction,LCH,cause);
-	forceSIPClearing(transaction);
-	gTransactionTable.update(transaction);
-}
-
-
-
-
-/* Resolve a mobile ID to an IMSI. */
+/* Resolve a mobile ID to an IMSI and return TMSI if it is assigned. */
 unsigned  Control::resolveIMSI(bool sameLAI, L3MobileIdentity& mobID, LogicalChannel* LCH)
 {
+	// Returns known or assigned TMSI.
 	assert(LCH);
-	CLDCOUT("resolving mobile ID " << mobID << ", sameLAI: " << sameLAI);
+	LOG(DEBUG) << "resolving mobile ID " << mobID << ", sameLAI: " << sameLAI;
 
 	// IMSI already?  See if there's a TMSI already, too.
 	// This is a linear time operation, but should only happen on
@@ -529,6 +495,7 @@ unsigned  Control::resolveIMSI(bool sameLAI, L3MobileIdentity& mobID, LogicalCha
 	if (mobID.type()==IMSIType) return gTMSITable.find(mobID.digits());
 
 	// IMEI?  WTF?!
+	// FIXME -- Should send MM Reject, cause 0x60, "invalid mandatory information".
 	if (mobID.type()==IMEIType) throw UnexpectedMessage();
 
 	// Must be a TMSI.
@@ -539,7 +506,7 @@ unsigned  Control::resolveIMSI(bool sameLAI, L3MobileIdentity& mobID, LogicalCha
 	if (IMSI) {
 		// We assigned this TMSI and the TMSI/IMSI pair is already in the table.
 		mobID = L3MobileIdentity(IMSI);
-		CLDCOUT("resolving mobile ID (table): " << mobID);
+		LOG(DEBUG) << "resolving mobile ID (table): " << mobID;
 		return TMSI;
 	}
 	// Not our TMSI.
@@ -547,16 +514,61 @@ unsigned  Control::resolveIMSI(bool sameLAI, L3MobileIdentity& mobID, LogicalCha
 	// If the IMSI's not in the table, ASK for it.
 	LCH->send(L3IdentityRequest(IMSIType));
 	// FIXME -- This request times out on T3260, 12 sec.  See GSM 04.08 Table 11.2.
-	L3IdentityResponse *resp = dynamic_cast<L3IdentityResponse*>(getMessage(LCH));
-	if (!resp) throw UnexpectedMessage();
+	L3Message* msg = getMessage(LCH);
+	L3IdentityResponse *resp = dynamic_cast<L3IdentityResponse*>(msg);
+	if (!resp) {
+		if (msg) delete msg;
+		throw UnexpectedMessage();
+	}
 	mobID = resp->mobileID();
-	delete resp;
-	CLDCOUT("resolving mobile ID (requested): " << mobID);
+	delete msg;
+	LOG(DEBUG) << "resolving mobile ID (requested): " << mobID;
 	if (mobID.type()!=IMSIType) throw UnexpectedMessage();
 	// Return 0 to indicate that we have not yet assigned our own TMSI for this phone.
 	return 0;
 }
 
+
+
+/* Resolve a mobile ID to an IMSI. */
+void  Control::resolveIMSI(L3MobileIdentity& mobileIdentity, LogicalChannel* LCH)
+{
+	// Are we done already?
+	if (mobileIdentity.type()==IMSIType) return;
+
+	// If we got a TMSI, find the IMSI.
+	if (mobileIdentity.type()==TMSIType) {
+		const char *IMSI = gTMSITable.find(mobileIdentity.TMSI());
+		if (IMSI) mobileIdentity = L3MobileIdentity(IMSI);
+	}
+
+	// Still no IMSI?  Ask for one.
+	if (mobileIdentity.type()!=IMSIType) {
+		LOG(NOTICE) << "MOC with no IMSI or valid TMSI.  Reqesting IMSI.";
+		LCH->send(L3IdentityRequest(IMSIType));
+		// FIXME -- This request times out on T3260, 12 sec.  See GSM 04.08 Table 11.2.
+		L3Message* msg = getMessage(LCH);
+		L3IdentityResponse *resp = dynamic_cast<L3IdentityResponse*>(msg);
+		if (!resp) {
+			if (msg) delete msg;
+			throw UnexpectedMessage();
+		}
+		mobileIdentity = resp->mobileID();
+		delete msg;
+	}
+
+	// Still no IMSI??
+	if (mobileIdentity.type()!=IMSIType) {
+		// FIXME -- This is quick-and-dirty, not following GSM 04.08 5.
+		LOG(WARN) << "MOC setup with no IMSI";
+		// Cause 0x60 "Invalid mandatory information"
+		LCH->send(L3CMServiceReject(L3RejectCause(0x60)));
+		LCH->send(L3ChannelRelease());
+		// The SIP side and transaction record don't exist yet.
+		// So we're done.
+		return;
+	}
+}
 
 
 

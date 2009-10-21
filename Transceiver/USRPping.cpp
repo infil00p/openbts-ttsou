@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -25,10 +25,16 @@
 
 
 #include "Transceiver.h"
+#include <Logger.h>
 
 using namespace std;
 
-int main() {
+int main(int argc, char *argv[]) {
+
+  // Configure logger.
+  if (argc>1) gSetLogLevel(argv[1]);
+  else gSetLogLevel("INFO");
+  if (argc>2) gSetLogFile(argv[2]);
 
   USRPDevice *usrp = new USRPDevice(400e3);
 
@@ -36,13 +42,12 @@ int main() {
 
   TIMESTAMP timestamp;
 
-
   usrp->setTxFreq(890.0e6);
   usrp->setRxFreq(890.0e6);
 
   usrp->start();
 
-  cout << "Looping..." << endl;
+  LOG(INFO) << "Looping...";
   bool underrun;
 
   short data[]={0x00,0x02};
@@ -65,7 +70,7 @@ int main() {
     short readBuf[512*2];
     int rd = usrp->readSamples(readBuf,512,&underrun,timestamp);
     if (rd) {
-      cout << "rcvd. data@:" << timestamp << endl;
+      LOG(INFO) << "rcvd. data@:" << timestamp;
       /*for (int i = 0; i < 512; i++) {
         uint32_t *wordPtr = (uint32_t *) &readBuf[2*i];
         *wordPtr = usrp_to_host_u32(*wordPtr); 

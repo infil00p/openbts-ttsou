@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -26,6 +26,7 @@
 
 #include "Configuration.h"
 #include <iostream>
+#include "Logger.h"
 
 using namespace std;
 
@@ -33,12 +34,18 @@ using namespace std;
 int main(int argc, char *argv[])
 {
 
+	gSetLogLevel("DEBUG");
 	ConfigurationTable config("example.config");
 
-	char *keys[4] = {"key1", "key2", "key3", "key4"};
+	char *keys[5] = {"key1", "key2", "key3", "key4", "key5"};
 
-	for (int i=0; i<4; i++) {
+	for (int i=0; i<5; i++) {
 		cout << "table[" << keys[i] << "]=" << config.getStr(keys[i]) <<  endl;
 		cout << "table[" << keys[i] << "]=" << config.getNum(keys[i]) <<  endl;
 	}
+
+	std::vector<unsigned> vect = config.getVector("key5");
+	cout << "vect length " << vect.size() << ": ";
+	for (int i=0; i<vect.size(); i++) cout << " " << vect[i];
+	cout << endl;
 }

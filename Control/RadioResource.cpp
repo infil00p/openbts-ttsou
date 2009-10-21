@@ -49,7 +49,7 @@ using namespace Control;
 /**@name Mechanisms for exponential backoff of T3122, the access holdoff timer. */
 //@{
 
-unsigned curT3122ms = T3122ms;
+unsigned curT3122ms = 5000;
 Mutex curT3122Lock;
 
 /**
@@ -61,8 +61,9 @@ unsigned curT3122()
 	curT3122Lock.lock();
 	unsigned retVal = curT3122ms;
 	// Apply exponential back-off.
-	curT3122ms += random() % curT3122ms;
-	if (curT3122ms>255000) curT3122ms=255000;
+	curT3122ms += (random() % curT3122ms) / 2;
+	unsigned max = gConfig.getNum("GSM.T3122Max");
+	if (curT3122ms>max) curT3122ms=max;
 	curT3122Lock.unlock();
 	return retVal;
 }
@@ -71,7 +72,7 @@ unsigned curT3122()
 void restoreT3122()
 {
 	curT3122Lock.lock();
-	curT3122ms = T3122ms;
+	curT3122ms = gConfig.getNum("GSM.T3122Min");
 	curT3122Lock.unlock();
 }
 
@@ -80,7 +81,7 @@ void restoreT3122()
 
 /**
 	Determine the channel type needed.
-	This is based on GSM 04.08 Table 9.3 and 9.3a.
+	This is based on GSM 04.08 9.1.8, Table 9.3 and 9.3a.
 	The following is assumed about the global BTS capabilities:
 	- We do not support "new establishment causes" and NECI is 0.
 	- We do not support call reestablishment.
@@ -91,27 +92,32 @@ void restoreT3122()
 ChannelType decodeChannelNeeded(unsigned RA)
 {
 	// These values assume NECI is 0.
-	// This code is formatted so that it lines up easily with GSM 04.08 Table 9.9.
+	// This code is formatted in the same order as GSM 04.08 Table 9.9.
 	//
+	// Emergency
+	//
+	// FIXME -- Use SDCCH to start emergency call, since some handsets don't support VEA.
 	if ((RA>>5) == 0x05) return TCHFType;			// emergency call
 	//
 	// skip re-establishment cases
 	//
 	// "Answer to paging"
-	if ((RA>>5) == 0x04) return SDCCHType;			// answer to paging, any channel
+	//
+	// We do not send the "any channel" paging indication, just SDCCH and TCH/F.
+	// Cases where we sent SDCCH.
 	if ((RA>>4) == 0x01) return SDCCHType;			// answer to paging, SDCCH
+	// Cases where we sent TCH/F.
+	if ((RA>>5) == 0x04) return TCHFType;			// answer to paging, any channel
 	if ((RA>>4) == 0x02) return TCHFType;			// answer to paging, TCH/F
-	if ((RA>>4) == 0x03) return TCHFType;			// answer to paging, TCH/F or TCH/H
+	// We don't send TCH/[FH], either.
+	//
+	// MOC or SDCCH procedures.
 	//
 	if ((RA>>5) == 0x07) return SDCCHType;			// MOC or SDCCH procedures
 	//
-	if ((RA>>4) == 0x04) return TCHFType;			// MOC
-	//
-	// skip originating data call cases
+	// Location updating.
 	//
 	if ((RA>>5) == 0x00) return SDCCHType;			// location updating
-	//
-	if ((RA>>4) == 0x00) return SDCCHType;			// location updating
 	//
 	// skip packet (GPRS) cases
 	//
@@ -124,7 +130,7 @@ ChannelType decodeChannelNeeded(unsigned RA)
 }
 
 
-void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
+void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when, float timingError)
 {
 	// RR Establishment.
 	// Immediate Assignment procedure, "Answer from the Network"
@@ -134,9 +140,21 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 	// This GSM's version of medium access control.
 	// Papa Legba, open that door...
 
-	CLDCOUT("AccessGrantResponder RA=" << RA << " when=" << when);
+	// FIXME -- Need to deal with initial timing advance, too.
 
-	// FIXME -- Check "when" against current clock to see if we're too late.
+	// Check "when" against current clock to see if we're too late.
+	// Calculate maximum number of frames of delay.
+	// See GSM 04.08 3.3.1.1.2 for the logic here.
+	static const unsigned txInteger = gConfig.getNum("GSM.RACH.TxInteger");
+	static const unsigned maxAge = GSM::RACHSpreadSlots[txInteger] + GSM::RACHWaitSParam[txInteger];
+	// Check burst age.
+	int age = gBTS.time() - when;
+	LOG(INFO) << "AccessGrantResponder RA=0x" << hex << RA << dec
+		<< " when=" << when << " age=" << age << " TOA=" << timingError;
+	if (age>maxAge) {
+		LOG(NOTICE) << "AccessGrantResponer ignoring RACH bust with age " << age;
+		return;
+	}
 
 	// Allocate the channel according to the needed type indicated by RA.
 	// The returned channel is already open and ready for the transaction.
@@ -144,24 +162,29 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 	switch (decodeChannelNeeded(RA)) {
 		case TCHFType: LCH = gBTS.getTCH(); break;
 		case SDCCHType: LCH = gBTS.getSDCCH(); break;
-		// If we don't support it, ignore it.
-		default: return;
+		// FIXME -- Should probably assign to an SDCCH and then send a reject of some kind.
+		// If we don't support the service, assign to an SDCCH and we can reject it in L3.
+		case UndefinedCHType:
+			LOG(NOTICE) << "RACH burst for unsupported service";
+			LCH = gBTS.getSDCCH();
+			break;
+		// We should never be here.
+		default: assert(0);
 	}
 
 	// Get an AGCH to send on.
 	CCCHLogicalChannel *AGCH = gBTS.getAGCH();
+	// Someone had better have created a least one AGCH.
 	assert(AGCH);
 
 	// Nothing available?
 	if (!LCH) {
 		// Rejection, GSM 04.08 3.3.1.1.3.2.
 		// BTW, emergency calls are not subject to T3122 hold-off.
-		CERR("NOTICE -- Access Grant CONGESTION at uptime " << gBTS.uptime() << " frame " << gBTS.time());
-		//abort(); // HACK DEBUG HACK
 		unsigned waitTime = curT3122()/1000;
-		CLDCOUT("AccessGrantResponder: assginment reject, wait time " << waitTime);
+		LOG(NOTICE) << "AccessGrantResponder: CONGESTION, T3122=" << waitTime;
 		const L3ImmediateAssignmentReject reject(L3RequestReference(RA,when),waitTime);
-		CLDCOUT("AccessGrantResponder sending " << reject);
+		LOG(DEBUG) << "AccessGrantResponder: rejection, sending " << reject;
 		AGCH->send(reject);
 		return;
 	}
@@ -170,7 +193,7 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when)
 	// Create the ImmediateAssignment message.
 	// For most of the message, default IE values are correct.
 	const L3ImmediateAssignment assign(L3RequestReference(RA,when),LCH->channelDescription());
-	CLDCOUT("AccessGrantResponder sending " << assign);
+	LOG(INFO) << "AccessGrantResponder sending " << assign;
 	AGCH->send(assign);
 
 	// Reset exponential back-off upon successful allocation.
@@ -185,58 +208,80 @@ void Control::PagingResponseHandler(const L3PagingResponse* resp, LogicalChannel
 {
 	assert(resp);
 	assert(DCCH);
-	CLDCOUT("PagingResponseHandler " << *resp);
+	LOG(INFO) << "PagingResponseHandler " << *resp;
 
-	// Map a TMSI to an IMSI if needed.
+	// If we got a TMSI, find the IMSI.
 	L3MobileIdentity mobileID = resp->mobileIdentity();
 	if (mobileID.type()==TMSIType) {
 		const char *IMSI = gTMSITable.find(mobileID.TMSI());
 		if (IMSI) mobileID = L3MobileIdentity(IMSI);
+		else {
+			// Don't try too hard to resolve.
+			// The handset is supposed to respond with the same ID type as in the request.
+			LOG(NOTICE) << "Paging Reponse with non-valid TMSI";
+			// Cause 0x60 "Invalid mandatory information"
+			DCCH->send(L3ChannelRelease(0x60));
+			return;
+		}
 	}
 
 	// Delete the Mobile ID from the paging list to free up CCCH bandwidth.
+	// ... if it was not deleted by a timer already ...
 	gBTS.pager().removeID(mobileID);
 
 	// Find the transction table entry that was created when the phone was paged.
-	CLDCOUT("PagingResponseHandler find TransactionEntry for " << mobileID);
+	// We have to look up by mobile ID since the paging entry may have been
+	// erased before this handler was called.  That's too bad.
+	// HACK -- We also flush stray transactions until we find what we 
+	// are looking for.
 	TransactionEntry transaction;
-	if (!gTransactionTable.find(mobileID,transaction)) {
-		CLDCOUT("NOTICE -- Paging Reponse with no transaction record");
-		throw UnexpectedMessage();
+	while (true) {
+		if (!gTransactionTable.find(mobileID,transaction)) {
+			LOG(WARN) << "Paging Reponse with no transaction record for " << mobileID;
+			// Cause 0x41 means "call already cleared".
+			DCCH->send(L3ChannelRelease(0x41));
+			return;
+		}
+		// We are looking for a mobile-terminated transaction.
+		// The transaction controller will take it from here.
+		switch (transaction.service().type()) {
+			case L3CMServiceType::MobileTerminatedCall:
+				MTCStarter(transaction, DCCH);
+				return;
+			case L3CMServiceType::MobileTerminatedShortMessage:
+				MTSMSController(transaction, DCCH);
+				return;
+			default:
+				// Flush stray MOC entries.
+				LOG(WARN) << "PagingResponseHandler flushing stray " << 
+					transaction.service().type() << " transaction entry";
+				gTransactionTable.remove(transaction.ID());
+				continue;
+		}
 	}
-	CLDCOUT("PagingResponseHandler service="<<transaction.service().type());
-
-	// These "controller" functions don't return until the call is cleared.
-	switch (transaction.service().type()) {
-		case L3CMServiceType::MobileTerminatedCall:
-			MTCStarter(transaction, DCCH);
-			break;
-		default:
-			CLDCOUT("NOTICE -- request for unsupported service " << transaction.service());
-			// Remove the bogus transaction.
-			gTransactionTable.remove(transaction.ID());
-			throw UnsupportedMessage();
-	}
-
-	// If we got here, the call is cleared.
-	clearTransactionHistory(transaction);
+	// The transaction may or may not be cleared,
+	// depending on the assignment type.
 }
 
 
 
 void Control::AssignmentCompleteHandler(const L3AssignmentComplete *confirm, TCHFACCHLogicalChannel *TCH)
 {
+	// The assignment complete handler is used to
+	// tie together split transactions across a TCH assignment
+	// in non-VEA call setup.
+
 	assert(TCH);
 	assert(confirm);
-	CLDCOUT("AssignmentCompleteHandler " << *confirm);
+	LOG(DEBUG) << "AssignmentCompleteHandler " << *confirm;
 
 	// Check the transaction table to know what to do next.
 	TransactionEntry transaction;
 	if (!gTransactionTable.find(TCH->transactionID(),transaction)) {
-		CLDCOUT("NOTICE -- Assignment Complete with no transaction record");
+		LOG(WARN) << "Assignment Complete with no transaction record";
 		throw UnexpectedMessage();
 	}
-	CLDCOUT("AssignmentCompleteHandler service="<<transaction.service().type());
+	LOG(INFO) << "AssignmentCompleteHandler service="<<transaction.service().type();
 
 	// These "controller" functions don't return until the call is cleared.
 	switch (transaction.service().type()) {
@@ -247,12 +292,10 @@ void Control::AssignmentCompleteHandler(const L3AssignmentComplete *confirm, TCH
 			MTCController(transaction,TCH);
 			break;
 		default:
-			CLDCOUT("NOTICE -- request for unsupported service " << transaction.service());
-			throw UnsupportedMessage();
+			LOG(WARN) << "Assignment Complete, unsupported service " << transaction.service();
+			throw UnsupportedMessage(transaction.ID());
 	}
-
 	// If we got here, the call is cleared.
-	clearTransactionHistory(transaction);
 }
 
 
@@ -262,17 +305,19 @@ void Control::AssignmentCompleteHandler(const L3AssignmentComplete *confirm, TCH
 
 
 
-void Pager::addID(const L3MobileIdentity& newID, ChannelType chanType, unsigned wLife)
+void Pager::addID(const L3MobileIdentity& newID, ChannelType chanType,
+		unsigned wTransactionID, unsigned wLife)
 {
 	// Add a mobile ID to the paging list for a given lifetime.
-
-	CLDCOUT("Pager::addID " << newID);
 	mLock.lock();
 	// If this ID is already in the list, just reset its timer.
+	// Uhg, another linear time search.
+	// This would be faster if the paging list were ordered by ID.
+	// But the list should usually be short, so it may not be worth the effort.
 	bool renewed = false;
 	for (PagingEntryList::iterator lp = mPageIDs.begin(); lp != mPageIDs.end(); ++lp) {
 		if (lp->ID()==newID) {
-			CLDCOUT("Pager::addID " << newID << " already in table");
+			LOG(DEBUG) << "Pager::addID " << newID << " already in table";
 			lp->renew(wLife);
 			mPageSignal.signal();
 			mLock.unlock();
@@ -280,24 +325,28 @@ void Pager::addID(const L3MobileIdentity& newID, ChannelType chanType, unsigned 
 		}
 	}
 	// If this ID is new, put it in the list.
-	mPageIDs.push_back(PagingEntry(newID,chanType,wLife));
-	CLDCOUT("Pager::addID " << newID << " added to table");
+	mPageIDs.push_back(PagingEntry(newID,chanType,wTransactionID,wLife));
+	LOG(INFO) << "Pager::addID " << newID << " added to table";
 	mPageSignal.signal();
 	mLock.unlock();
 }
 
 
-void Pager::removeID(const L3MobileIdentity& delID)
+unsigned Pager::removeID(const L3MobileIdentity& delID)
 {
-	CLDCOUT("Pager::removeID " << delID);
+	// Return the associated transaction ID, or 0 if none found.
+	unsigned retVal = 0;
+	LOG(INFO) << "Pager::removeID " << delID;
 	mLock.lock();
 	for (PagingEntryList::iterator lp = mPageIDs.begin(); lp != mPageIDs.end(); ++lp) {
 		if (lp->ID()==delID) {
+			retVal = lp->transactionID();
 			mPageIDs.erase(lp);
 			break;
 		}
 	}
 	mLock.unlock();
+	return retVal;
 }
 
 
@@ -316,19 +365,21 @@ unsigned Pager::pageAll()
 	while (lp != mPageIDs.end()) {
 		if (!lp->expired()) ++lp;
 		else {
-			// FIXME -- We should delete the corresponding Transaction Table entry here, too.
-			CLDCOUT("Pager::pageAll erasing " << lp->ID());
+			// DO NOT remove the transaction entry here.
+			// It may be in use in an active call.
+			LOG(INFO) << "Pager::pageAll erasing " << lp->ID();
 			lp=mPageIDs.erase(lp);
 		}
 	}
 
-	CLDCOUT("Pager::pageAll paging " << mPageIDs.size() << " mobile(s)");
+	LOG(INFO) << "Pager::pageAll paging " << mPageIDs.size() << " mobile(s)";
 
 	// Page remaining entries, two at a time if possible.
 	// These PCH send operations are non-blocking.
 	lp = mPageIDs.begin();
 	while (lp != mPageIDs.end()) {
 		// FIXME -- This completely ignores the paging groups.
+		// HACK -- So we send every page twice.
 		// That will probably mean a different Pager for each subchannel.
 		// See GSM 04.08 10.5.2.11 and GSM 05.02 6.5.2.
 		CCCHLogicalChannel *PCH = gBTS.getPCH();
@@ -338,7 +389,8 @@ unsigned Pager::pageAll()
 		++lp;
 		if (lp==mPageIDs.end()) {
 			// Just one ID left?
-			//CLDCOUT("Pager::pageAll paging " << id1);
+			LOG(DEBUG) << "Pager::pageAll paging " << id1;
+			PCH->send(L3PagingRequestType1(id1,type1));
 			PCH->send(L3PagingRequestType1(id1,type1));
 			break;
 		}
@@ -346,7 +398,8 @@ unsigned Pager::pageAll()
 		const L3MobileIdentity& id2 = lp->ID();
 		ChannelType type2 = lp->type();
 		++lp;
-		//CLDCOUT("Pager::pageAll paging " << id1 << " and " << id2);
+		LOG(DEBUG) << "Pager::pageAll paging " << id1 << " and " << id2;
+		PCH->send(L3PagingRequestType1(id1,type1,id2,type2));
 		PCH->send(L3PagingRequestType1(id1,type1,id2,type2));
 	}
 	
@@ -379,14 +432,14 @@ void Pager::serviceLoop()
 		// Wait for pending activity to clear the channel.
 		// This wait is what causes PCH to have lower priority than AGCH.
 		unsigned load = gBTS.getPCH()->load();
-		DCOUT("Pager waiting for " << load << " multiframes");
-		sleepFrames(51*load);
+		LOG(DEBUG) << "Pager waiting for " << load << " multiframes";
+		if (load) sleepFrames(51*load);
 
 		// Page the list.
 		// If there is nothing to page,
 		// wait for a new entry in the list.
 		if (!pageAll()) {
-			DCOUT("Pager blocking for signal");
+			LOG(DEBUG) << "Pager blocking for signal";
 			mLock.lock();
 			while (mPageIDs.size()==0) mPageSignal.wait(mLock);
 			mLock.unlock();

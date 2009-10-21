@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -35,6 +35,8 @@
 #include <stdlib.h>
 #include "Threads.h"
 #include "USRPDevice.h"
+
+#include <Logger.h>
 
 
 using namespace std;
@@ -136,7 +138,7 @@ bool USRPDevice::rx_setFreq(double freq, double *actual_freq)
 
 USRPDevice::USRPDevice (double _desiredSampleRate) 
 {
-  COUT("creating USRP device...");    
+  LOG(INFO) << "creating USRP device...";
   double masterClockRate = (double) 64.0e6;
   decimRate = (unsigned int) round(masterClockRate/_desiredSampleRate);
   actualSampleRate = masterClockRate/decimRate;
@@ -155,7 +157,7 @@ bool USRPDevice::make(bool wSkipRx)
 {
   skipRx = wSkipRx;
 
-  COUT("making USRP device..");
+  LOG(INFO) << "making USRP device..";
 #ifndef SWLOOPBACK 
   string rbf = "std_inband.rbf";
   //string rbf = "inband_1rxhb_1tx.rbf"; 
@@ -168,7 +170,7 @@ bool USRPDevice::make(bool wSkipRx)
   }
   
   catch(...) {
-    COUT("make failed on Rx");
+    LOG(ERROR) << "make failed on Rx";
     delete m_uRx;
     return false;
   }
@@ -180,7 +182,7 @@ bool USRPDevice::make(bool wSkipRx)
   }
   
   catch(...) {
-    COUT("make failed on Tx");
+    LOG(ERROR) << "make failed on Tx";
     delete m_uTx;
     return false;
   }
@@ -199,7 +201,7 @@ bool USRPDevice::make(bool wSkipRx)
 
 bool USRPDevice::start() 
 {
-  COUT("starting USRP...");
+  LOG(INFO) << "starting USRP...";
 #ifndef SWLOOPBACK 
   if (!m_uRx && !skipRx) return false;
   if (!m_uTx) return false;
@@ -220,7 +222,7 @@ bool USRPDevice::start()
   m_uTx->set_pga(0,m_uTx->pga_max()); // should be 20dB
   m_uTx->set_pga(1,m_uTx->pga_max());
   m_uTx->set_mux(0x00000098);
-  COUT("TX pgas: " << m_uTx->pga(0) << ", " << m_uTx->pga(1));
+  LOG(INFO) << "TX pgas: " << m_uTx->pga(0) << ", " << m_uTx->pga(1);
 
   if (!skipRx) {
     m_uRx->_write_fpga_reg(FR_ATR_MASK_0  + 3*3,0);
@@ -322,11 +324,11 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
       uint32_t word0 = usrp_to_host_u32(tmpBuf[0]);
       uint32_t chan = (word0 >> 16) & 0x1f;
       unsigned payloadSz = word0 & 0x1ff;
-      DCOUT("first two bytes: " << hex << word0 << " " << dec << pktTimestamp);
+      LOG(DEBUG) << "first two bytes: " << hex << word0 << " " << dec << pktTimestamp;
 
       bool incrementHi32 = ((lastPktTimestamp & 0x0ffffffffll) > pktTimestamp);
       if (incrementHi32 && (timeStart!=0)) {
-           COUT("high 32 increment!!!"); 
+           LOG(DEBUG) << "high 32 increment!!!";
            hi32Timestamp++;
       }
       pktTimestamp = (((TIMESTAMP) hi32Timestamp) << 32) | pktTimestamp;
@@ -338,19 +340,19 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
 	if ((word2 >> 16) == ((0x01 << 8) | 0x02)) {
           timestamp -= timestampOffset;
 	  timestampOffset = pktTimestamp - pingTimestamp + PINGOFFSET;
-	  DCOUT("updating timestamp offset to: " << timestampOffset);
+	  LOG(DEBUG) << "updating timestamp offset to: " << timestampOffset;
           timestamp += timestampOffset;
 	  isAligned = true;
 	}
 	continue;
       }
       if (chan != 0) {
-	CERR("chan: " << chan << ", timestamp: " << pktTimestamp << ", sz:" << payloadSz);
+	LOG(DEBUG) << "chan: " << chan << ", timestamp: " << pktTimestamp << ", sz:" << payloadSz;
 	continue;
       }
       if ((word0 >> 28) & 0x04) {
 	if (underrun) *underrun = true; 
-	CERR("WARNING -- UNDERRUN in TRX->USRP interface");
+	LOG(DEBUG) << "UNDERRUN in TRX->USRP interface";
       }
       if (RSSI) *RSSI = (word0 >> 21) & 0x3f;
       
@@ -371,7 +373,7 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
       if (pktTimestamp + payloadSz/2/sizeof(short) > timeEnd) 
 	timeEnd = pktTimestamp+payloadSz/2/sizeof(short);
 
-      DCOUT("timeStart: " << timeStart << ", timeEnd: " << timeEnd << ", pktTimestamp: " << pktTimestamp);
+      LOG(DEBUG) << "timeStart: " << timeStart << ", timeEnd: " << timeEnd << ", pktTimestamp: " << pktTimestamp;
 
     }	
   }     
@@ -379,14 +381,14 @@ int USRPDevice::readSamples(short *buf, int len, bool *overrun,
   // copy desired data to buf
   unsigned bufStart = dataStart+(timestamp-timeStart);
   if (bufStart + len < currDataSize/2) { 
-    DCOUT("bufStart: " << bufStart);
+    LOG(DEBUG) << "bufStart: " << bufStart;
     memcpy(buf,data+bufStart*2,len*2*sizeof(short));
     memset(data+bufStart*2,0,len*2*sizeof(short));
   }
   else {
-    DCOUT("len: " << len << ", currDataSize/2: " << currDataSize/2 << ", bufStart: " << bufStart);
+    LOG(DEBUG) << "len: " << len << ", currDataSize/2: " << currDataSize/2 << ", bufStart: " << bufStart;
     unsigned firstLength = (currDataSize/2-bufStart);
-    DCOUT("firstLength: " << firstLength);
+    LOG(DEBUG) << "firstLength: " << firstLength;
     memcpy(buf,data+bufStart*2,firstLength*2*sizeof(short));
     memset(data+bufStart*2,0,firstLength*2*sizeof(short));
     memcpy(buf+firstLength*2,data,(len-firstLength)*2*sizeof(short));
@@ -503,7 +505,7 @@ bool USRPDevice::setTxFreq(double wFreq) {
   double actFreq;
   if (!tx_setFreq(wFreq+LO_OFFSET,&actFreq)) return false;
   bool retVal = m_uTx->set_tx_freq(0,(wFreq-actFreq));
-  COUT("set TX: " << wFreq-actFreq << " actual TX: " << m_uTx->tx_freq(0));
+  LOG(INFO) << "set TX: " << wFreq-actFreq << " actual TX: " << m_uTx->tx_freq(0);
   return retVal;
 };
 
@@ -516,7 +518,7 @@ bool USRPDevice::setRxFreq(double wFreq) {
   double actFreq;
   if (!rx_setFreq(wFreq-2*LO_OFFSET,&actFreq)) return false;
   bool retVal = m_uRx->set_rx_freq(0,(wFreq-actFreq));
-  COUT("set RX: " << wFreq-actFreq << " actual RX: " << m_uRx->rx_freq(0));
+  LOG(DEBUG) << "set RX: " << wFreq-actFreq << " actual RX: " << m_uRx->rx_freq(0);
   return retVal;
 };
 

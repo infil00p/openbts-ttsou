@@ -22,21 +22,28 @@ COMMON_INCLUDEDIR = $(top_srcdir)/CommonLibs
 CONTROL_INCLUDEDIR = $(top_srcdir)/Control
 GSM_INCLUDEDIR = $(top_srcdir)/GSM
 SIP_INCLUDEDIR = $(top_srcdir)/SIP
+SMS_INCLUDEDIR = $(top_srcdir)/SMS
 TRX_INCLUDEDIR = $(top_srcdir)/TRXManager
 GLOBALS_INCLUDEDIR = $(top_srcdir)/Globals
+CLI_INCLUDEDIR = $(top_srcdir)/CLI
 
 STD_DEFINES_AND_INCLUDES = \
 	-I$(COMMON_INCLUDEDIR) \
 	-I$(CONTROL_INCLUDEDIR) \
 	-I$(GSM_INCLUDEDIR) \
 	-I$(SIP_INCLUDEDIR) \
+	-I$(SMS_INCLUDEDIR) \
 	-I$(TRX_INCLUDEDIR) \
-	-I$(GLOBALS_INCLUDEDIR)
+	-I$(GLOBALS_INCLUDEDIR) \
+	-I$(CLI_INCLUDEDIR)
 
 COMMON_LA = $(top_builddir)/CommonLibs/libcommon.la
 GSM_LA = $(top_builddir)/GSM/libGSM.la
 SIP_LA = $(top_builddir)/SIP/libSIP.la
+SMS_LA = $(top_builddir)/SMS/libSMS.la
 TRX_LA = $(top_builddir)/TRXManager/libtrxmanager.la
 CONTROL_LA = $(top_builddir)/Control/libcontrol.la
+GLOBALS_LA = $(top_builddir)/Globals/libglobals.la
+CLI_LA = $(top_builddir)/CLI/libcli.la
 
 MOSTLYCLEANFILES = *~

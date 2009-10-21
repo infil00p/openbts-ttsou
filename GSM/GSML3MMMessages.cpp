@@ -3,7 +3,7 @@
 */
 
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -33,6 +33,7 @@
 
 #include "GSML3CommonElements.h"
 #include "GSML3MMMessages.h"
+#include <Logger.h>
 
 
 using namespace std;
@@ -79,11 +80,12 @@ L3MMMessage* GSM::L3MMFactory(L3MMMessage::MessageType MTI)
 	  case L3MMMessage::LocationUpdatingRequest: return new L3LocationUpdatingRequest;
 	  case L3MMMessage::IMSIDetachIndication: return new L3IMSIDetachIndication;
 	  case L3MMMessage::CMServiceRequest: return new L3CMServiceRequest;
-	  case L3MMMessage::CMReestablishmentRequest: return new L3CMReestablishmentRequest;
+	  // Since we don't support re-establishment, don't bother parsing this.
+	  //case L3MMMessage::CMReestablishmentRequest: return new L3CMReestablishmentRequest;
 	  case L3MMMessage::MMStatus: return new L3MMStatus;
 	  case L3MMMessage::IdentityResponse: return new L3IdentityResponse;
 	  default:
-	    CERR("WARNING -- no L3 MM factory support for message "<<MTI);
+	    LOG(WARN) << "no L3 MM factory support for message " << MTI;
 		return NULL;
 	}
 }
@@ -91,13 +93,12 @@ L3MMMessage* GSM::L3MMFactory(L3MMMessage::MessageType MTI)
 L3MMMessage * GSM::parseL3MM(const L3Frame& source)
 {
 	L3MMMessage::MessageType MTI = (L3MMMessage::MessageType)(0xbf & source.MTI());
-	DCOUT("parseL3MM MTI=" << MTI);
+	LOG(DEBUG) << "parseL3MM MTI=" << MTI;
 
 	L3MMMessage *retVal = L3MMFactory(MTI);
 	if (retVal==NULL) return NULL;
 
 	retVal->parse(source);
-	DCOUT(*retVal);
 	return retVal;
 }
 

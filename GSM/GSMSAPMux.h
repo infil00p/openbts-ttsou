@@ -30,6 +30,8 @@
 #include "GSMTransfer.h"
 #include "GSML1FEC.h"
 
+#include <Logger.h>
+
 namespace GSM {
 
 class L2DL;
@@ -117,7 +119,7 @@ class L1TestPointSAPMux : public SAPMux {
 
 	void writeLowSide(const L2Frame& frame)
 	{
-		COUT("SAPMux recevied " << frame);
+		LOG(DEBUG) << "SAPMux::writeLowSide frame=" << frame;
 	}
 
 };

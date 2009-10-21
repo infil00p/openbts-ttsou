@@ -2,7 +2,7 @@
   @brief GSM Radio Resorce messages, from GSM 04.08 9.1.
 */
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -32,6 +32,7 @@
 #include <iostream>
 
 #include "GSML3RRMessages.h"
+#include <Logger.h>
 
 
 using namespace std;
@@ -126,7 +127,7 @@ L3RRMessage* GSM::L3RRFactory(L3RRMessage::MessageType MTI)
 		case L3RRMessage::PagingResponse: return new L3PagingResponse();
 		case L3RRMessage::ChannelModeModifyAcknowledge: return new L3ChannelModeModifyAcknowledge();
 		default:
-			CERR("WARNING -- no L3 RR factory support for " << MTI);
+			LOG(WARN) << "no L3 RR factory support for " << MTI;
 			return NULL;
 	}
 }
@@ -134,22 +135,20 @@ L3RRMessage* GSM::L3RRFactory(L3RRMessage::MessageType MTI)
 L3RRMessage* GSM::parseL3RR(const L3Frame& source)
 {
 	L3RRMessage::MessageType MTI = (L3RRMessage::MessageType)source.MTI();
-	DCOUT("parseL3RR MTI="<<MTI)
+	LOG(DEBUG) << "parseL3RR MTI="<<MTI;
 
 	L3RRMessage *retVal = L3RRFactory(MTI);
 	if (retVal==NULL) return NULL;
 
 	retVal->parse(source);
-	DCOUT(*retVal);
 	return retVal;
-
 }
 
 
 
 /**
 This is a local function to map the GSM::ChannelType enum
-to one of the codes from GMS 04.07 10.5.2.8.
+to one of the codes from GMS 04.08 10.5.2.8.
 */
 unsigned channelNeededCode(ChannelType wType)
 {
@@ -158,7 +157,7 @@ unsigned channelNeededCode(ChannelType wType)
 		case SDCCHType: return 1;
 		case TCHFType: return 2;
 		case AnyTCHType: return 3;
-		default: abort();
+		default: assert(0);
 	}
 }
 

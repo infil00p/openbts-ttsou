@@ -34,6 +34,8 @@
 #include "GSML1FEC.h"
 #include <string.h>
 
+#include <Logger.h>
+
 
 using namespace GSM;
 using namespace std;
@@ -77,7 +79,7 @@ void* ClockLoopAdapter(TransceiverManager *transceiver)
 
 void TransceiverManager::waitForClockInit() const
 {
-	DCOUT("waitForClockInit");
+	LOG(INFO) << "waitForClockInit";
 	while (!mHaveClock) sleep(1);
 	// HACK -- We sleep to prevent a race condition in runTransceiver.
 	sleep(2);
@@ -88,24 +90,23 @@ void TransceiverManager::clockHandler()
 {
 	char buffer[MAX_UDP_LENGTH];
 	int msgLen = mClockSocket.read(buffer);
-	// HACK -- We saw this intermittent error at BRC.
-	// if (msgLen<=0) SOCKET_ERROR;
-	if (msgLen<0) {
-		CERR("WARNING -- read error on clock interface");
+
+	if (msgLen<=0) {
+		LOG(ALARM) << "read error on clock interface, return " << msgLen;
 		return;
 	}
 
 	if (strncmp(buffer,"IND CLOCK",9)==0) {
 		uint32_t FN;
 		sscanf(buffer,"IND CLOCK %u", &FN);
-		DCOUT("CLOCK indication, clock="<<FN);
+		LOG(DEBUG) << "CLOCK indication, clock="<<FN;
 		gBTS.clock().set(FN);
 		mHaveClock = true;
 		return;
 	}
 
 	buffer[msgLen]='\0';
-	CERR("WARNING -- bogus message " << buffer << " on clock interface");
+	LOG(ALARM) << "bogus message " << buffer << " on clock interface";
 }
 
 
@@ -151,7 +152,7 @@ void ::ARFCNManager::installDecoder(GSM::L1Decoder *wL1d)
 	assert(mapping.uplink());
 	assert(mapping.allowedSlot(TN));
 
-	DCOUT("ARFCNManager::installDecoder TN: " << TN << " repeatLength: " << mapping.repeatLength());
+	LOG(DEBUG) << "ARFCNManager::installDecoder TN: " << TN << " repeatLength: " << mapping.repeatLength();
 
 	mTableLock.lock();
 	for (unsigned i=0; i<mapping.numFrames(); i++) {
@@ -171,7 +172,7 @@ void ::ARFCNManager::installDecoder(GSM::L1Decoder *wL1d)
 
 void ::ARFCNManager::writeHighSide(const GSM::TxBurst& burst)
 {
-	DCOUT("transmit at time " << gBTS.clock().get() << ": " << burst);
+	LOG(DEEPDEBUG) << "transmit at time " << gBTS.clock().get() << ": " << burst;
 	// format the transmission request message
 	static const int bufferSize = gSlotLen+1+4+1;
 	char buffer[bufferSize];
@@ -252,7 +253,7 @@ int ::ARFCNManager::sendCommandPacket(const char* command, char* response)
 	mControlLock.lock();
 
 	//FIXME Rewrite this to use a blocking socket and select() with a timeout.
-	for (int retry=0; retry<40; retry++) {
+	for (int retry=0; retry<10; retry++) {
 		mControlSocket.write(command);
 		// Poll with a non-blocking read.
 		// Allow up to 1 second for each attempt.
@@ -262,10 +263,10 @@ int ::ARFCNManager::sendCommandPacket(const char* command, char* response)
 			usleep(waitTime);
 			msgLen = mControlSocket.read(response);
 			waitTime *= 2;
-			DCOUT("command retry waitTime=" << waitTime << " msgLen=" << msgLen);
+			LOG(DEBUG) << "command retry waitTime=" << waitTime << " msgLen=" << msgLen;
 		}
 		if (msgLen<=0) {
-			CERR("WARNING -- retrying transceiver command after response timeout");
+			LOG(WARN) << "retrying transceiver command after response timeout";
 			continue;
 		}
 		else {
@@ -280,7 +281,7 @@ int ::ARFCNManager::sendCommandPacket(const char* command, char* response)
 		return msgLen;
 	}
 
-	CERR("ERROR -- lost control link to transceiver");
+	LOG(ERROR) << "lost control link to transceiver";
 	SOCKET_ERROR;
 }
 
@@ -293,6 +294,7 @@ int ::ARFCNManager::sendCommand(const char*command, int param)
 	char cmdBuf[MAX_UDP_LENGTH];
 	char response[MAX_UDP_LENGTH];
 	sprintf(cmdBuf,"CMD %s %d", command, param);
+	LOG(DEBUG) << "ARFCNManager::sendCommand " << cmdBuf;
 	int rspLen = sendCommandPacket(cmdBuf,response);
 	if (rspLen<=0) return -1;
 	// Parse and check status.
@@ -352,13 +354,13 @@ bool ::ARFCNManager::tune(int wARFCN)
 	// tune rx
 	int status = sendCommand("RXTUNE",rxFreq);
 	if (status!=0) {
-		CERR("WARNING -- RXTUNE failed with status " << status);
+		LOG(ALARM) << "RXTUNE failed with status " << status;
 		return false;
 	}
 	// tune tx
 	status = sendCommand("TXTUNE",txFreq);
 	if (status!=0) {
-		CERR("WARNING -- TXTUNE failed with status " << status);
+		LOG(ALARM) << "TXTUNE failed with status " << status;
 		return false;
 	}
 	// done
@@ -375,13 +377,13 @@ bool ::ARFCNManager::tuneLoopback(int wARFCN)
 	// tune rx
 	int status = sendCommand("RXTUNE",txFreq);
 	if (status!=0) {
-		CERR("WARNING -- RXTUNE failed with status " << status);
+		LOG(ALARM) << "RXTUNE failed with status " << status;
 		return false;
 	}
 	// tune tx
 	status = sendCommand("TXTUNE",txFreq);
 	if (status!=0) {
-		CERR("WARNING -- TXTUNE failed with status " << status);
+		LOG(ALARM) << "TXTUNE failed with status " << status;
 		return false;
 	}
 	// done
@@ -390,18 +392,34 @@ bool ::ARFCNManager::tuneLoopback(int wARFCN)
 }
 
 
+bool ::ARFCNManager::powerOff()
+{
+	int status = sendCommand("POWEROFF");
+	if (status!=0) {
+		LOG(ALARM) << "POWEROFF failed with status " << status;
+		return false;
+	}
+}
+
+
+bool ::ARFCNManager::powerOn()
+{
+	int status = sendCommand("POWERON");
+	if (status!=0) {
+		LOG(ALARM) << "POWERON failed with status " << status;
+		return false;
+	}
+}
+
+
+
 
 
 bool ::ARFCNManager::setPower(int dB)
 {
-	int status = sendCommand("POWERON",dB);
+	int status = sendCommand("SETPOWER",dB);
 	if (status!=0) {
-		CERR("WARNING -- POWERON failed with status " << status);
-		return false;
-	}
-	status = sendCommand("SETPOWER",dB);
-	if (status!=0) {
-		CERR("WARNING -- SETPOWER failed with status " << status);
+		LOG(ALARM) << "SETPOWER failed with status " << status;
 		return false;
 	}
 	return true;
@@ -413,7 +431,7 @@ bool ::ARFCNManager::setTSC(unsigned TSC)
 	assert(TSC<8);
 	int status = sendCommand("SETTSC",TSC);
 	if (status!=0) {
-		CERR("WARNING -- SETTSC failed with stats " << status);
+		LOG(ALARM) << "SETTSC failed with status " << status;
 		return false;
 	}
 	return true;
@@ -428,7 +446,7 @@ bool ::ARFCNManager::setSlot(unsigned TN, unsigned combination)
 	sprintf(paramBuf,"%d %d", TN, combination);
 	int status = sendCommand("SETSLOT",paramBuf);
 	if (status!=0) {
-		CERR("WARNING -- SETSLOT failed with status " << status);
+		LOG(ALARM) << "SETSLOT failed with status " << status;
 		return false;
 	}
 	return true;
@@ -440,14 +458,14 @@ bool ::ARFCNManager::setSlot(unsigned TN, unsigned combination)
 
 void ::ARFCNManager::receiveBurst(const RxBurst& inBurst)
 {
-	DCOUT("receiveBurst: " << inBurst);
+	LOG(DEEPDEBUG) << "receiveBurst: " << inBurst;
 	uint32_t FN = inBurst.time().FN() % maxModulus;
 	unsigned TN = inBurst.time().TN();
 
 	mTableLock.lock();
 	L1Decoder *proc = mDemuxTable[TN][FN];
 	if (proc==NULL) {
-		DCOUT("ARFNManager::receiveBurst in unconfigured TDMA position TN: " << TN << " FN: " << FN << ".");
+		LOG(DEBUG) << "ARFNManager::receiveBurst in unconfigured TDMA position TN: " << TN << " FN: " << FN << ".";
 		mTableLock.unlock();
 		return;
 	}

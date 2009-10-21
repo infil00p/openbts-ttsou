@@ -174,7 +174,7 @@ class L2LAPDm : public L2DL {
 	*/
 	enum LAPDState {
 		LinkReleased,
-		AwaitingEstablish,
+		AwaitingEstablish,		///< note that the BTS should never be in this state
 		AwaitingRelease,
 		LinkEstablished,
 		ContentionResolution	///< GMS 04.06 5.4.1.4
@@ -192,6 +192,9 @@ class L2LAPDm : public L2DL {
 	unsigned mR;			///< this "R" bit for commands, 0 for BTS, 1 for MS
 
 	unsigned mSAPI;			///< the service access point indicator for this L2
+
+	L2LAPDm *mMaster;		///< This points to the SAP0 LAPDm on this channel.
+
 
 
 	/**@name Mutex-protected state shared by uplink and downlink threads. */
@@ -224,6 +227,11 @@ class L2LAPDm : public L2DL {
 	/** A lock to control multi-threaded access to L1->L2. */
 	Mutex mL1Lock;
 
+	/** HACK -- A count of consecutive idle frames. Used to spot stuck channels. */
+	unsigned mIdleCount;
+
+	/** HACK -- Return maximum allowed idle count. */
+	virtual unsigned maxIdle() const =0;
 
 	public:
 
@@ -265,6 +273,10 @@ class L2LAPDm : public L2DL {
 	/** Block until we receive any pending ack. */
 	void waitForAck();
 
+	/** Set the "master" SAP, SAP0; should be called no more than once. */
+	void master(L2LAPDm* wMaster)
+		{ assert(!mMaster); mMaster=wMaster; }
+
 
 	protected:
 
@@ -282,6 +294,9 @@ class L2LAPDm : public L2DL {
 
 	/** Clear the ABM-related state variables. */
 	void clearCounters();
+
+	/** Go to the "link released" state. */
+	void releaseLink();
 	
 	/** We go here when something goes really wrong. */
 	void abnormalRelease();
@@ -374,6 +389,12 @@ class L2LAPDm : public L2DL {
 	virtual void sendIdle() { writeL1(mIdleFrame); }
 
 	/**
+		Increment or clear the idle count based on the current frame.
+		@return true if we should abort
+	*/
+	bool stuckChannel(const L2Frame&);
+
+	/**
 		The upstream service loop handles incoming L2 frames and T200 timeouts.
 	*/
 	void serviceLoop();
@@ -393,6 +414,8 @@ void *LAPDmServiceLoopAdapter(L2LAPDm*);
 class SDCCHL2 : public L2LAPDm {
 
 	protected:
+
+	unsigned maxIdle() const { return 50; }
 
 	/** GSM 04.06 5.8.3.  We support only A/B formats. */
 	unsigned N201(GSM::L2Control::ControlFormat format) const
@@ -430,6 +453,8 @@ class SACCHL2 : public L2LAPDm {
 
 	protected:
 
+	unsigned maxIdle() const { return 1000; }
+
 	/** GSM 04.06 5.8.3.  We support only A/B formats. */
 	unsigned N201(GSM::L2Control::ControlFormat format) const
 		{ assert(format==L2Control::IFormat); return 18; }
@@ -461,6 +486,8 @@ class SACCHL2 : public L2LAPDm {
 class FACCHL2 : public L2LAPDm {
 
 	protected:
+
+	unsigned maxIdle() const { return 500; }
 
 	/** GSM 04.06 5.8.3.  We support only A/B formats. */
 	unsigned N201(GSM::L2Control::ControlFormat format) const

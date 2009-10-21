@@ -25,10 +25,13 @@ SUBDIRS = \
 	config \
 	AsteriskConfig \
 	CommonLibs \
+	CLI \
 	Globals \
 	SIP \
 	GSM \
+	SMS \
 	Transceiver \
+	Transceiver52M \
 	TRXManager \
 	Control \
 	apps \

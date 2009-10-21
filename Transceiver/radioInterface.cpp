@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -24,6 +24,7 @@
 
 //#define NDEBUG
 #include "radioInterface.h"
+#include <Logger.h>
 
 
 GSM::Time VectorQueue::nextTime() const
@@ -106,7 +107,7 @@ signalVector *RadioInterface::unUSRPifyVector(short *shortVector, int numSamples
   while (itr < newVector->end()) {
     *itr++ = Complex<float>(usrp_to_host_short(*(shortItr+FLIP_IQ)),
 		            usrp_to_host_short(*(shortItr+1-FLIP_IQ)));
-    //COUT(*(itr-1));
+    //LOG(DEEPDEBUG) << (*(itr-1));
     shortItr += 2;
   }
 
@@ -152,9 +153,9 @@ void RadioInterface::pushBuffer(void) {
   // start the USRP when we actually have data to send to the USRP.
   if (!started) {
     started = true; 
-    COUT("Starting USRP");
+    LOG(INFO) << "Starting USRP";
     usrp->start(); 
-    COUT("USRP started");
+    LOG(DEBUG) << "USRP started";
     usrp->updateAlignment(10000); 
     usrp->updateAlignment(10000);
   }
@@ -165,14 +166,14 @@ void RadioInterface::pushBuffer(void) {
 					  (resampledVector->size()-OUTHISTORY),
 					  &underrun,
 					  writeTimestamp);
-  //COUT("writeTimestamp: " << writeTimestamp << ", samplesWritten: " << samplesWritten);
+  //LOG(DEEPDEBUG) << "writeTimestamp: " << writeTimestamp << ", samplesWritten: " << samplesWritten;
   writeTimestamp += (TIMESTAMP) samplesWritten;
   wroteRadioSignal.signal();
   writingRadioLock.unlock();
 
-  DCOUT("converted " << truncatedBuffer->size() 
+  LOG(DEEPDEBUG) << "converted " << truncatedBuffer->size() 
        << " transceiver samples into " << samplesWritten 
-       << " radio samples ");
+       << " radio samples ";
 
 
   delete resampledVector;
@@ -199,7 +200,7 @@ void RadioInterface::pullBuffer(void)
   writingRadioLock.lock();
   // These timestamps are in samples @ 400 kHz.
   while (readTimestamp > writeTimestamp - (TIMESTAMP) 2*OUTCHUNK) {
-    DCOUT("waiting..." << readTimestamp << " " << writeTimestamp);
+    LOG(DEEPDEBUG) << "waiting..." << readTimestamp << " " << writeTimestamp;
     wroteRadioSignal.wait(writingRadioLock);
     //wroteRadioSignal.wait(writingRadioLock,1);
   } 
@@ -250,9 +251,9 @@ void RadioInterface::pullBuffer(void)
   tmp->segmentCopyTo(*retVector,INHISTORY,tmp->size()-INHISTORY);
   delete tmp;
 
-  DCOUT("converted " << receiveVector->size() 
+  LOG(DEEPDEBUG) << "converted " << receiveVector->size() 
 	<< " radio samples into " << retVector->size() 
-	<< " transceiver samples ");
+	<< " transceiver samples ";
 
   // update history of received data
   receiveVector->segmentCopyTo(*rcvHistory,receiveVector->size()-OUTHISTORY,OUTHISTORY);
@@ -286,7 +287,7 @@ bool RadioInterface::tuneRx(double freq)
 
 void RadioInterface::start()
 {
-  COUT("starting radio interface...");
+  LOG(INFO) << "starting radio interface...";
   mTransmitRadioServiceLoopThread.start((void* (*)(void*))TransmitRadioServiceLoopAdapter,
 					(void*)this);
   mReceiveRadioServiceLoopThread.start((void* (*)(void*))ReceiveRadioServiceLoopAdapter,
@@ -296,7 +297,7 @@ void RadioInterface::start()
   mOn = true;
   writeTimestamp = 20000;
   readTimestamp = 20000;
-  COUT("radio interface started!");
+  LOG(DEBUG) << "radio interface started!";
 }
 
 
@@ -338,7 +339,7 @@ void RadioInterface::driveTransmitRadio() {
 
   radioBurst = mTransmitFIFO.read();
 
-  DCOUT("transmitFIFO: read radio vector at time: " << radioBurst->time());
+  LOG(DEEPDEBUG) << "transmitFIFO: read radio vector at time: " << radioBurst->time();
 
   signalVector *newBurst = radioBurst;
   if (sendBuffer) {
@@ -376,7 +377,7 @@ void RadioInterface::driveReceiveRadio() {
 			  (symbolsPerSlot + (tN % 4 == 0))*samplesPerSymbol);
     GSM::Time tmpTime = rcvClock;
     if (rcvClock.FN() >= 0) {
-      DCOUT("FN: " << rcvClock.FN());
+      LOG(DEEPDEBUG) << "FN: " << rcvClock.FN();
       radioVector* rxBurst = new radioVector(rxVector,tmpTime);
       mReceiveFIFO.write(rxBurst);
     }
@@ -384,7 +385,7 @@ void RadioInterface::driveReceiveRadio() {
     rcvClock.incTN();
     if (mReceiveFIFO.size() >= 16) mReceiveFIFO.wait(8);
 
-    DCOUT("receiveFIFO: wrote radio vector at time: " << mClock.get() << ", new size: " << mReceiveFIFO.size() );
+    LOG(DEEPDEBUG) << "receiveFIFO: wrote radio vector at time: " << mClock.get() << ", new size: " << mReceiveFIFO.size() ;
     readSz += (symbolsPerSlot+(tN % 4 == 0))*samplesPerSymbol;
     rcvSz -= (symbolsPerSlot+(tN % 4 == 0))*samplesPerSymbol;
 

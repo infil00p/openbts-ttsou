@@ -1,5 +1,5 @@
 #
-# Copyright 2008 Free Software Foundation, Inc.
+# Copyright 2008, 2009 Free Software Foundation, Inc.
 #
 # This software is distributed under the terms of the GNU Public License.
 # See the COPYING file in the main directory for details.
@@ -35,7 +35,8 @@ libcommon_la_SOURCES = \
 	Sockets.cpp \
 	Threads.cpp \
 	Timeval.cpp \
-	Configuration.cpp
+	Configuration.cpp \
+	Logger.cpp
 
 noinst_PROGRAMS = \
 	BitVectorTest \
@@ -44,7 +45,9 @@ noinst_PROGRAMS = \
 	TimevalTest \
 	RegexpTest \
 	VectorTest \
-	ConfigurationTest
+	ConfigurationTest \
+	LogTest \
+	F16Test
 
 noinst_HEADERS = \
 	BitVector.h \
@@ -55,7 +58,9 @@ noinst_HEADERS = \
 	Timeval.h \
 	Regexp.h \
 	Vector.h \
-	Configuration.h
+	Configuration.h \
+	F16.h \
+	Logger.h
 
 BitVectorTest_SOURCES = BitVectorTest.cpp
 BitVectorTest_LDADD = libcommon.la
@@ -79,6 +84,11 @@ RegexpTest_LDADD = libcommon.la
 
 ConfigurationTest_SOURCES = ConfigurationTest.cpp
 ConfigurationTest_LDADD = libcommon.la
+
+LogTest_SOURCES = LogTest.cpp
+LogTest_LDADD = libcommon.la
+
+F16Test_SOURCES = F16Test.cpp
 
 MOSTLYCLEANFILES += testSource testDestination
 

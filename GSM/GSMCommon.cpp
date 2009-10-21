@@ -137,6 +137,27 @@ unsigned GSM::downlinkFreqKHz(GSMBand band, unsigned ARFCN)
 
 
 
+// See GSM 04.08 Table 10.5.68.
+const unsigned GSM::RACHSpreadSlots[16] =
+{
+	3,4,5,6,
+	7,8,9,10,
+	11,12,14,16,
+	20,25,32,50
+};
+
+// See GSM 04.08 Table 3.1
+const unsigned GSM::RACHWaitSParam[16] =
+{
+	55,76,109,163,217,
+	55,76,109,163,217,
+	55,76,109,163,217,
+	55
+};
+
+
+
+
 int32_t GSM::FNDelta(int32_t v1, int32_t v2)
 {
 	static const int32_t halfModulus = gHyperframe/2;

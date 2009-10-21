@@ -48,7 +48,7 @@ using namespace Control;
 
 
 
-#define SEDCOUT(x) DCOUT("SIPEngine: "<<x);
+#define SEDCOUT(x) LOG(DEBUG) << x;
 
 
 
@@ -85,8 +85,29 @@ SIPEngine::~SIPEngine()
 
 void SIPEngine::saveINVITE(const osip_message_t *INVITE)
 {
+
+const char *callerID = NULL;
 	if (mINVITE!=NULL) osip_message_free(mINVITE);
 	osip_message_clone(INVITE,&mINVITE);
+
+	osip_from_t *from = osip_message_get_from(INVITE);
+	if (from) {
+		osip_uri_t* url = osip_contact_get_url(from);
+//		if (url) callerID = url->username;
+	} else {
+		LOG(NOTICE) << "SIPEngine::  INVITE with no From: username";
+	}
+	LOG(INFO) << "SIPEngine:: callerID =" <<callerID;
+
+//	mCalledUsername=callerID;
+
+	osip_uri_param_t * from_tag_param;
+	osip_from_get_tag(from, &from_tag_param);
+	 LOG(NOTICE) << "SIPEngine:: from_tag_param =" <<from_tag_param;
+
+	mFromTag = from_tag_param->gvalue;	
+
+
 }
 
 void SIPEngine::saveOK(const osip_message_t *OK)
@@ -105,6 +126,7 @@ void SIPEngine::saveBYE(const osip_message_t *BYE)
 
 void SIPEngine::User( const char * w_username )
 {
+SEDCOUT("SIPEngine::User  w_username=" << w_username);
 	unsigned id = random();
 	char tmp[20];
 	sprintf(tmp, "%u", id);
@@ -114,17 +136,19 @@ void SIPEngine::User( const char * w_username )
 	
 
 
-void SIPEngine::User( const char * wCallID, const char * w_username ) 
+void SIPEngine::User( const char * wCallID, const char * w_username, const char *origID ) 
 {
+SEDCOUT("SIPEngine::User  w_username=" << w_username<<" " <<wCallID<<" "<<origID);  
 	mSIPUsername = w_username;
 	mCallID = wCallID;
+	mCalledUsername = origID;
 }
 
 
 
 bool SIPEngine::Register( Method wMethod )
 {
-	SEDCOUT("SIPEngine::Register mState=" << mState << " " << wMethod);
+	LOG(INFO) << "SIPEngine::Register mState=" << mState << " " << wMethod << " callID " << mCallID;
 
 	// Before start, need to add mCallID
 	gSIPInterface.addCall(mCallID);
@@ -146,13 +170,13 @@ bool SIPEngine::Register( Method wMethod )
 	if (wMethod == SIPRegister ){
 		reg = sip_register( mSIPUsername.c_str(), 
 			gConfig.getNum("SIP.RegistrationPeriod"),
-			mSIPPort, "127.0.0.1", 
+			mSIPPort, gConfig.getStr("SIP.IP"), 
 			mAsteriskIP, mFromTag.c_str(), 
 			mViaBranch.c_str(), mCallID.c_str(), mCSeq
 		); 		
 	} else if (wMethod == SIPUnregister ) {
 		reg = sip_unregister( mSIPUsername.c_str(), 
-			mSIPPort, "127.0.0.1", 
+			mSIPPort, gConfig.getStr("SIP.IP"), 
 			mAsteriskIP, mFromTag.c_str(), 
 			mViaBranch.c_str(), mCallID.c_str(), mCSeq
 		);
@@ -191,8 +215,7 @@ bool SIPEngine::Register( Method wMethod )
 		return true;
 	}
 	catch (SIPTimeout) {
-		SEDCOUT("SIPEngine::Register: timed out aborting ...");
-		CERR("WARNING -- SIP register timed out.  Is Asterisk OK?");
+		LOG(ALARM) << "SIP register timed out.  Is Asterisk OK?";
 		gSIPInterface.removeCall(mCallID);	
 		return false;
 	}
@@ -220,10 +243,13 @@ SIPState SIPEngine::MOCSendINVITE( const char * wCalledUsername,
 	mCalledUsername = wCalledUsername;
 	mCalledDomain = wCalledDomain;
 	mRTPPort= wRtp_port;
+	
+ SEDCOUT("SIPEngine::MOCSendINVITE mCalledUsername=" << mCalledUsername);
+ SEDCOUT("SIPEngine::MOCSendINVITE mSIPUsername=" << mSIPUsername);
 
 	osip_message_t * invite = sip_invite(
 		mCalledUsername.c_str(), mRTPPort, mSIPUsername.c_str(), 
-		gConfig.getNum("SIP.Port"), "127.0.0.1", mAsteriskIP, 
+		mSIPPort, gConfig.getStr("SIP.IP"), mAsteriskIP, 
 		mFromTag.c_str(), mViaBranch.c_str(), mCallID.c_str(), mCSeq, mCodec); 
 	
 	// Send Invite to Asterisk.
@@ -269,6 +295,17 @@ SIPState  SIPEngine::MOCWaitForOK()
 		case 180:
 			SEDCOUT("SIPEngine::MOCWaitForOK: RINGING");
 			mState = Ringing;
+			
+			osip_uri_param_t * mToTag_param;
+			osip_to_get_tag(msg->to, &mToTag_param);
+			mFromTag = mToTag_param->gvalue;
+			
+			osip_uri_param_t * mFromTag_param;        
+			osip_from_get_tag(msg->from, &mFromTag_param);
+			mToTag = mFromTag_param->gvalue;     
+			SEDCOUT("SIPEngine::getting 180: mToTag="<<mToTag);
+			SEDCOUT("SIPEngine::getting 180: mFromTag="<<mFromTag);
+
 			break;
 		case 200:
 			SEDCOUT("SIPEngine::MOCWaitForOK: OKAY");
@@ -300,9 +337,9 @@ SIPState SIPEngine::MOCSendACK()
 	mViaBranch = tmp;
 
 	// get to tag from mOK message and copy to ack.
-	osip_uri_param_t * mToTag_param;
-	osip_to_get_tag(mOK->to, &mToTag_param);
-	mToTag = mToTag_param->gvalue;
+//	osip_uri_param_t * mToTag_param;
+//	osip_to_get_tag(mOK->to, &mToTag_param);
+//	mToTag = mToTag_param->gvalue;
 
 	// get ip owner from mOK message.
 
@@ -318,14 +355,14 @@ SIPState SIPEngine::MOCSendACK()
 	ack = sip_ack( mOAddr.c_str()
 		, mCalledUsername.c_str(), 
 		mSIPUsername.c_str(),
-		mSIPPort, "127.0.0.1", mAsteriskIP, 
+		mSIPPort, gConfig.getStr("SIP.IP"), mAsteriskIP, 
 		mFromTag.c_str(), mToTag.c_str(), 
 		mViaBranch.c_str(), mCallID.c_str(), mCSeq
 	);
 
 	gSIPInterface.writeAsterisk(ack);
 	osip_message_free(ack);	
-	SEDCOUT("SIPEngine::sendACK: Call Active ")
+	SEDCOUT("SIPEngine::sendACK: Call Active")
 
 	mState=Active;
 	return mState;
@@ -342,7 +379,7 @@ SIPState SIPEngine::MODSendBYE()
 
 	osip_message_t * bye = sip_bye(mOAddr.c_str(), mCalledUsername.c_str(), 
 		mSIPUsername.c_str(),
-		mSIPPort, "127.0.0.1", mAsteriskIP,
+		mSIPPort, gConfig.getStr("SIP.IP"), mAsteriskIP,
 		mFromTag.c_str(), mToTag.c_str(), 
 		mViaBranch.c_str(), mCallID.c_str(), mCSeq );
 
@@ -382,7 +419,19 @@ SIPState SIPEngine::MTDCheckBYE()
 	// Need to check size of osip_message_t* fifo,
 	// so need to get fifo pointer and get size.
 	// HACK -- reach deep inside to get damn thing
-	if (gSIPInterface.fifoSize(mCallID)==0) return mState;	
+	int fifoSize = gSIPInterface.fifoSize(mCallID);
+
+	// Size of -1 means the FIFO does not exist.
+	// Treat the call as cleared.
+	if (fifoSize==-1) {
+		LOG(NOTICE) << "attempt to check BYE on non-existant SIP FIFO";
+		mState=Cleared;
+		return mState;
+	}
+
+	// If no messages, there is no change in state.
+	if (fifoSize==0) return mState;	
+	// If the call is not active, there should be nothing to check.
 	if (mState!=Active) return mState;
 		
 	osip_message_t * msg = gSIPInterface.read(mCallID);
@@ -457,7 +506,7 @@ SIPState SIPEngine::MTCSendOK( short wRTPPort, unsigned wCodec )
 	SEDCOUT("MTCSendOK port=" << wRTPPort << " codec=" << mCodec);
 	// Form ack from invite and new parameters.
 	osip_message_t * okay = sip_okay(mINVITE, mSIPUsername.c_str(),
-		"127.0.0.1", mSIPPort, mToTag.c_str() , mRTPPort, mCodec);
+		gConfig.getStr("SIP.IP"), mSIPPort, mToTag.c_str() , mRTPPort, mCodec);
 	gSIPInterface.writeAsterisk(okay);
 	osip_message_free(okay);
 	mState=Connecting;
@@ -474,6 +523,7 @@ SIPState SIPEngine::MTCWaitForACK()
 	osip_message_t * ack;
 
 	try {
+		// FIXME -- What's the official timeout here?  Is it configurable?
 		ack = gSIPInterface.read(mCallID, 1000);
 	}
 	catch (SIPTimeout& e) {
@@ -488,7 +538,7 @@ SIPState SIPEngine::MTCWaitForACK()
 	}
 
 	if (ack->sip_method==NULL) {
-		CERR("SIPEngine::MTCWaitForACK: SIP message with no method"); 
+		LOG(NOTICE) << "SIPEngine::MTCWaitForACK: SIP message with no method"; 
 		mState = Fail;
 		osip_message_free(ack);
 		return mState;	
@@ -512,7 +562,7 @@ SIPState SIPEngine::MTCWaitForACK()
 	}
 	// check for strays
 	else {
-		CERR("SIPEngine::MTCWaitForAck Unexpected Message "<<ack->sip_method) 
+		LOG(NOTICE) << "SIPEngine::MTCWaitForACK Unexpected Message "<<ack->sip_method; 
 		mState = Fail;
 	}
 
@@ -609,7 +659,7 @@ SIPState SIPEngine::MOSMSSendMESSAGE(const char * wCalledUsername,
 
 	osip_message_t * message = sip_message(
 		mCalledUsername.c_str(), mSIPUsername.c_str(), 
-		mSIPPort, "127.0.0.1", mMessengerIP, 
+		mSIPPort, gConfig.getStr("SIP.IP"), mMessengerIP, 
 		mFromTag.c_str(), mViaBranch.c_str(), mCallID.c_str(), mCSeq,
 		messageText); 
 	
@@ -621,6 +671,29 @@ SIPState SIPEngine::MOSMSSendMESSAGE(const char * wCalledUsername,
 };
 
 
+SIPState SIPEngine::MOSMSWaitForSubmit()
+{
+	SEDCOUT("MOSMSWaitForSubmit mState=" << mState);
+
+	try {
+		osip_message_t * ok = gSIPInterface.read(mCallID, BYETimeout);
+		assert(ok);
+		if((ok->status_code==200) || (ok->status_code==202) ) {
+			mState = Cleared;
+		}
+		osip_message_free(ok);
+	}
+
+	catch (SIPTimeout& e) {
+		LOG(WARN) << "MOSWaitForSubmit timed out out, is smsd running?"; 
+		mState = Fail;
+	}
+
+	return mState;
+
+}
+
+
 
 SIPState SIPEngine::MTSMSSendOK()
 {
@@ -628,7 +701,7 @@ SIPState SIPEngine::MTSMSSendOK()
 	SEDCOUT("MTSMSSendOK");
 	// Form ack from invite and new parameters.
 	osip_message_t * okay = sip_okay_SMS(mINVITE, mSIPUsername.c_str(),
-		"127.0.0.1", mSIPPort, mToTag.c_str());
+		gConfig.getStr("SIP.IP"), mSIPPort, mToTag.c_str());
 	gSIPInterface.writeMessenger(okay);
 	osip_message_free(okay);
 	mState=Cleared;
@@ -639,11 +712,11 @@ SIPState SIPEngine::MTSMSSendOK()
 
 bool SIPEngine::sendINFOAndWaitForOK(unsigned wInfo)
 {
-	SEDCOUT("SIPEngine::sendINFOAndWaitForOK info=" << wInfo);
+	SEDCOUT("sendINFOAndWaitForOK info=" << wInfo);
 
 	osip_message_t * info = sip_info( wInfo,
 		mCalledUsername.c_str(), mRTPPort, mSIPUsername.c_str(), 
-		gConfig.getNum("SIP.Port"), "127.0.0.1", mAsteriskIP, 
+		mSIPPort, gConfig.getStr("SIP.IP"), mAsteriskIP, 
 		mFromTag.c_str(), mViaBranch.c_str(), mCallID.c_str(), mCSeq); 
 	
 	gSIPInterface.writeAsterisk(info);
@@ -654,7 +727,7 @@ bool SIPEngine::sendINFOAndWaitForOK(unsigned wInfo)
 		return (msg->status_code == 200);
 	}
 	catch (SIPTimeout& e) { 
-		SEDCOUT("SIPEngine::sendINFOAndWaitForOK: TIMEOUT") 
+		SEDCOUT("sendINFOAndWaitForOK: TIMEOUT") 
 		return false;
 	}
 

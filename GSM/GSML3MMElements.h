@@ -3,7 +3,7 @@
 */
 
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -32,6 +32,7 @@
 #define GSML3MMELEMENTS_H
 
 #include "GSML3Message.h"
+#include <Globals.h>
 
 namespace GSM {
 
@@ -44,7 +45,7 @@ class L3CMServiceType : public L3ProtocolElement {
 		UndefinedType=0,
 		MobileOriginatedCall=1,
 		EmergencyCall=2,
-		ShortMessage=4,
+		ShortMessage=4,							///< specifically, MO-SMS
 		SupplementaryService=8,
 		VoiceCallGroup=9,
 		VoiceBroadcast=10,
@@ -117,7 +118,8 @@ private:
 
 public:
 
-	L3NetworkName(const char* wName="")
+	/** Set the network name, taking the default from gConfig. */
+	L3NetworkName(const char* wName=gConfig.getStr("GSM.ShortName"))
 		:L3ProtocolElement()
 	{ strncpy(mName,wName,maxLen); }
 
@@ -140,6 +142,7 @@ protected:
 
 public:
 
+	/** Defaults from the current time. */
 	L3TimeZoneAndTime(const Timeval& wTime = Timeval())
 		:L3ProtocolElement(),
 		mTime(wTime)

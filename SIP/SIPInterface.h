@@ -188,18 +188,12 @@ public:
 	osip_message_t* read(const std::string& call_id , unsigned readTimeout=3600000)
 		{ return mSIPMap.read(call_id, readTimeout); }
 
-	bool addCall(const std::string& call_id)
-		{ return mSIPMap.add(call_id,mSIPSocket.source()); }
+	/** Create a new message FIFO in the SIP interface. */
+	bool addCall(const std::string& call_id);
 
-	bool removeCall(const std::string& call_id)
-		{ return mSIPMap.remove(call_id); }
+	bool removeCall(const std::string& call_id);
 
-	int fifoSize(const std::string& call_id )
-	{ 
-		OSIPMessageFIFO * fifo = mSIPMap.map().read(call_id);
-		if(fifo==NULL) return -1;
-		return fifo->size();
-	}	
+	int fifoSize(const std::string& call_id );
 
 };
 
