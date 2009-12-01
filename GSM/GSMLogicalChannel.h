@@ -151,8 +151,7 @@ public:
 	*/
 	virtual void send(const L3Message& msg,
 			const GSM::Primitive& prim=DATA,
-			unsigned SAPI=0)
-		{ send(L3Frame(msg,prim), SAPI); }
+			unsigned SAPI=0);
 
 	//@} // L3
 
@@ -176,6 +175,9 @@ public:
 
 	/** GSM 04.08 10.5.2.5 type and offset code. */
 	TypeAndOffset typeAndOffset() const { return mL1->typeAndOffset(); }
+
+	/** Slot number. */
+	unsigned TN() const { return mL1->TN(); }
 
 	/** Receive FER. */
 	float FER() const { return mL1->FER(); }

@@ -161,14 +161,20 @@ unsigned L3FrequencyList::spread() const
 
 void L3FrequencyList::writeV(L3Frame& dest, size_t &wp) const
 {
-	// write the variable bit map format, GSM 04.08 10.5.2.13.7
+	// If this were used as Frequency List, it had to be coded
+	// as the variable bit map format, GSM 04.08 10.5.2.13.7.
+	// But it is used as Cell Channel Description and is coded
+	// as the variable bit map format, GSM 04.08 10.5.2.1b.7.
+	// Difference is in abscence of Length field.
+	
+	// The header occupies first 7 most significant bits of
+	// the first V-part octet and should be 1000111b=0x47 for
+	// the variable length bitmap.
+	dest.writeField(wp,0x47,7);
 
-	// The variable length bitmap starts with a 7-bit header, 1abc111,
-	// where abc are element-specifc and should have been written
-	// by the caller.
-	dest.writeField(wp,1,1);
-	wp += 3;
-	dest.writeField(wp,0x07,3);
+	// For some formats, some of the first 7 bits are not spare.
+	// For those formats, the caller will need to write those
+	// bits after calling this method.
 
 	// base ARFCN
 	unsigned baseARFCN = base();
@@ -199,7 +205,6 @@ void L3FrequencyList::text(ostream& os) const
 
 void L3CellChannelDescription::writeV(L3Frame& dest, size_t& wp) const
 {
-	dest.fillField(wp,0,3);
 	L3FrequencyList::writeV(dest,wp);
 }
 
@@ -207,8 +212,9 @@ void L3CellChannelDescription::writeV(L3Frame& dest, size_t& wp) const
 
 void L3NeighborCellsDescription::writeV(L3Frame& dest, size_t& wp) const
 {
-	dest.fillField(wp,0,3);
 	L3FrequencyList::writeV(dest,wp);
+	// EXT-IND and BA-IND bits.
+	dest.fillField(2,0,3);
 }
 
 

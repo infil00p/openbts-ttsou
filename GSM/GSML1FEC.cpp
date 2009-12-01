@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -37,11 +37,6 @@
 
 using namespace std;
 using namespace GSM;
-
-/*
-	Compilation flags:
-	NOCONTROL	Compile without referencing control layer functions.
-*/
 
 
 /*
@@ -226,7 +221,6 @@ void L1Encoder::close()
 	mLock.lock();
 	mActive = false;
 	sendIdleFill();
-	//waitToSend();
 	mLock.unlock();
 }
 
@@ -476,9 +470,7 @@ void RACHL1Decoder::writeLowSide(const RxBurst& burst)
 	mD.LSB8MSB();
 	unsigned RA = mD.peekField(0,8);
 	OBJLOG(DEBUG) <<"RACHL1Decoder received RA=" << RA << " at time " << burst.time();
-#ifndef NOCONTROL
 	Control::AccessGrantResponder(RA,burst.time(),burst.timingError());
-#endif
 }
 
 
@@ -508,6 +500,8 @@ XCCHL1Decoder::XCCHL1Decoder(
 {
 	for (int i=0; i<4; i++) {
 		mI[i] = SoftVector(114);
+		// Fill with zeros just to make Valgrind happy.
+		mI[i].fill(.0);
 	}
 }
 
@@ -662,10 +656,11 @@ XCCHL1Encoder::XCCHL1Encoder(
 	mD(mU.head(184)),mP(mU.segment(184,40))
 {
 	// Set up the interleaving buffers.
-	mI[0] = BitVector(114);
-	mI[1] = BitVector(114);
-	mI[2] = BitVector(114);
-	mI[3] = BitVector(114);
+	for(int k = 0; k<4; k++) {
+		mI[k] = BitVector(114);
+		// Fill with zeros just to make Valgrind happy.
+		mI[k].fill(0);
+	}
 
 	mFillerBurst = TxBurst(gDummyBurst);
 
@@ -720,10 +715,10 @@ void XCCHL1Encoder::writeHighSide(const L2Frame& frame)
 
 void XCCHL1Encoder::sendFrame(const L2Frame& frame)
 {
-	OBJLOG(DEEPDEBUG) <<"XCCHL1Encoder::sendFrame " << frame;
+	OBJLOG(DEEPDEBUG) << "XCCH " << frame;
 	// Make sure there's something down there to take the busts.
 	if (mDownstream==NULL) {
-		LOG(WARN) << "L1 encoder with no downstream";
+		LOG(WARN) << "XCCHL1Encoder with no downstream";
 		return;
 	}
 
@@ -733,9 +728,9 @@ void XCCHL1Encoder::sendFrame(const L2Frame& frame)
 	// GSM 05.03 4.1.1.
 	//assert(mD.size()==headerOffset()+frame.size());
 	frame.copyToSegment(mU,headerOffset());
-	OBJLOG(DEEPDEBUG) <<"XCCHL1Encoder::sendFrame d[]=" << mD;
+	OBJLOG(DEEPDEBUG) << "d[]=" << mD;
 	mD.LSB8MSB();
-	OBJLOG(DEEPDEBUG) <<"XCCHL1Encoder::sendFrame d[]=" << mD;
+	OBJLOG(DEEPDEBUG) << "d[]=" << mD;
 	encode();			// Encode u[] to c[], GSM 05.03 4.1.2 and 4.1.3.
 	interleave();		// Interleave c[] to i[][], GSM 05.03 4.1.4.
 	transmit();			// Send the bursts to the radio, GSM 05.03 4.1.5.
@@ -750,11 +745,11 @@ void XCCHL1Encoder::encode()
 	// GSM 05.03 4.1.2
 	// Generate the parity bits.
 	mBlockCoder.writeParityWord(mD,mP);
-	OBJLOG(DEEPDEBUG) <<"XCCHL1Encoder::encode u[]=" << mU;
+	OBJLOG(DEEPDEBUG) << "u[]=" << mU;
 	// GSM 05.03 4.1.3
 	// Apply the convolutional encoder.
 	mU.encode(mVCoder,mC);
-	OBJLOG(DEEPDEBUG) <<"XCCHL1Encoder::encode c[]=" << mC;
+	OBJLOG(DEEPDEBUG) << "c[]=" << mC;
 }
 
 
@@ -788,11 +783,11 @@ void XCCHL1Encoder::transmit()
 	for (int B=0; B<4; B++) {
 		mBurst.time(mNextWriteTime);
 		// Copy in the "encrytped" bits, GSM 05.03 4.1.5, 05.02 5.2.3.
-		OBJLOG(DEEPDEBUG) <<"XCCHL1Encoder::transmit mI["<<B<<"]=" << mI[B];
+		OBJLOG(DEEPDEBUG) << "mI["<<B<<"]=" << mI[B];
 		mI[B].segment(0,57).copyToSegment(mBurst,3);
 		mI[B].segment(57,57).copyToSegment(mBurst,88);
 		// Send it to the radio.
-		OBJLOG(DEEPDEBUG) <<"XCCHL1Encoder::transmit mBurst=" << mBurst;
+		OBJLOG(DEEPDEBUG) << "mBurst=" << mBurst;
 		mDownstream->writeHighSide(mBurst);
 		rollForward();
 	}
@@ -847,7 +842,7 @@ SCHL1Encoder::SCHL1Encoder(L1FEC* wParent)
 
 void SCHL1Encoder::generate()
 {
-	OBJLOG(DEEPDEBUG) <<"SCHL1Encoder::generate prev=" << mPrevWriteTime << " next=" << mNextWriteTime;
+	OBJLOG(DEEPDEBUG) << "SCH " << mNextWriteTime;
 	assert(mDownstream);
 	// Data, GSM 04.08 9.1.30
 	size_t wp=0;
@@ -885,7 +880,7 @@ FCCHL1Encoder::FCCHL1Encoder(L1FEC *wParent)
 
 void FCCHL1Encoder::generate()
 {
-	OBJLOG(DEEPDEBUG) <<"FCCHL1Encoder::generate";
+	OBJLOG(DEEPDEBUG) << "FCCH " << mNextWriteTime;
 	assert(mDownstream);
 	resync();
 	for (int i=0; i<5; i++) {
@@ -927,7 +922,7 @@ void NDCCHL1Encoder::serviceLoop()
 
 void BCCHL1Encoder::generate()
 {
-	OBJLOG(DEEPDEBUG) <<"BCCHL1Encoder::generate " << mNextWriteTime;
+	OBJLOG(DEEPDEBUG) << "BCCH " << mNextWriteTime;
 	// BCCH mapping, GSM 05.02 6.3.1.3
 	// Since we're not doing GPRS or VGCS, it's just SI1-4 over and over.
 	switch (mNextWriteTime.TC()) {
@@ -957,6 +952,8 @@ TCHFACCHL1Decoder::TCHFACCHL1Decoder(
 {
 	for (int i=0; i<8; i++) {
 		mI[i] = SoftVector(114);
+		// Fill with zeros just to make Valgrind happy.
+		mI[i].fill(.0);
 	}
 }
 
@@ -965,10 +962,10 @@ TCHFACCHL1Decoder::TCHFACCHL1Decoder(
 
 void TCHFACCHL1Decoder::writeLowSide(const RxBurst& inBurst)
 {
-	OBJLOG(DEEPDEBUG) <<"TCHFACCHL1Decoder::writeLowSide " << inBurst;
+	OBJLOG(DEEPDEBUG) << inBurst;
 	// If the channel is closed, ignore the burst.
 	if (!active()) {
-		OBJLOG(DEEPDEBUG) <<"TCHFACCHL1Decoder::writeLowSide not active, ignoring input";
+		OBJLOG(DEEPDEBUG) << "not active, ignoring input";
 		return;
 	}
 	processBurst(inBurst);
@@ -1001,7 +998,7 @@ bool TCHFACCHL1Decoder::processBurst( const RxBurst& inBurst)
 	int B = mMapping.reverseMapping(inBurst.time().FN()) % 8;
 	// A negative value means that the demux is misconfigured.
 	assert(B>=0);
-	OBJLOG(DEEPDEBUG) <<"TCHFACCHL1Decoder::processBurst B=" << B << " " << inBurst;
+	OBJLOG(DEEPDEBUG) << "B=" << B << " " << inBurst;
 
 	// Pull the data fields (e-bits) out of the burst and put them into i[B][].
 	// GSM 05.03 3.1.4
@@ -1161,8 +1158,10 @@ TCHFACCHL1Encoder::TCHFACCHL1Encoder(
 	mTCHParity(0x0b,3,50),
 	mMaxQSize(2)
 {
-	for( int k = 0;k<8;k++) {
+	for(int k = 0; k<8; k++) {
 		mI[k] = BitVector(114);
+		// Fill with zeros just to make Valgrind happy.
+		mI[k].fill(0);
 	}
 }
 
@@ -1226,11 +1225,8 @@ void TCHFACCHL1Encoder::encodeTCH(const VocoderFrame& vFrame)
 
 void TCHFACCHL1Encoder::sendFrame( const L2Frame& frame )
 {
-	OBJLOG(DEEPDEBUG) <<"TCHFACCHL1Encoder::sendFrame " << frame;
+	OBJLOG(DEEPDEBUG) << "TCHFACCH " << frame;
 	mL2Q.write(new L2Frame(frame));
-	// Make the write block until the frame is sent.
-	// This provides consistent behavior with the other control channels.
-	if (mRunning) mL2Q.wait();
 }
 
 
@@ -1355,7 +1351,7 @@ void SACCHL1Encoder::open()
 
 void SACCHL1Encoder::sendFrame(const L2Frame& frame)
 {
-	OBJLOG(DEEPDEBUG) <<"SACCHL1Encoder::sendFrame " << frame;
+	OBJLOG(DEEPDEBUG) << "SACCH " << frame;
 
 	// Physical header, GSM 04.04 6, 7.1
 	// Power and timing control, GSM 05.08 4, GSM 05.10 5, 6.
@@ -1367,7 +1363,7 @@ void SACCHL1Encoder::sendFrame(const L2Frame& frame)
 		mOrderedMSPower -= deltaP/2;
 		if (mOrderedMSPower>36) mOrderedMSPower=36;
 		else if (mOrderedMSPower<0) mOrderedMSPower=0;
-		OBJLOG(DEEPDEBUG) <<"SACCHL1Encoder::sendFrame RSSI=" << RSSI << " target=" << gBTS.RSSITarget()
+		OBJLOG(DEEPDEBUG) << "SACCH RSSI=" << RSSI << " target=" << gBTS.RSSITarget()
 			<< " deltaP=" << deltaP << " order=" << mOrderedMSPower;
 		// FIXME -- Timing.  GSM 05.10 5, 6  Do it here...
 	}
@@ -1375,7 +1371,7 @@ void SACCHL1Encoder::sendFrame(const L2Frame& frame)
 	// Write physical header into mU and then call base class.
 
 	// Power encodeing, GSM 04.04 7.1.
-	OBJLOG(DEEPDEBUG) <<"SACCHL1Encoder::sendFrame RSSI order=" << mOrderedMSPower;
+	OBJLOG(DEEPDEBUG) << "SACCH RSSI order=" << mOrderedMSPower;
 	mU.fillField(0,encodePower(mOrderedMSPower),8);
 
 	// FIXME -- No timing advance control for now.

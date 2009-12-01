@@ -61,7 +61,7 @@ class L3CellOptionsBCCH : public L3ProtocolElement {
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 };
@@ -93,7 +93,7 @@ class L3CellOptionsSACCH : public L3ProtocolElement {
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 	
@@ -131,7 +131,7 @@ class L3CellSelectionParameters : public L3ProtocolElement {
 
 	size_t lengthV() const { return 2; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
@@ -167,7 +167,7 @@ class L3ControlChannelDescription : public L3ProtocolElement {
 
 	size_t lengthV() const { return 3; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
@@ -202,7 +202,7 @@ class L3FrequencyList : public L3ProtocolElement {
 
 	size_t lengthV() const { return 16; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame &src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
@@ -263,7 +263,7 @@ class L3NeighborCellsDescription : public L3FrequencyList {
 	{}
 
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 
 	void text(std::ostream&) const;
@@ -291,7 +291,7 @@ class L3NCCPermitted : public L3ProtocolElement {
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
@@ -328,7 +328,7 @@ class L3RACHControlParameters : public L3ProtocolElement {
 
 	size_t lengthV() const { return 3; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
@@ -380,7 +380,7 @@ public:
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame &dest, size_t &wp ) const;
-	void parseV( const L3Frame &src, size_t &rp ) { abort(); }
+	void parseV( const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
@@ -475,7 +475,7 @@ public:
 
 	size_t lengthV() const { return 3; }
 	void writeV(L3Frame &, size_t &wp ) const;
-	void parseV( const L3Frame &src, size_t &rp ) { abort(); }
+	void parseV( const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
@@ -501,7 +501,7 @@ public:
 	
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame&, size_t &wp) const;
-	void parseV(const L3Frame &src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
@@ -549,7 +549,7 @@ public:
 
 	size_t lengthV() const { return 1; }
 	void writeV( L3Frame &dest, size_t &wp ) const;
-	void parseV( const L3Frame &src, size_t &rp ) { abort(); }
+	void parseV( const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 
@@ -614,7 +614,7 @@ class L3WaitIndication : public L3ProtocolElement {
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const
 		{ dest.writeField(wp,mValue,8); }
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream& os) const { os << mValue; }
 

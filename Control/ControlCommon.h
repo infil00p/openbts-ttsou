@@ -1,6 +1,6 @@
 /**@file Declarations for all externally-visible control-layer functions. */
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -181,6 +181,11 @@ void MTCStarter(TransactionEntry&, GSM::LogicalChannel*);
 /** Complete the MTC connection. */
 void MTCController(TransactionEntry&, GSM::TCHFACCHLogicalChannel*);
 //@}
+/**@name Test Call */
+//@{
+/** Run the test call. */
+void TestCall(TransactionEntry&, GSM::LogicalChannel*);
+//@}
 /**@name SMS */
 //@{
 
@@ -190,13 +195,19 @@ void MOSMSController(const GSM::L3CMServiceRequest *req,
 /**
 	Basic SMS delivery from an established CM.
 	On exit, SAP3 will be in ABM and LCH will still be open.
+	Throws exception for failures in connection layer or for parsing failure.
+	@return true on success in relay layer.
 */
-void deliverSMSToMS(const char *callingPartyDigits, const char* message, unsigned TI, GSM::LogicalChannel *LCH);
+bool deliverSMSToMS(const char *callingPartyDigits, const char* message, unsigned TI, GSM::LogicalChannel *LCH);
 
 /** MTSMS */
 void MTSMSController(TransactionEntry& transaction, 
 						GSM::LogicalChannel *LCH);
 //@}
+
+/** Create a new transaction entry and start paging. */
+void initiateMTTransaction(const TransactionEntry& transaction,
+		GSM::ChannelType chanType, unsigned pageTime);
 
 //@}
 
@@ -238,8 +249,8 @@ class PagingEntry {
 
 	private:
 
-	GSM::ChannelType mType;			///< The needed channel type.
 	GSM::L3MobileIdentity mID;		///< The mobile ID.
+	GSM::ChannelType mType;			///< The needed channel type.
 	unsigned mTransactionID;		///< The associated transaction ID.
 	Timeval mExpiration;			///< The expiration time for this entry.
 
@@ -410,7 +421,7 @@ class TransactionEntry {
 
 	TransactionEntry();
 
-	/** This form is used for MTC. */
+	/** This form is used for MTC with TI set to 0. */
 	TransactionEntry(const GSM::L3MobileIdentity& wSubscriber, 
 		const GSM::L3CMServiceType& wService,
 		const GSM::L3CallingPartyBCDNumber& wCalling);
@@ -421,6 +432,7 @@ class TransactionEntry {
 		unsigned wTIValue,
 		const GSM::L3CalledPartyBCDNumber& wCalled);
 
+	/** Another MT form, with controlled TI. */
 	TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 		const GSM::L3CMServiceType& wService,
 		unsigned wTIValue,
@@ -429,9 +441,9 @@ class TransactionEntry {
 	/**@name Accessors. */
 	//@{
 	unsigned TIValue() const { return mTIValue; }
-	void TIValue(unsigned wTIValue) { mTIValue = wTIValue; }
-
 	unsigned TIFlag() const { return mTIFlag; }
+	void TI(unsigned wTIFlag, unsigned wTIValue)
+		{ mTIFlag=wTIFlag; mTIValue = wTIValue; }
 
 	const GSM::L3MobileIdentity& subscriber() const { return mSubscriber; }
 
@@ -442,7 +454,12 @@ class TransactionEntry {
 	const GSM::L3CallingPartyBCDNumber& calling() const { return mCalling; }
 
 	const char* message() const { return mMessage; }
-	void message(const char *wMessage) { strncpy(mMessage,wMessage,255); }
+	void message(const char *wMessage, unsigned length)
+	{
+		unsigned tocopy = (length > 255) ? 255 : length;
+		memcpy(mMessage, wMessage, tocopy);
+		mMessage[tocopy] ='\0';
+	}
 
 	unsigned ID() const { return mID; }
 

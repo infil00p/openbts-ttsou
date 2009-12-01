@@ -182,7 +182,7 @@ class L3PagingRequestType1 : public L3RRMessage {
 
 	size_t bodyLength() const;
 	void writeBody(L3Frame& dest, size_t& wp) const;
-	void parseBody(const L3Frame& source, size_t &rp) { assert(0); }
+	void parseBody(const L3Frame&, size_t&) { assert(0); }
 	void text(std::ostream&) const;
 };
 
@@ -203,7 +203,7 @@ class L3PagingResponse : public L3RRMessage {
 	int MTI() const { return PagingResponse; }
 
 	size_t bodyLength() const;
-	void writeBody(L3Frame& dest, size_t& wp) const { assert(0); }
+	void writeBody(L3Frame&, size_t&) const { assert(0); }
 	void parseBody(const L3Frame& source, size_t &rp);
 	void text(std::ostream&) const;
 
@@ -470,10 +470,12 @@ public:
 
 	L3ImmediateAssignment(
 				const L3RequestReference& wRequestReference,
-				const L3ChannelDescription& wChannelDescription)
+				const L3ChannelDescription& wChannelDescription,
+				const L3TimingAdvance& wTimingAdvance = L3TimingAdvance(0))
 		:L3RRMessage(),
 		mRequestReference(wRequestReference),
-		mChannelDescription(wChannelDescription)
+		mChannelDescription(wChannelDescription),
+		mTimingAdvance(wTimingAdvance)
 	{}
 
 	int MTI() const { return (int)ImmediateAssignment; }
@@ -603,6 +605,13 @@ public:
 		mHaveMode1(true),mMode1(wMode1)
 	{}
 
+	L3AssignmentCommand(const L3ChannelDescription& wChannelDescription)
+		:L3RRMessage(),
+		mChannelDescription(wChannelDescription),
+		mHaveMode1(false)
+	{}
+
+
 
 	int MTI() const { return (int) AssignmentCommand; }
 
@@ -630,7 +639,7 @@ class L3AssignmentComplete : public L3RRMessage {
 	int MTI() const { return (int) AssignmentComplete; }
 
 	size_t bodyLength() const { return 1; }
-	void writeBody( L3Frame &dest, size_t &wp ) const { assert(0); } 
+	void writeBody(L3Frame&, size_t&) const { assert(0); } 
 	void parseBody( const L3Frame &src, size_t &rp );
 	void text(std::ostream&) const;
 
@@ -655,7 +664,7 @@ class L3AssignmentFailure : public L3RRMessage {
 
 	size_t bodyLength() const { return 1; }
 	void parseBody( const L3Frame &src, size_t &rp );
-	void writeBody( L3Frame &dest, size_t &wp ) const { assert(0); }
+	void writeBody(L3Frame&, size_t&) const { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -680,7 +689,7 @@ class L3RRStatus : public L3RRMessage {
 	int MTI() const { return (int) RRStatus; }
 
 	size_t bodyLength() const { return 1; }
-	void writeBody( L3Frame &dest, size_t &wp ) const { assert(0); } 
+	void writeBody( L3Frame&, size_t&) const { assert(0); } 
 	void parseBody( const L3Frame &src, size_t &rp );
 	void text(std::ostream&) const;
 
@@ -711,7 +720,7 @@ class L3ChannelModeModify : public L3RRMessage {
 		{ return mDescription.lengthV() + mMode.lengthV(); }
 
 	void writeBody(L3Frame&, size_t&) const;
-	void parseBody( const L3Frame &src, size_t &rp ) { assert(0); }
+	void parseBody( const L3Frame&, size_t&) { assert(0); }
 	void text(std::ostream&) const;
 };
 
@@ -739,6 +748,21 @@ class L3ChannelModeModifyAcknowledge : public L3RRMessage {
 	void text(std::ostream&) const;
 };
 
+
+/** GSM 04.08 9.1.13b */
+class L3GPRSSuspensionRequest : public L3RRMessage {
+
+	// This is a placeholder. We don't really parse anything yet.
+
+	public:
+
+	int MTI() const { return (int) GPRSSuspensionRequest; }
+
+	size_t bodyLength() const { return 11; }
+
+	void writeBody(L3Frame&, size_t&) const { assert(0); }
+	void parseBody(const L3Frame&, size_t&);
+};
 
 
 

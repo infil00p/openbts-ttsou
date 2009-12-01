@@ -17,4 +17,5 @@ To run OpenBTS, the following should be installed:
 
 For information on specific executables, see tests/README.tests and apps/README.apps.
 
+See http://gnuradio.org/trac/wiki/OpenBTS/BuildingAndRunning for more information.
 

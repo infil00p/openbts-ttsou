@@ -68,6 +68,7 @@ enum Primitive {
 	DATA,			///< multiframe data transfer
 	UNIT_DATA,		///< datagram-type data transfer
 	ERROR,			///< channel error
+	HARDRELEASE		///< forced release after an assignment
 };
 
 
@@ -565,7 +566,7 @@ class L2Frame : public BitVector {
 std::ostream& operator<<(std::ostream& os, const L2Frame& msg);
 
 
-typedef InterthreadQueue<L2Frame> L2FrameFIFO;
+typedef InterthreadQueueWithWait<L2Frame> L2FrameFIFO;
 
 
 
@@ -603,6 +604,12 @@ class L3Frame : public BitVector {
 
 	/** Serialize a message into the frame. */
 	L3Frame(const L3Message& msg, Primitive wPrimitive=DATA);
+
+	/** Get a frame from a hex string. */
+	L3Frame(const char*);
+
+	/** Get a frame from raw binary. */
+	L3Frame(const char*, size_t len);
 
 	/** Protocol Discriminator, GSM 04.08 10.2. */
 	L3PD PD() const { return (L3PD)peekField(4,4); }

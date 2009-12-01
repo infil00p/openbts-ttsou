@@ -33,6 +33,7 @@
 #ifndef SMS_MESSAGE_H
 #define SMS_MESSAGE_H
 
+#include <stdio.h>
 #include "SMSTransfer.h"
 #include <GSML3Message.h>
 #include <GSML3CCElements.h>
@@ -62,6 +63,7 @@ class SMSReadError : public GSM::GSMError {
 /** A base class for elements of GSM 03.40 9.1.2 and 9.2.3 */
 class TLElement {
 	public:
+	virtual ~TLElement() {}
 	virtual size_t length() const =0;
 	virtual void parse(const TLFrame&, size_t&) =0;
 	virtual void write(TLFrame&, size_t&) const =0;
@@ -127,7 +129,6 @@ public:
 		mExpiration(7*24*60*60*1000)
 	{ }
 
-
 	void VPF(unsigned wVPF) { mVPF=wVPF; }
 
 	size_t length() const;
@@ -162,8 +163,8 @@ class TLUserData : public TLElement {
 	private:
 
 	unsigned mDCS;		///< data coding scheme
-	unsigned mUDHI;		///< header indicator
-	char mData[162];	///< actual data, as a C string
+	bool mUDHI;			///< header indicator
+	char mData[161];	///< actual data, as a C string
 
 	public:
 
@@ -174,12 +175,12 @@ class TLUserData : public TLElement {
 		mUDHI(wUDHI)
 	{ mData[0]='\0'; }
 
-	/** Initize from a simple C string. */
+	/** Initialze from a simple C string. */
 	TLUserData(const char* text, bool wUDHI=false)
 		:TLElement(),
 		mDCS(0),
 		mUDHI(wUDHI)
-	{ strncpy(mData,text,160); }
+	{ strncpy(mData,text,sizeof(mData)-1); mData[sizeof(mData)-1]='\0'; }
 
 	void DCS(unsigned wDCS) { mDCS=wDCS; }
 	void UDHI(unsigned wUDHI) { mUDHI=wUDHI; }
@@ -244,7 +245,7 @@ class TLMessage {
 	};
 
 	TLMessage()
-		:mMMS(false),mRP(true),mUDHI(false),mSRI(false)
+		:mMMS(false),mSRI(false),mUDHI(false),mRP(true)
 	{}
 
 	virtual ~TLMessage(){}
@@ -289,6 +290,7 @@ class TLMessage {
 	void parseUDHI(const TLFrame& fm) { mUDHI=fm[1]; }
 	void writeRP(TLFrame& fm) const { fm[0]=mRP; }
 	void parseRP(const TLFrame& fm) { mRP=fm[0]; }
+	void writeUnused(TLFrame& fm) const { fm.fill(0,3,2); } ///< Fill unused bits with 0s
 	//@}
 };
 
@@ -336,7 +338,7 @@ class TLSubmitReport : public TLMessage
 
 	public:
 
-	size_t bodyLength() const { 1 + 1 + 7; }
+	size_t bodyLength() const { return 1 + 1 + 7; }
 	void writeBody(TLFrame& frame, size_t& wp ) const;
 	void parseBody(const TLFrame&, size_t&) { assert(0); }
 	virtual void text( std::ostream& os ) const;
@@ -348,17 +350,17 @@ class TLDeliver : public TLMessage {
 
 	private:
 
-	TLAddress mOA;			///< origination address
-	// Hardcode PID.
+	TLAddress mOA;			///< origination address, GSM 03.40 9.3.2.7
+	unsigned mPID;			///< TL-PID, GSM 03.40 9.2.3.9
 	// Hardcode DCS.
-	TLTimestamp mSCTS;		///< service center timestamp
+	TLTimestamp mSCTS;		///< service center timestamp, GSM 03.40 9.2.3.11
 	TLUserData mUD;			///< user data
 
 	public:
 
-	TLDeliver(const TLAddress& wOA, const TLUserData& wUD)
+	TLDeliver(const TLAddress& wOA, const TLUserData& wUD, unsigned wPID=0)
 		:TLMessage(),
-		mOA(wOA),mUD(wUD)
+		mOA(wOA),mPID(wPID),mUD(wUD)
 	{ }
 
 	TLDeliver(const TLUserData& wUD)
@@ -448,7 +450,7 @@ class RPUserData : public GSM::L3ProtocolElement {
 	void parseV(const GSM::L3Frame& src, size_t &rp) { assert(0); }
 	void parseV(const GSM::L3Frame& src, size_t &rp, size_t expectedLength);
 
-	void text(std::ostream& os) const { os << mTPDU; }
+	void text(std::ostream& os) const { mTPDU.hex(os); }
 };
 
 
@@ -476,10 +478,11 @@ class RPCause : public GSM::L3ProtocolElement {
 	void writeV(GSM::L3Frame& dest, size_t &wp) const
 		{ dest.writeField(wp,mValue,8); }
 
-	void parseV(const GSM::L3Frame& src, size_t &rp);
+	void parseV(const GSM::L3Frame& src, size_t &rp)
+		{ mValue = src.readField(rp,8); }
 
 	void parseV(const GSM::L3Frame& src, size_t &rp, size_t expectedLength)
-		{ mValue = src.readField(rp,8); }
+		{ mValue = src.peekField(rp,8); rp += 8*expectedLength; }
 
 	void text(std::ostream& os) const
 		{ os << std::hex << "0x" << mValue << std::dec; }
@@ -624,10 +627,14 @@ class RPError : public RPMessage {
 		mCause(wCause)
 	{}
 
-	int MTI() const { return Ack; }
+	int MTI() const { return Error; }
 
-	//void writeBody(RLFrame& frame, size_t &wp ) const;
+	void writeBody(RLFrame& frame, size_t &wp) const;
+	void parseBody(const RLFrame& frame, size_t &rp);
+
 	size_t bodyLength() const { return mCause.lengthLV(); }
+
+	void text(std::ostream&) const;
 };
 
 
@@ -700,7 +707,7 @@ class CPUserData : public GSM::L3ProtocolElement {
 	void writeV(GSM::L3Frame& dest, size_t &wp) const;
 	void parseV(const GSM::L3Frame& src, size_t &rp, size_t expectedLength);
 	void parseV(const GSM::L3Frame& src, size_t &rp) { assert(0); }
-	void text(std::ostream& os) const { os << mRPDU; }
+	void text(std::ostream& os) const { mRPDU.hex(os); }
 };
 
 //@} // CP Elements

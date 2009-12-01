@@ -51,7 +51,8 @@ class L3CMServiceType : public L3ProtocolElement {
 		VoiceBroadcast=10,
 		LocationService=11,
 		MobileTerminatedCall=100,				///< non-standard code
-		MobileTerminatedShortMessage=101		///< non-standard code
+		MobileTerminatedShortMessage=101,		///< non-standard code
+		TestCall=102,			///< non-standard code
 	};
 		
 	private:
@@ -96,7 +97,7 @@ public:
 
 	size_t lengthV() const { return 1; }	
 	void writeV( L3Frame& dest, size_t &wp ) const;
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 };
@@ -106,26 +107,36 @@ public:
 
 /**
 	Network Name, GSM 04.08 10.5.3.5a
-	This class only supports UCS2.
+	This class supports UCS2 and 7-bit (default) encodings.
 */
 class L3NetworkName : public L3ProtocolElement {
 
 
 private:
 
-	static const unsigned maxLen=8;
+	static const unsigned maxLen=93;
+	GSMAlphabet mAlphabet;		///< Alphabet to use for encoding
 	char mName[maxLen+1];		///< network name as a C string
+	int mCI;		///< CI (Country Initials) bit value
 
 public:
 
 	/** Set the network name, taking the default from gConfig. */
-	L3NetworkName(const char* wName=gConfig.getStr("GSM.ShortName"))
-		:L3ProtocolElement()
-	{ strncpy(mName,wName,maxLen); }
+	L3NetworkName(const char* wName=gConfig.getStr("GSM.ShortName"),
+	              GSMAlphabet alphabet=ALPHABET_7BIT,
+	              int CI=0)
+		:L3ProtocolElement(), mAlphabet(alphabet), mCI(CI)
+	{ strncpy(mName,wName,maxLen); mName[maxLen] = '\0'; }
 
-	size_t lengthV() const { return 1+strlen(mName)*2; }
+	size_t lengthV() const
+	{
+		if (mAlphabet == ALPHABET_UCS2)
+			return 1+strlen(mName)*2;
+		else
+			return 1+(strlen(mName)*7+7)/8;
+	}
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame& src, size_t &rp) { abort(); }
+	void parseV(const L3Frame&, size_t&) { abort(); }
 	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
 	void text(std::ostream&) const;
 };

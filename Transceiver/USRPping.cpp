@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
   LOG(INFO) << "Looping...";
   bool underrun;
 
-  short data[]={0x00,0x02};
+  //short data[]={0x00,0x02};
 
   usrp->updateAlignment(20000);
   usrp->updateAlignment(21000);

@@ -62,7 +62,6 @@ using namespace SMS;
 using namespace SIP;
 
 
-
 /**
 	Read an L3Frame from SAP3.
 	Throw exception on failure.  Will NOT return a NULL pointer.
@@ -118,6 +117,7 @@ bool sendHTTP(const char* destination, const char* message)
 		gConfig.getStr("SMS.HTTP.Gateway"),
 		gConfig.getStr("SMS.HTTP.AccessString"),
 		destination, convMessage);
+	LOG(DEBUG) << "MOSMS: sendHTTP sending with " << command;
 
 	// HTTP "GET" method with wget.
 	// FIXME -- Look at the output of wget to check success.
@@ -169,6 +169,7 @@ bool sendEMail(const char* address, const char* body, const char* subject=NULL)
 */
 bool sendToNumericAddress(const L3MobileIdentity &mobileID, const TLSubmit& submit)
 {
+	LOG(INFO) << "from " << mobileID << " mesage: " << submit;
 	const TLAddress& address = submit.DA();
 	const char* body = submit.UD().data();
 
@@ -213,7 +214,8 @@ bool sendToNumericAddress(const L3MobileIdentity &mobileID, const TLSubmit& subm
 /** Send a TPDU through whatever gateway is available.  */
 bool submitSMS(const L3MobileIdentity& mobileID, const TLSubmit& submit)
 {
-	const TLAddress& address = submit.DA();
+	LOG(INFO) << "from " << mobileID;
+	//const TLAddress& address = submit.DA();
 	const char* body = submit.UD().data();
 
 	// Check for direct e-mail address at start of message body.
@@ -229,6 +231,7 @@ bool submitSMS(const L3MobileIdentity& mobileID, const TLSubmit& submit)
 		assert(term);
 		*term = '\0';
 		char* SMTPPayload = term+1;
+		LOG(INFO) << "sending SMTP to " << SMTPAddress << ": " << SMTPPayload;
 		if (SMTPPayload) return sendEMail(SMTPAddress,SMTPPayload,"from OpenBTS gateway");
 		else return sendEMail(SMTPAddress,"(empty)","from OpenBTS gateway");
 	}
@@ -256,7 +259,7 @@ bool handleTPDU(const L3MobileIdentity& mobileID, const TLFrame& TPDU)
 		case TLMessage::SUBMIT: {
 			TLSubmit submit;
 			submit.parse(TPDU);
-			LOG(INFO) << "SMS: SMS-SUBMIT " << submit;
+			LOG(INFO) << "SMS SMS-SUBMIT " << submit;
 			return submitSMS(mobileID,submit);
 		}
 		default:
@@ -279,7 +282,7 @@ bool handleRPDU(const L3MobileIdentity& mobileID, const RLFrame& RPDU)
 		case RPMessage::Data: {
 			RPData data;
 			data.parse(RPDU);
-			LOG(INFO) << "SMS: RP-DATA=" << data;
+			LOG(INFO) << "SMS RP-DATA " << data;
 			return handleTPDU(mobileID,data.TPDU());
 		}
 		case RPMessage::Ack:
@@ -326,7 +329,7 @@ void Control::MOSMSController(const L3CMServiceRequest *req,
 	// FIXME: check provisioning
 
 	// Let the phone know we're going ahead with the transaction.
-	LOG(DEBUG) << "MOSMS: sending CMServiceAccept";
+	LOG(INFO) << "sending CMServiceAccept";
 	LCH->send(L3CMServiceAccept());
 	// Wait for SAP3 to connect.
 	// The first read on SAP3 is the ESTABLISH primitive.
@@ -336,9 +339,9 @@ void Control::MOSMSController(const L3CMServiceRequest *req,
 	// Now get the first message.
 	// Should be CP-DATA, containing RP-DATA.
 	L3Frame *CM = getFrameSMS(LCH);
-	LOG(DEBUG) << "MOSMS: data from MS " << *CM;
+	LOG(DEBUG) << "data from MS " << *CM;
 	if (CM->MTI()!=CPMessage::DATA) {
-		LOG(NOTICE) << "Unexpected SMS CP message" << CM->MTI();
+		LOG(NOTICE) << "unexpected SMS CP message" << CM->MTI();
 		throw UnexpectedMessage();
 	}
 	unsigned TI = CM->TIValue();
@@ -346,20 +349,21 @@ void Control::MOSMSController(const L3CMServiceRequest *req,
 	// Step 2
 	// Respond with CP-ACK.
 	// This just means that we got the message.
-	LOG(INFO) << "MOSMS: sending CPAck";
+	LOG(INFO) << "sending CPAck";
 	LCH->send(CPAck(1,TI),3);
-
-	// FIXME -- Need to define RPError so we can send it.
 
 	// Parse the message in CM and process RP part.
 	// This is where we actually parse the message and send it out.
+	// FIXME -- We need to set the message ref correctly,
+	// even if the parsing fails.
+	// The compiler gives a warning here.  Let it.  It will remind someone to fix it.
 	unsigned ref;
 	bool success = false;
 	try {
 		CPData data;
 		data.parse(*CM);
 		delete CM;
-		LOG(INFO) << "MOSMS: CPData " << data;
+		LOG(INFO) << "CPData " << data;
 		// Transfer out the RPDU -> TPDU -> delivery.
 		ref = data.RPDU().reference();
 		// This handler invokes higher-layer parsers, too.
@@ -367,9 +371,8 @@ void Control::MOSMSController(const L3CMServiceRequest *req,
 	}
 	catch (SMSReadError) {
 		LOG(WARN) << "SMS parsing failed (above L3)";
-		// FIXME -- send proper failure code
 		// Cause 95, "semantically incorrect message".
-		//LCH->send(CPData(1,TI,RPError(95,ref)),3);
+		LCH->send(CPData(1,TI,RPError(95,ref)),3);
 		throw UnexpectedMessage();
 	}
 	catch (L3ReadError) {
@@ -379,37 +382,37 @@ void Control::MOSMSController(const L3CMServiceRequest *req,
 
 	// Step 3
 	// Send CP-DATA contianing RP-ACK and message reference.
-	//if (success) {
-		LOG(INFO) << "MOSMS: sending RPAck in CPData";
+	if (success) {
+		LOG(INFO) << "sending RPAck in CPData";
 		LCH->send(CPData(1,TI,RPAck(ref)),3);
-	//} else {
-	//	LOG(INFO) << "MOSMS: sending RPError in CPData";
+	} else {
+		LOG(INFO) << "sending RPError in CPData";
 		// Cause 127 is "internetworking error, unspecified".
 		// See GSM 04.11 Table 8.4.
-	//	LCH->send(CPData(1,TI,RPError(127,ref)),3);
-	//}
+		LCH->send(CPData(1,TI,RPError(127,ref)),3);
+	}
 
 	// Step 4
 	// Get CP-ACK from the MS.
 	CM = getFrameSMS(LCH);
 	if (CM->MTI()!=CPMessage::ACK) {
-		LOG(NOTICE) << "Unexpected SMS CP message" << CM->MTI();
+		LOG(NOTICE) << "unexpected SMS CP message" << CM->MTI();
 		throw UnexpectedMessage();
 	}
-	LOG(DEBUG) << "MOSMS: ack from MS: " << *CM;
+	LOG(DEBUG) << "ack from MS: " << *CM;
 	CPAck ack;
 	ack.parse(*CM);
-	LOG(INFO) << "MOSMS: CPAck=" << ack;
+	LOG(INFO) << "CPAck " << ack;
 
 	// Done.
-	LOG(INFO) << "MOSMS: closing";
+	LOG(INFO) << "closing";
 	LCH->send(L3ChannelRelease());
 }
 
 
 
 
-void Control::deliverSMSToMS(const char *callingPartyDigits, const char* message, unsigned TI, LogicalChannel *LCH)
+bool Control::deliverSMSToMS(const char *callingPartyDigits, const char* message, unsigned TI, LogicalChannel *LCH)
 {
 	// This function is used to deliver messages that originate INSIDE the BTS.
 	// For the normal SMS deliery, see MTSMSController.
@@ -421,6 +424,12 @@ void Control::deliverSMSToMS(const char *callingPartyDigits, const char* message
 	// This won't return NULL.  It will throw an exception if it fails.
 	delete getFrameSMS(LCH,ESTABLISH);
 
+	// HACK
+	// Check for "Easter Eggs"
+	// TL-PID
+	unsigned TLPID=0;
+	if (strncmp(message,"#!TLPID",7)==0) sscanf(message,"#!TLPID%d",&TLPID);
+
 	// Step 1
 	// Send the first message.
 	// CP-DATA, containing RP-DATA.
@@ -428,8 +437,8 @@ void Control::deliverSMSToMS(const char *callingPartyDigits, const char* message
 	CPData deliver(0,TI,
 		RPData(reference,
 			RPAddress(gConfig.getStr("SMS.FakeSrcSMSC")),
-			TLDeliver(callingPartyDigits,message)));
-	LOG(INFO) << "MTSMS: sending " << deliver;
+			TLDeliver(callingPartyDigits,message,TLPID)));
+	LOG(DEBUG) << "MTSMS: sending " << deliver;
 	LCH->send(deliver,3);
 
 	// Step 2
@@ -439,7 +448,7 @@ void Control::deliverSMSToMS(const char *callingPartyDigits, const char* message
 	L3Frame *CM = getFrameSMS(LCH);
 	LOG(DEBUG) << "MTSMS: ack from MS " << *CM;
 	if (CM->MTI()!=CPMessage::ACK) {
-		LOG(NOTICE) << "Unexpected SMS CP message" << CM->MTI();
+		LOG(WARN) << "MS rejected our RP-DATA with CP message " << CM->MTI();
 		throw UnexpectedMessage();
 	}
 
@@ -454,16 +463,39 @@ void Control::deliverSMSToMS(const char *callingPartyDigits, const char* message
 	}
 
 	// FIXME -- Check TI.
-	// FIXME -- Check RPDU type and SMS reference.
+
+	// Parse to check for RP-ACK.
+	CPData data;
+	try {
+		data.parse(*CM);
+		delete CM;
+		LOG(DEBUG) << "CPData " << data;
+	}
+	catch (SMSReadError) {
+		LOG(WARN) << "SMS parsing failed (above L3)";
+		// Cause 95, "semantically incorrect message".
+		LCH->send(CPError(0,TI,95),3);
+		throw UnexpectedMessage();
+	}
+	catch (L3ReadError) {
+		LOG(WARN) << "SMS parsing failed (in L3)";
+		throw UnsupportedMessage();
+	}
+
+	// FIXME -- Check SMS reference.
+
+	bool success = true;
+	if (data.RPDU().MTI()!=RPMessage::Ack) {
+		LOG(WARN) << "unexpected RPDU " << data.RPDU();
+		success = false;
+	}
 
 	// Step 4
 	// Send CP-ACK to the MS.
-	LOG(INFO) << "MTSMS: sending RPAck in CPData";
+	LOG(INFO) << "MTSMS: sending CPAck";
 	LCH->send(CPAck(0,TI),3);
-
+	return success;
 }
-
-
 
 
 
@@ -496,15 +528,17 @@ void Control::MTSMSController(TransactionEntry& transaction,
 	transaction.Q931State(TransactionEntry::SMSDelivering);
 	gTransactionTable.update(transaction);
 
-	deliverSMSToMS(transaction.calling().digits(),transaction.message(),random()%7,LCH);
+	bool success = deliverSMSToMS(transaction.calling().digits(),transaction.message(),random()%7,LCH);
 
 	// Close the Dm channel.
 	LOG(INFO) << "MTSMS: closing";
 	LCH->send(L3ChannelRelease());
 
 	// Ack in SIP domain and update transaction state.
-	engine.MTSMSSendOK();
-	clearTransactionHistory(transaction);
+	if (success) {
+		engine.MTSMSSendOK();
+		clearTransactionHistory(transaction);
+	}
 }
 
 

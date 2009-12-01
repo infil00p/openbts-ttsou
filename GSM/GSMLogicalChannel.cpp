@@ -39,6 +39,7 @@ using namespace GSM;
 
 void LogicalChannel::open()
 {
+	LOG(INFO);
 	if (mSACCH) mSACCH->open();
 	if (mL1) mL1->open();
 	for (int s=0; s<4; s++) {
@@ -65,6 +66,16 @@ void LogicalChannel::downstream(ARFCNManager* radio)
 	if (mSACCH) mSACCH->downstream(radio);
 }
 
+
+
+// Serialize and send an L3Message with a given primitive.
+void LogicalChannel::send(const L3Message& msg,
+		const GSM::Primitive& prim,
+		unsigned SAPI)
+{
+	LOG(INFO) << "L3 SAP" << SAPI << " sending " << msg;
+	send(L3Frame(msg,prim), SAPI);
+}
 
 
 
@@ -160,6 +171,7 @@ SDCCHLogicalChannel::SDCCHLogicalChannel(
 SACCHLogicalChannel::SACCHLogicalChannel(
 		unsigned wTN,
 		const MappingPair& wMapping)
+		: mRunning(false)
 {
 	mL1 = new SACCHL1FEC(wTN,wMapping);
 	// SAP0 is RR, SAP3 is SMS

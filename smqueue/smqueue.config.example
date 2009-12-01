@@ -1,0 +1,37 @@
+# Config file for SMS server smqueue
+
+# Format of each line is. <key><space><value>
+# The key name can contain no spaces.
+# Everything between the first space and the end of the line becomes the value.
+# Comments must start with "#" at the beginning of the line.
+# Blank lines are OK.
+
+
+
+
+# Logging level
+#LogLevel DEBUG
+LogLevel INFO
+# Logging file.  Logs to stdout if this is not defined.
+# FIXME -- The current smqueue ignores this.
+#LogFile smqueue.log
+
+savefile savedqueue.txt
+
+# Asterisk interface
+Asterisk.address 127.0.0.1:5060
+
+
+# Local SIP config
+SIP.myPort 5063
+#SIP.myIP 127.0.0.1
+SIP.myIP 192.168.10.200
+SIP.myIP2 192.168.10.200
+#SIP.myIP 192.168.10.200
+#SIP.myIP2 127.0.0.1
+Debug.print_as_we_validate n
+
+# Global relay host:port
+#SIP.global_relay 81.201.82.50:5060
+SIP.global_relay 
+

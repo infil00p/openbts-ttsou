@@ -23,6 +23,7 @@
 */
 
 
+#include <config.h>
 #include "CLI.h"
 #include <Logger.h>
 #include <Globals.h>
@@ -32,6 +33,7 @@
 #include <fstream>
 
 #include <GSMConfig.h>
+#include <GSMLogicalChannel.h>
 #include <ControlCommon.h>
 
 
@@ -147,6 +149,7 @@ int showUptime(int argc, char** argv, ostream& os, istream& is)
 {
 	if (argc!=1) return BAD_NUM_ARGS;
 	os.precision(2);
+	os << "Unix time " << time(NULL) << endl;
 	int seconds = gBTS.uptime();
 	if (seconds<120) {
 		os << "uptime " << seconds << " seconds, frame " << gBTS.time() << endl;
@@ -226,9 +229,9 @@ int printTMSIs(int argc, char** argv, ostream& os, istream& is)
 /** Submit an SMS for delivery to an IMSI. */
 int sendSMS(int argc, char** argv, ostream& os, istream& is)
 {
-	if (argc!=3) return BAD_NUM_ARGS;
+	// FIXME -- Replace this with initiateMTTransaction.
 
-	// FIXME -- Fix the hard-coded socket number.
+	if (argc!=3) return BAD_NUM_ARGS;
 
 	char *IMSI = argv[1];
 	char *srcAddr = argv[2];
@@ -239,13 +242,13 @@ int sendSMS(int argc, char** argv, ostream& os, istream& is)
 	//unsigned port = gConfig.getNum("SMSLoopback.Port");
 
 	// Just fake out a SIP message.
-	const char form[] = "MESSAGE sip:%s@localhost SIP/2.0\nVia: SIP/2.0/TCP localhost;branch=z9hG4bK776sgdkse\nMax-Forwards: 2\nFrom: %s@localhost:%d;tag=49583\nTo: sip:%s@localhost\nCall-ID: %d@127.0.0.1:5063\nCSeq: 1 MESSAGE\nContent-Type: text/plain\nContent-Length: %d\n\n%s\n";
+	const char form[] = "MESSAGE sip:IMSI%s@127.0.0.1 SIP/2.0\nVia: SIP/2.0/UDP 127.0.0.1;branch=z9hG4bK776sgdkse\nMax-Forwards: 2\nFrom: %s <sip:%s@127.0.0.1>:%d;tag=49583\nTo: sip:IMSI%s@127.0.0.1\nCall-ID: %d@127.0.0.1:5063\nCSeq: 1 MESSAGE\nContent-Type: text/plain\nContent-Length: %d\n\n%s\n";
 
 	os << "enter text to send: ";
 	char txtBuf[161];
 	cin.getline(txtBuf,160,'\n');
 	char outbuf[2048];
-	sprintf(outbuf,form,IMSI,srcAddr,port,IMSI,callID,strlen(txtBuf),txtBuf);
+	sprintf(outbuf,form,IMSI,srcAddr,srcAddr,port,IMSI,callID,strlen(txtBuf),txtBuf);
 	//UDPSocket sock(port,"127.0.0.1",gConfig.getNum("SIP.Port"));
 	sock.write(outbuf);
 	sleep(2);
@@ -334,6 +337,7 @@ int printTransactions(int argc, char** argv, ostream& os, istream& is)
 	if (argc!=1) return BAD_NUM_ARGS;
 	Control::TransactionMap::const_iterator trans = gTransactionTable.begin();
 	int count = 0;
+	gTransactionTable.clearDeadEntries();
 	while (trans != gTransactionTable.end()) {
 		os << trans->second << endl;
 		++trans;
@@ -398,11 +402,8 @@ int configRegistration(int argc, char** argv, ostream& os, istream& is)
 	}
 
 	// Set the values in the table and on the GSM beacon.
-	char str[20];
-	sprintf(str,"%d",SIPRegPeriod);
-	gConfig.set("SIP.RegistrationPeriod",str);
-	sprintf(str,"%d",newT3212);
-	gConfig.set("GSM.T3212",str);
+	gConfig.set("SIP.RegistrationPeriod",SIPRegPeriod);
+	gConfig.set("GSM.T3212",newT3212);
 	gBTS.regenerateBeacon();
 	// Done.
 	return SUCCESS;
@@ -426,6 +427,103 @@ int shortName(int argc, char** argv, ostream& os, istream& is)
 	return SUCCESS;
 }
 
+/** Version string. */
+int version(int argc, char **argv, ostream& os, istream& is)
+{
+	if (argc!=1) return BAD_NUM_ARGS;
+	os << VERSION << endl;
+	return SUCCESS;
+}
+
+
+int page(int argc, char **argv, ostream& os, istream& is)
+{
+	if (argc!=3) return BAD_NUM_ARGS;
+	char *IMSI = argv[1];
+	if (strlen(IMSI)!=15) {
+		os << IMSI << " is not a valid IMSI" << endl;
+		return BAD_VALUE;
+	}
+	gBTS.pager().addID(GSM::L3MobileIdentity(IMSI),GSM::SDCCHType,0,1000*atoi(argv[2]));
+	return SUCCESS;
+}
+
+
+int testcall(int argc, char **argv, ostream& os, istream& is)
+{
+	if (argc!=3) return BAD_NUM_ARGS;
+	char *IMSI = argv[1];
+	if (strlen(IMSI)!=15) {
+		os << IMSI << " is not a valid IMSI" << endl;
+		return BAD_VALUE;
+	}
+	Control::TransactionEntry transaction(
+		GSM::L3MobileIdentity(IMSI),
+		GSM::L3CMServiceType::TestCall,
+		GSM::L3CallingPartyBCDNumber("0"));
+	transaction.Q931State(Control::TransactionEntry::Paging);
+	Control::initiateMTTransaction(transaction,GSM::TCHFType,1000*atoi(argv[2]));
+	return SUCCESS;
+}
+
+
+int endcall(int argc, char **argv, ostream& os, istream& is)
+{
+	if (argc!=2) return BAD_NUM_ARGS;
+	unsigned transID = atoi(argv[1]);
+	Control::TransactionEntry target;
+	if (!gTransactionTable.find(transID,target)) {
+		os << transID << " not found in table";
+		return BAD_VALUE;
+	}
+	target.Q931State(Control::TransactionEntry::ReleaseRequest);
+	gTransactionTable.update(target);
+	return SUCCESS;
+}
+
+
+int rolllac(int argc, char **argv, ostream& os, istream& is)
+{
+	int newLAC;
+	if (argc==1) newLAC = gConfig.getNum("GSM.LAC") + 1;
+	else if (argc==2) newLAC = atoi(argv[1]);
+	else return BAD_NUM_ARGS;
+
+	gConfig.set("GSM.LAC",newLAC);
+	cellID(1,argv,os,is);
+	gBTS.regenerateBeacon();
+	gTMSITable.clear();
+	return SUCCESS;
+}
+
+
+
+
+
+
+int fer(int argc, char **argv, ostream& os, istream& is)
+{
+	if (argc!=1) return BAD_NUM_ARGS;
+
+	// TCHs
+	GSM::TCHList::const_iterator tChanItr = gBTS.TCHPool().begin();
+	while (tChanItr != gBTS.TCHPool().end()) {
+		const GSM::TCHFACCHLogicalChannel* tChan = *tChanItr;
+		if (tChan->active()) os << tChan->TN() << " " << tChan->typeAndOffset() << " " << tChan->FER() << endl;
+		++tChanItr;
+	}
+
+	// SDCCHs
+	GSM::SDCCHList::const_iterator sChanItr = gBTS.SDCCHPool().begin();
+	while (sChanItr != gBTS.SDCCHPool().end()) {
+		const GSM::SDCCHLogicalChannel* sChan = *sChanItr;
+		if (sChan->active()) os << sChan->TN() << " " << sChan->typeAndOffset() << " " << sChan->FER() << endl;
+		++sChanItr;
+	}
+
+
+	return SUCCESS;
+}
 
 
 
@@ -451,6 +549,12 @@ Parser::Parser()
 	addCommand("configsave", dumpConfig, "<path> -- write the current configuration to a file");
 	addCommand("regperiod", configRegistration, "[GSM] [SIP] -- get/set the registration period (GSM T3212), in MINUTES");
 	addCommand("shortname", shortName, "[name] -- get/set the network short name");
+	addCommand("version", version,"-- print the version string");
+	addCommand("page", page, "IMSI time -- page the given IMSI for the given period");
+	addCommand("testcall", testcall, "IMSI time -- initiate a test call to a given IMSI with a given paging time");
+	addCommand("endcall", endcall,"trans# -- terminate the given transaction");
+	addCommand("rolllac", rolllac, "[LAC] -- increment the LAC or set a net value");
+	addCommand("fer", fer, "-- report FER for active channels");
 
 	// TODO -- Commands to add: FER, CI.
 }

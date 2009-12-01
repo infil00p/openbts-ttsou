@@ -108,5 +108,12 @@ void ConfigurationTable::dump(ostream& os) const
 	}
 }
 
+void ConfigurationTable::set(const string& key, long value)
+{
+	char buffer[30];
+	sprintf(buffer,"%ld",value);
+	set(key,buffer);
+}
+
 
 // vim: ts=4 sw=4

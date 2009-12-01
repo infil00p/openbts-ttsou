@@ -79,6 +79,10 @@ extern const BitVector gDummyBurst;
 /** Random access burst synch. sequence */
 extern const BitVector gRACHSynchSequence;
 
+enum GSMAlphabet {
+	ALPHABET_7BIT,
+	ALPHABET_UCS2
+};
 
 /**@name Support for GSM 7-bit alphabet, GSM 03.38 6.2.1. */
 //@{
@@ -300,7 +304,7 @@ extern const unsigned RACHWaitSParam[];
 /**@name Modulus operations for frame numbers. */
 //@{
 /** The GSM hyperframe is largest time period in the GSM system, GSM 05.02 4.3.3. */
-const int32_t gHyperframe = 2048UL * 26UL * 51UL;
+const uint32_t gHyperframe = 2048UL * 26UL * 51UL;
 
 /** Get a clock difference, within the modulus, v1-v2. */
 int32_t FNDelta(int32_t v1, int32_t v2);
@@ -318,7 +322,7 @@ int FNCompare(int32_t v1, int32_t v2);
 
 
 /**
-	GSM frame clock value.
+	GSM frame clock value. GSM 05.02 4.3
 	No internal thread sync.
 */
 class Time {
@@ -336,7 +340,7 @@ class Time {
 
 
 	/** Move the time forward to a given position in a given modulus. */
-	void rollForward(int wFN, unsigned modulus)
+	void rollForward(unsigned wFN, unsigned modulus)
 	{
 		assert(modulus<gHyperframe);
 		while ((mFN % modulus) != wFN) mFN=(mFN+1)%gHyperframe;
@@ -455,12 +459,16 @@ class Time {
 	/**@name Standard derivations. */
 	//@{
 
+	/** GSM 05.02 3.3.2.2.1 */
 	unsigned SFN() const { return mFN / (26*51); }
 
+	/** GSM 05.02 3.3.2.2.1 */
 	unsigned T1() const { return SFN() % 2048; }
 
+	/** GSM 05.02 3.3.2.2.1 */
 	unsigned T2() const { return mFN % 26; }
 
+	/** GSM 05.02 3.3.2.2.1 */
 	unsigned T3() const { return mFN % 51; }
 
 	/** GSM 05.02 3.3.2.2.1. */

@@ -216,6 +216,14 @@ template <class T> class Vector {
 		while (dp<mEnd) *dp++=val;
 	}
 
+	void fill(const T& val, unsigned start, unsigned length)
+	{
+		T* dp=mStart+start;
+		T* end=dp+length;
+		assert(end<=mEnd);
+		while (dp<end) *dp++=val;
+	}
+
 
 	//@}
 

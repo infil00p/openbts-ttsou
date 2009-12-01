@@ -45,14 +45,15 @@ ostream& GSM::operator<<(ostream& os, L3CMServiceType::TypeCode code)
 {
 	switch (code) {
 		case L3CMServiceType::MobileOriginatedCall: os << "MOC"; break;
-		case L3CMServiceType::EmergencyCall: os << "Emergency-MOC"; break;
+		case L3CMServiceType::EmergencyCall: os << "Emergency"; break;
 		case L3CMServiceType::ShortMessage: os << "SMS"; break;
 		case L3CMServiceType::SupplementaryService: os << "SS"; break;
 		case L3CMServiceType::VoiceCallGroup: os << "VGCS"; break;
 		case L3CMServiceType::VoiceBroadcast: os << "VBS"; break;
 		case L3CMServiceType::LocationService: os << "LCS"; break;
 		case L3CMServiceType::MobileTerminatedCall: os << "MTC"; break;
-		case L3CMServiceType::MobileTerminatedShortMessage: os << "MOSMS"; break;
+		case L3CMServiceType::MobileTerminatedShortMessage: os << "MTSMS"; break;
+		case L3CMServiceType::TestCall: os << "Test"; break;
 		default: os << "?" << (int)code << "?";
 	}
 	return os;
@@ -82,14 +83,29 @@ void L3NetworkName::writeV(L3Frame& dest, size_t &wp) const
 {
 	unsigned sz = strlen(mName);
 	// header byte
-	// UCS2, no trailing spare bits
-	dest.writeField(wp,0x90,8);
-	// the characters
-	for (unsigned i=0; i<sz; i++) {
-		dest.writeField(wp,mName[i],16);
+	if (mAlphabet == ALPHABET_UCS2) {
+		// Ext: 1b, coding scheme: 001b (UCS2), CI, trailing spare bits: 000b (0)
+		dest.writeField(wp, (0x1<<7)|(0x1<<4)|(mCI<<3)|0, 8);
+		// the characters
+		for (unsigned i=0; i<sz; i++) {
+			dest.writeField(wp,mName[i],16);
+		}
+	} else {
+		int numSpareBits = (8-(sz*7)%8)%8;
+		// Ext: 1b, coding scheme: 000b (GSM 03.38 coding scheme),
+		// CI, trailing spare bits
+		dest.writeField(wp, (0x1<<7)|(0x0<<4)|(mCI<<3)|(numSpareBits), 8);
+		// Temporary vector so we can do LSB8MSB() after encoding.
+		BitVector chars(dest.segment(wp,sz*7+numSpareBits));
+		size_t twp = 0;
+		// the characters: 7 bit, GSM 03.38 6.1.2.2, 6.2.1
+		for (unsigned i=0; i<sz; i++) {
+			chars.writeFieldReversed(twp,encodeGSMChar(mName[i]),7);
+		}
+		chars.writeField(twp,0,numSpareBits);
+		chars.LSB8MSB();
+		wp += twp;
 	}
-	// FIXME -- 7-bit would be more compact
-	// and supported by more handsets
 }
 
 

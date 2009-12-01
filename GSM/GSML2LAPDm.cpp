@@ -149,7 +149,7 @@ void L2LAPDm::waitForAck()
 
 void L2LAPDm::releaseLink()
 {
-	OBJLOG(DEBUG) << "L2LAPDm::releaseLink mState=" << mState;
+	OBJLOG(DEBUG) << "mState=" << mState;
 	// Caller should hold mLock.
 	mState = LinkReleased;
 	mEstablishmentInProgress = false;
@@ -161,7 +161,7 @@ void L2LAPDm::releaseLink()
 
 void L2LAPDm::clearCounters()
 {
-	OBJLOG(DEBUG) <<"L2LAPDm::clearCounters mState=" << mState;
+	OBJLOG(DEBUG) << "mState=" << mState;
 	// Caller should hold mLock.
 	// This is called upon establishment or re-establihment of ABM.
 	mT200.reset();
@@ -177,7 +177,7 @@ void L2LAPDm::clearCounters()
 
 void L2LAPDm::clearState()
 {
-	OBJLOG(DEBUG) <<"L2LAPDm::clearState";
+	OBJLOG(DEBUG) << "mState=" << mState;
 	// Caller should hold mLock.
 	// Reset the state machine.
 	clearCounters();
@@ -193,7 +193,7 @@ void L2LAPDm::processAck(unsigned NR)
 	// Equivalent to vISDN datalink.c:lapd_ack_frames,
 	// but much simpler for LAPDm.
 	// Caller should hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::processAck NR=" << NR << " VA=" << mVA << " VS=" << mVS;
+	OBJLOG(DEBUG) << "NR=" << NR << " VA=" << mVA << " VS=" << mVS;
 	mVA=NR;
 	if (mVA==mVS) {
 		mRC=0;
@@ -221,17 +221,17 @@ void L2LAPDm::bufferIFrameData(const L2Frame& frame)
 			if any (Note: no information is passed to the layer 3 entity); 
 	*/
 
-	OBJLOG(DEBUG) <<"L2LAPDm::bufferIFrameData " << frame;
+	OBJLOG(DEBUG) << frame;
 	if (!frame.M()) {
 		// The last or only frame.
 		if (mRecvBuffer.size()==0) {
 			// The only frame -- just send it up.
-			OBJLOG(DEBUG) << "L2LAPDm::bufferIFrameData single frame message";
+			OBJLOG(DEBUG) << "single frame message";
 			mL3Out.write(new L3Frame(frame));
 			return;
 		}
 		// The last of several -- concat and send it up.
-		OBJLOG(DEBUG) << "L2LAPDm::bufferIFrameData last frame of message";
+		OBJLOG(DEBUG) << "last frame of message";
 		mL3Out.write(new L3Frame(mRecvBuffer,frame.L3Part()));
 		mRecvBuffer.clear();
 		return;
@@ -240,13 +240,13 @@ void L2LAPDm::bufferIFrameData(const L2Frame& frame)
 	// One segment of many -- concat.
 	// This is inefficient but simple.
 	mRecvBuffer = L3Frame(mRecvBuffer,frame.L3Part());
-	OBJLOG(DEBUG) <<"L2LAPDm::bufferIFrameData buffering recvBuffer=" << mRecvBuffer;
+	OBJLOG(DEBUG) <<"buffering recvBuffer=" << mRecvBuffer;
 }
 
 
 void L2LAPDm::unexpectedMessage()
 {
-	OBJLOG(NOTICE) <<"L2LAPDm::unexpectedMessage";
+	OBJLOG(NOTICE) << "mState=" << mState;
 	// vISDN datalink.c:unexpeced_message
 	// For LAPD, vISDN just keeps trying.
 	// For LAPDm, just terminate the link.
@@ -258,7 +258,7 @@ void L2LAPDm::unexpectedMessage()
 void L2LAPDm::abnormalRelease()
 {
 	// Caller should hold mLock.
-	OBJLOG(INFO) <<"L2LAPDm::abnormalRelease state=" << mState;
+	OBJLOG(INFO) << "state=" << mState;
 	// GSM 04.06 5.6.4.
 	// We're cutting a corner here that we'll
 	// clean up when L3 is more stable.
@@ -275,7 +275,7 @@ void L2LAPDm::retransmissionProcedure()
 	// Caller should hold mLock.
 	// vISDN datalink.c:lapd_invoke_retransmission_procedure
 	// GSM 04.08 5.5.7, bullet point (a)
-	OBJLOG(DEBUG) <<"L2LAPDm::retransmissionProcedure VS=" << mVS << " VA=" << mVA << " RC=" << mRC;
+	OBJLOG(DEBUG) << "VS=" << mVS << " VA=" << mVA << " RC=" << mRC;
 	mRC++;
 	writeL1(mSentFrame);
 	mT200.set();
@@ -287,6 +287,7 @@ void L2LAPDm::retransmissionProcedure()
 
 void L2LAPDm::open()
 {
+	OBJLOG(DEBUG);
 	mLock.lock();
 	if (!mRunning) {
 		// We can't call this from the constructor,
@@ -296,6 +297,7 @@ void L2LAPDm::open()
 		mUpstreamThread.start((void *(*)(void*))LAPDmServiceLoopAdapter,this);
 	}
 	mL3Out.clear();
+	mL1In.clear();
 	clearCounters();
 	mState = LinkReleased;
 	mAckSignal.signal();
@@ -314,7 +316,7 @@ void *GSM::LAPDmServiceLoopAdapter(L2LAPDm *lapdm)
 
 void L2LAPDm::writeHighSide(const L3Frame& frame)
 {
-	OBJLOG(DEBUG) <<"L2LAPDm::writeHighSide " << frame;
+	OBJLOG(DEBUG) << frame;
 	switch (frame.primitive()) {
 		case UNIT_DATA:
 			// Send the data in a single U-Frame.
@@ -329,13 +331,11 @@ void L2LAPDm::writeHighSide(const L3Frame& frame)
 		case ESTABLISH:
 			// GSM 04.06 5.4.1.2
 			// vISDN datalink.c:lapd_establish_datalink_procedure
-			// The BTS side should never call this in SAP0.  See note in GSM 04.06 5.4.1.1.
+			// The BTS side should never call this in SAP0.
+			// See note in GSM 04.06 5.4.1.1.
 			assert(mSAPI!=0 || mC==0);
+			if (mState==LinkEstablished) break;
 			mLock.lock();
-			if (mState==LinkEstablished) {
-				mLock.unlock();
-				break;
-			}
 			clearCounters();
 			mState=AwaitingEstablish;
 			mLock.unlock();
@@ -344,11 +344,8 @@ void L2LAPDm::writeHighSide(const L3Frame& frame)
 		case RELEASE:
 			// GSM 04.06 5.4.4.2
 			// vISDN datalink.c:lapd_dl_release_request
+			if (mState==LinkReleased) break;
 			mLock.lock();
-			if (mState==LinkReleased) {
-				mLock.unlock();
-				break;
-			}
 			if (mState==LinkEstablished) waitForAck();
 			clearCounters();
 			mEstablishmentInProgress=false;
@@ -366,6 +363,11 @@ void L2LAPDm::writeHighSide(const L3Frame& frame)
 			abnormalRelease();
 			mLock.unlock();
 			break;
+		case HARDRELEASE:
+			mLock.lock();
+			clearState();
+			mLock.unlock();
+			break;
 		default:
 			OBJLOG(ERROR) << "unhandled primitive in L3->L2 " << frame;
 			assert(0);
@@ -378,7 +380,7 @@ void L2LAPDm::writeHighSide(const L3Frame& frame)
 
 void L2LAPDm::writeLowSide(const L2Frame& frame)
 {
-	OBJLOG(DEBUG) <<"L2LAPDm::writeLowSide " << frame;
+	OBJLOG(DEBUG) << frame;
 	mL1In.write(new L2Frame(frame));
 }
 
@@ -400,13 +402,13 @@ void L2LAPDm::serviceLoop()
 			if (mState==LinkReleased) timeout=3600000;
 			else timeout = T200();
 		}
-		OBJLOG(DEBUG) <<"L2LAPDm::serviceLoop read blocking up to " << timeout << " ms, state=" << mState;
+		OBJLOG(DEBUG) << "read blocking up to " << timeout << " ms, state=" << mState;
 		mLock.unlock();
 		// FIXME -- If the link is released, there should be no timeout at all.
 		L2Frame* frame = mL1In.read(timeout);
 		mLock.lock();
 		if (frame!=NULL) {
-			OBJLOG(DEBUG) <<"L2LAPDm::serviceLoop state=" << mState << " received " << *frame;
+			OBJLOG(DEBUG) << "state=" << mState << " received " << *frame;
 			receiveFrame(*frame);
 			delete frame;
 		}
@@ -423,7 +425,7 @@ void L2LAPDm::T200Expiration()
 	// Caller should hold mLock.
 	// vISDN datalink.c:timer_T200.
 	// GSM 04.06 5.4.1.3, 5.4.4.3, 5.5.7, 5.7.2.
-	OBJLOG(DEBUG) <<"L2LAPDm::T200Expiration state=" << mState << " RC=" << mRC;
+	OBJLOG(DEBUG) << "state=" << mState << " RC=" << mRC;
 	mT200.reset();
 	switch (mState) {
 		case AwaitingRelease:
@@ -450,6 +452,8 @@ void L2LAPDm::T200Expiration()
 
 void L2LAPDm::receiveFrame(const GSM::L2Frame& frame)
 {
+	OBJLOG(DEBUG) << frame;
+
 	// Caller should hold mLock.
 
 	// Accept and process an incoming frame on the L1->L2 interface.
@@ -460,7 +464,7 @@ void L2LAPDm::receiveFrame(const GSM::L2Frame& frame)
 	// FIXME -- This is a HACK to fix channels that get stuck in wierd states.
 	// But if channels are stuck in wierd states, it means there's a bug somehwere.
 	if (stuckChannel(frame)) {
-		OBJLOG(ERROR) << "L2LAPDm::receiveFrame detected stuck channel, releasing in L2";
+		OBJLOG(ERROR) << "detected stuck channel, releasing in L2";
 		abnormalRelease();
 		return;
 	}
@@ -468,7 +472,6 @@ void L2LAPDm::receiveFrame(const GSM::L2Frame& frame)
 	switch (frame.primitive()) {
 		case ESTABLISH:
 			// This primitive means the first L2 frame is on the way.
-			OBJLOG(DEBUG) <<"L2LAPDm::receiveFrame ESTABLISH";
 			clearCounters();
 			break;
 		case DATA:
@@ -489,7 +492,7 @@ void L2LAPDm::receiveFrame(const GSM::L2Frame& frame)
 void L2LAPDm::receiveUFrame(const L2Frame& frame)
 {
 	// Also see vISDN datalink.c:lapd_socket_handle_uframe
-	OBJLOG(DEBUG) <<"L2LAPDm::receiveUFrame " << frame;
+	OBJLOG(DEBUG) << frame;
 	switch (frame.UFrameType()) {
 		case L2Control::SABMFrame: receiveUFrameSABM(frame); break;
 		case L2Control::DMFrame: receiveUFrameDM(frame); break;
@@ -512,7 +515,7 @@ void L2LAPDm::receiveUFrameSABM(const L2Frame& frame)
 	// GSM 04.06 3.8.2, 5.4.1
 	// Q.921 5.5.1.2.
 	// Also borrows from vISDN datalink.c:lapd_socket_handle_uframe_sabm.
-	OBJLOG(DEBUG) <<"L2LAPDm::receiveUFrameSABM state=" << mState;
+	OBJLOG(DEBUG) << "state=" << mState;
 	// Ignore frame if P!=1.
 	// See GSM 04.06 5.4.1.2.
 	if (!frame.PF()) return;
@@ -552,7 +555,7 @@ void L2LAPDm::receiveUFrameSABM(const L2Frame& frame)
 			// Huh?  This would mean both sides sent SABM at the same time/
 			// That should not happen in GSM.
 			sendUFrameUA(frame.PF());
-			OBJLOG(WARN) << "L2LAPDm::receiveFrameSABM simulatenous SABM attempts";
+			OBJLOG(WARN) << "simulatenous SABM attempts";
 			break;
 		case AwaitingRelease:
 			// If we are awaiting release, we will not enter ABM.
@@ -573,7 +576,7 @@ void L2LAPDm::receiveUFrameSABM(const L2Frame& frame)
 			// Re-establishment procedure, GSM 04.06 5.6.3.
 			// This basically resets the ack engine.
 			// We should not actually see this, as of rev 2.4.
-			OBJLOG(WARN) << "L2LAPDm::receiveFrameSABM reestablishment not really supported";
+			OBJLOG(WARN) << "reestablishment not really supported";
 			sendUFrameUA(frame.PF());
 			clearCounters();
 			break;
@@ -588,7 +591,7 @@ void L2LAPDm::receiveUFrameSABM(const L2Frame& frame)
 void L2LAPDm::receiveUFrameDISC(const L2Frame& frame)
 {
 	// Caller should hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::receiveUFrameDISC state=" << mState;
+	OBJLOG(DEBUG) << "state=" << mState;
 	mEstablishmentInProgress = false;
 	switch (mState) {
 		case AwaitingEstablish:
@@ -624,7 +627,7 @@ void L2LAPDm::receiveUFrameUA(const L2Frame& frame)
 	// GSM 04.06 3.8.8
 	// vISDN datalink.c:lapd_socket_handle_uframe_ua
 
-	OBJLOG(DEBUG) <<"L2LAPDm::receiveUFrameUA state=" << mState;
+	OBJLOG(DEBUG) << "state=" << mState;
 	if (!frame.PF()) {
 		unexpectedMessage();
 		return;
@@ -652,7 +655,7 @@ void L2LAPDm::receiveUFrameUA(const L2Frame& frame)
 void L2LAPDm::receiveUFrameDM(const L2Frame& frame)
 {
 	// Caller should hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::receiveUFrameDM state=" << mState;
+	OBJLOG(DEBUG) << "state=" << mState;
 	// GSM 04.06 5.4.5
 	if (mState==LinkReleased) return;
 	// GSM 04.06 5.4.6.3
@@ -674,7 +677,7 @@ void L2LAPDm::receiveUFrameUI(const L2Frame& frame)
 {
 	// The zero-length frame is the idle frame.
 	if (frame.L()==0) return;
-	OBJLOG(DEBUG) <<"L2LAPDm::receiveUFrameUI state=" << mState;
+	OBJLOG(DEBUG) << "state=" << mState;
 	mL3Out.write(new L3Frame(frame,UNIT_DATA));
 }
 
@@ -699,7 +702,7 @@ void L2LAPDm::receiveSFrame(const L2Frame& frame)
 void L2LAPDm::receiveSFrameRR(const L2Frame& frame)
 {
 	// Caller should hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::receiveSFrameRR state=" << mState;
+	OBJLOG(DEBUG) << "state=" << mState;
 	// GSM 04.06 3.8.5.
 	// Q.921 3.6.6.
 	// vISDN datalink.c:lapd_handle_sframe_rr
@@ -726,7 +729,7 @@ void L2LAPDm::receiveSFrameRR(const L2Frame& frame)
 void L2LAPDm::receiveSFrameREJ(const L2Frame& frame)
 {
 	// Caller should hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::receiveSFrameREJ state=" << mState;
+	OBJLOG(DEBUG) << "state=" << mState;
 	// GSM 04.06 3.8.6, 5.5.4
 	// Q.921 3.7.6, 5.6.4.
 	// vISDN datalink.c:lapd_handle_s_frame_rej.
@@ -764,7 +767,7 @@ void L2LAPDm::receiveIFrame(const L2Frame& frame)
 	// Caller should hold mLock.
 	// See GSM 04.06 5.4.1.4.
 	mEstablishmentInProgress = false;
-	OBJLOG(DEBUG) <<"L2LAPDm::receiveIFrame state=" << mState << " NS=" << frame.NS() << " NR=" << frame.NR();
+	OBJLOG(DEBUG) << "state=" << mState << " NS=" << frame.NS() << " NR=" << frame.NR();
 	// vISDN datalink.c:lapd_handle_iframe
 	// GSM 04.06 5.5.2, 5.7.1
 	// Q.921 5.6.2, 5.8.1
@@ -798,7 +801,7 @@ void L2LAPDm::sendSFrameRR(bool FBit)
 {
 	// GSM 04.06 3.8.5.
 	// The caller should hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::sendSFrameRR " << FBit << " VS=" << mVS << " VR=" << mVR;
+	OBJLOG(DEBUG) << "F=" << FBit << " VS=" << mVS << " VR=" << mVR;
 	L2Address address(mR,mSAPI);
 	L2Control control(L2Control::SFormat,FBit,0);
 	static const L2Length length;
@@ -812,7 +815,7 @@ void L2LAPDm::sendSFrameREJ(bool FBit)
 {
 	// GSM 04.06 3.8.6.
 	// The caller should hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::sendSFrameREJ F=" << FBit << " state=" << mState;
+	OBJLOG(DEBUG) << "F=" << FBit << " state=" << mState;
 	L2Address address(mR,mSAPI);
 	L2Control control(L2Control::SFormat,FBit,2);
 	static const L2Length length;
@@ -827,7 +830,7 @@ void L2LAPDm::sendSFrameREJ(bool FBit)
 void L2LAPDm::sendUFrameDM(bool FBit)
 {
 	// The caller need not hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::sendUFrameDM F=" << FBit << " state=" << mState;
+	OBJLOG(DEBUG) << "F=" << FBit << " state=" << mState;
 	L2Address address(mR,mSAPI);
 	L2Control control(L2Control::UFormat,FBit,0x03);
 	static const L2Length length;
@@ -839,7 +842,7 @@ void L2LAPDm::sendUFrameDM(bool FBit)
 void L2LAPDm::sendUFrameUA(bool FBit)
 {
 	// The caller need not hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::sendUFrameUA F=" << FBit << " state=" << mState;
+	OBJLOG(DEBUG) << "F=" << FBit << " state=" << mState;
 	L2Address address(mR,mSAPI);
 	L2Control control(L2Control::UFormat,FBit,0x0C);
 	static const L2Length length;
@@ -854,7 +857,7 @@ void L2LAPDm::sendUFrameUA(const L2Frame& frame)
 	// This is used in the contention resolution procedure.
 	// GSM 04.06 5.4.1.4.
 	// The caller need not hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::sendUFrameUA state=" << mState << " " << frame;
+	OBJLOG(DEBUG) << "state=" << mState << " " << frame;
 	L2Address address(mR,mSAPI);
 	L2Control control(L2Control::UFormat,frame.PF(),0x0C);
 	L2Length length(frame.L());
@@ -869,7 +872,7 @@ void L2LAPDm::sendUFrameSABM()
 {
 	// GMS 04.06 3.8.2, 5.4.1
 	// The caller need not hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::sendUFrameSABM state=" << mState;
+	OBJLOG(DEBUG) << "state=" << mState;
 	L2Address address(mC,mSAPI);
 	L2Control control(L2Control::UFormat,1,0x07);
 	static const L2Length length;
@@ -882,7 +885,7 @@ void L2LAPDm::sendUFrameDISC()
 {
 	// GMS 04.06 3.8.3, 5.4.4.2
 	// The caller need not hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::sendUFrameDISC state=" << mState;
+	OBJLOG(DEBUG) << "state=" << mState;
 	L2Address address(mC,mSAPI);
 	L2Control control(L2Control::UFormat,1,0x08);
 	static const L2Length length;
@@ -895,7 +898,7 @@ void L2LAPDm::sendUFrameUI(const L3Frame& l3)
 {
 	// GSM 04.06 3.8.4, 5.3.2, not supporting the short header format.
 	// The caller need not hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::sendUFrameUI state=" << mState << " payload=" << l3;
+	OBJLOG(DEBUG) << "state=" << mState << " payload=" << l3;
 	L2Address address(mC,mSAPI);
 	L2Control control(L2Control::UFormat,1,0x00);
 	L2Length length(l3.length());
@@ -910,18 +913,18 @@ void L2LAPDm::sendMultiframeData(const L3Frame& l3)
 {
 	// GSM 04.06 5.4.2
 	// Caller holds mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::sendmultiframeData state=" << mState << " payload=" << l3;
+	OBJLOG(DEBUG) << "state=" << mState << " payload=" << l3;
 	// HACK -- Sleep before returning to prevent fast spinning
 	// in SACCH L3 during release.
 	if (mState==LinkReleased) {
-		OBJLOG(WARN) << "L2LADPm::sendMultiframeData attempt to send DATA on released LAPm channel";
+		OBJLOG(ERROR) << "attempt to send DATA on released LAPm channel";
 		sleepFrames(51);
 		return;
 	}
 	mDiscardIQueue = false;
 	size_t bitsRemaining = l3.size();
 	size_t sendIndex = 0;
-	OBJLOG(DEBUG) <<"L2LAPDm::sendMultiframeData sendIndex=" << sendIndex<< " bitsRemaining=" << bitsRemaining;
+	OBJLOG(DEBUG) << "sendIndex=" << sendIndex<< " bitsRemaining=" << bitsRemaining;
 	while (bitsRemaining>0) {
 		size_t thisChunkSize = bitsRemaining;
 		bool MBit = false;
@@ -935,14 +938,14 @@ void L2LAPDm::sendMultiframeData(const L3Frame& l3)
 		waitForAck();
 		// Did we abort multiframe mode while waiting?
 		if (mDiscardIQueue) {
-			OBJLOG(DEBUG) <<"L2LAPDm::sendMultiframeData aborting (discard)";
+			OBJLOG(DEBUG) <<"aborting (discard)";
 			break;
 		}
 		if ((mState!=LinkEstablished) && (mState!=ContentionResolution)) {
-			OBJLOG(DEBUG) <<"L2LAPDm::sendMultiframeData aborting, state=" << mState;
+			OBJLOG(DEBUG) << "aborting, state=" << mState;
 			break;
 		}
-		OBJLOG(DEBUG) <<"L2LAPDm::sendMultiframeData state=" << mState
+		OBJLOG(DEBUG) << "state=" << mState
 				<< " sendIndex=" << sendIndex << " thisChunkSize=" << thisChunkSize
 				<< " bitsRemaining=" << bitsRemaining << " MBit=" << MBit;
 		sendIFrame(l3.segment(sendIndex,thisChunkSize),MBit);
@@ -957,7 +960,7 @@ void L2LAPDm::sendIFrame(const BitVector& payload, bool MBit)
 {
 	// Caller should hold mLock.
 	// GSM 04.06 5.5.1
-	OBJLOG(DEBUG) <<"L2LAPDm::sendIFrame M=" << MBit << " VS=" << mVS  << " payload=" << payload;
+	OBJLOG(DEBUG) << "M=" << MBit << " VS=" << mVS  << " payload=" << payload;
 	// Lots of sanity checking.
 	assert(mState!=LinkReleased);
 	assert(payload.size() <= mMaxIPayloadBits);

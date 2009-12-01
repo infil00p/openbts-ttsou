@@ -79,7 +79,7 @@ void* ClockLoopAdapter(TransceiverManager *transceiver)
 
 void TransceiverManager::waitForClockInit() const
 {
-	LOG(INFO) << "waitForClockInit";
+	LOG(INFO);
 	while (!mHaveClock) sleep(1);
 	// HACK -- We sleep to prevent a race condition in runTransceiver.
 	sleep(2);
@@ -249,7 +249,9 @@ void* ReceiveLoopAdapter(::ARFCNManager* manager){
 int ::ARFCNManager::sendCommandPacket(const char* command, char* response)
 {
 	int msgLen = 0;
+	response[0] = '\0';
 
+	LOG(INFO) << "command " << command;
 	mControlLock.lock();
 
 	//FIXME Rewrite this to use a blocking socket and select() with a timeout.
@@ -276,6 +278,7 @@ int ::ARFCNManager::sendCommandPacket(const char* command, char* response)
 	}
 
 	mControlLock.unlock();
+	LOG(DEBUG) << "response " << response;
 
 	if ((msgLen>4) && (strncmp(response,"RSP ",4)==0)) {
 		return msgLen;
@@ -294,7 +297,6 @@ int ::ARFCNManager::sendCommand(const char*command, int param)
 	char cmdBuf[MAX_UDP_LENGTH];
 	char response[MAX_UDP_LENGTH];
 	sprintf(cmdBuf,"CMD %s %d", command, param);
-	LOG(DEBUG) << "ARFCNManager::sendCommand " << cmdBuf;
 	int rspLen = sendCommandPacket(cmdBuf,response);
 	if (rspLen<=0) return -1;
 	// Parse and check status.

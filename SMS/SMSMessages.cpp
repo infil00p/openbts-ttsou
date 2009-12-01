@@ -22,7 +22,7 @@
 * See the LEGAL file in the main directory for details.
 */
 
-
+#include <cstdio>
 
 #include "SMSMessages.h"
 #include <Logger.h>
@@ -154,6 +154,7 @@ ostream& SMS::operator<<(ostream& os, RPMessage::MessageType val)
 ostream& SMS::operator<<(ostream& os, const RPMessage& msg)
 {
 	msg.text(os);
+	return os;
 }
 
 
@@ -220,7 +221,7 @@ void RPData::writeBody(RLFrame& dest, size_t& wp) const
 	// GSM 04.11 7.3.1.1
 	// This is the downlink form.
 	mOriginator.writeLV(dest,wp);
-	dest.writeField(wp,0,8);		// dest address is zero-length LV
+	mDestination.writeLV(dest,wp);
 	mUserData.writeLV(dest,wp);
 }
 
@@ -232,6 +233,25 @@ void RPData::text(ostream& os) const
 	os << " destSMSC=(" << mDestination << ")";
 	os << " TPDU=(" << TPDU() << ")";
 }
+
+
+
+void RPError::writeBody(RLFrame& dest, size_t &wp) const
+{
+	mCause.writeLV(dest,wp);
+}
+
+void RPError::parseBody(const RLFrame& dest, size_t &wp)
+{
+	mCause.parseLV(dest,wp);
+}
+
+void RPError::text(ostream& os) const
+{
+	RPMessage::text(os);
+	os << " cause=(" << mCause << ")";
+}
+
 
 
 
@@ -254,12 +274,14 @@ ostream& SMS::operator<<(ostream& os, TLMessage::MessageType val)
 ostream& SMS::operator<<(ostream& os, const TLMessage& msg)
 {
 	msg.text(os);
+	return os;
 }
 
 
 ostream& SMS::operator<<(ostream& os, const TLElement& elem)
 {
 	elem.text(os);
+	return os;
 }
 
 
@@ -437,7 +459,7 @@ void TLUserData::parse(const TLFrame& src, size_t& rp)
 			BitVector chars(src.tail(rp));
 			chars.LSB8MSB();
 			size_t crp=0;
-			for (int i=0; i<numChar; i++) {
+			for (unsigned i=0; i<numChar; i++) {
 				char gsm = chars.readFieldReversed(crp,7);
 				mData[i] = decodeGSMChar(gsm);
 			}
@@ -467,7 +489,7 @@ void TLUserData::write(TLFrame& dest, size_t& wp) const
 	// This tail() works because UD is always the last field in the PDU.
 	BitVector chars = dest.tail(wp);
 	chars.zero();
-	for (int i=0; i<numChar; i++) {
+	for (unsigned i=0; i<numChar; i++) {
 		char gsm = encodeGSMChar(mData[i]);
 		dest.writeFieldReversed(wp,gsm,7);
 	}
@@ -556,9 +578,10 @@ void TLDeliver::writeBody(TLFrame& dest, size_t& wp) const
 	writeUDHI(dest);
 	writeSRI(dest);
 	mOA.write(dest,wp);
-	dest.writeField(wp,0,8);		// hardcode PID
+	dest.writeField(wp,mPID,8);
 	dest.writeField(wp,0,8);		// hardcode DCS
 	mSCTS.write(dest,wp);
+	writeUnused(dest);
 	mUD.write(dest,wp);
 }
 

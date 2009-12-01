@@ -76,20 +76,28 @@ int main(int argc, char *argv[])
 		gSetLogFile(gConfig.getStr("LogFileName"));
 	}
 
-	// Start the transceiver binary.
-	const char *TRXPath = gConfig.getStr("TRX.Path");
-	const char *TRXLogLevel = gConfig.getStr("TRX.LogLevel");
-	const char *TRXLogFileName = NULL;
-	if (gConfig.defines("TRX.LogFileName")) TRXLogFileName=gConfig.getStr("TRX.LogFileName");
-	pid_t transceiverPid = vfork();
-	assert(transceiverPid>=0);
-	if (transceiverPid==0) {
-		execl(TRXPath,"transceiver",TRXLogLevel,TRXLogFileName,NULL);
-		LOG(ERROR) << "cannot start transceiver";
-		_exit(0);
+	// Start the transceiver binary, if the path is defined.
+	// If the path is not defined, the transceiver must be started by some other process.
+	const char *TRXPath = NULL;
+	if (gConfig.defines("TRX.Path")) TRXPath=gConfig.getStr("TRX.Path");
+	pid_t transceiverPid = 0;
+	if (TRXPath) {
+		const char *TRXLogLevel = gConfig.getStr("TRX.LogLevel");
+		const char *TRXLogFileName = NULL;
+		if (gConfig.defines("TRX.LogFileName")) TRXLogFileName=gConfig.getStr("TRX.LogFileName");
+		transceiverPid = vfork();
+		assert(transceiverPid>=0);
+		if (transceiverPid==0) {
+			execl(TRXPath,"transceiver",TRXLogLevel,TRXLogFileName,NULL);
+			LOG(ERROR) << "cannot start transceiver";
+			_exit(0);
+		}
 	}
 
+	// Start the SIP interface.
 	gSIPInterface.start();
+
+	// Start the transceiver interface.
 	gTRX.start();
 
 	// Set up the interface to the radio.
@@ -146,8 +154,7 @@ int main(int argc, char *argv[])
 	gBTS.addAGCH(&CCCH1);
 	gBTS.addAGCH(&CCCH2);
 
-
-	// SDCCHs
+	// C-V C0T0 SDCCHs
 	SDCCHLogicalChannel SDCCH[4] = { 
 		SDCCHLogicalChannel(0,gSDCCH_4_0),
 		SDCCHLogicalChannel(0,gSDCCH_4_1),
@@ -162,23 +169,37 @@ int main(int argc, char *argv[])
 		gBTS.addSDCCH(&SDCCH[i]);
 	}
 
-	// TCHs
-	TCHFACCHLogicalChannel TCH[7] = { 
-		TCHFACCHLogicalChannel(1,gTCHF_T1),
-		TCHFACCHLogicalChannel(2,gTCHF_T2),
-		TCHFACCHLogicalChannel(3,gTCHF_T3),
-		TCHFACCHLogicalChannel(4,gTCHF_T4),
-		TCHFACCHLogicalChannel(5,gTCHF_T5),
-		TCHFACCHLogicalChannel(6,gTCHF_T6),
-		TCHFACCHLogicalChannel(7,gTCHF_T7)
-	};
-	Thread TCHControlThread[7];
-	for (int i=0; i<7; i++) {
-		TCH[i].downstream(radio);
-		TCHControlThread[i].start((void*(*)(void*))Control::DCCHDispatcher,&TCH[i]);
-		TCH[i].open();
-		gBTS.addTCH(&TCH[i]);
+
+	// Count configured slots.
+	unsigned sCount = 1;
+
+	// Create C-VII slots on C0Tn
+	for (unsigned i=0; i<gConfig.getNum("GSM.NumC7s"); i++) {
+		for (unsigned sub=0; sub<8; sub++) {
+			SDCCHLogicalChannel* chan = new SDCCHLogicalChannel(sCount,gSDCCH8[sub]);
+			chan->downstream(radio);
+			Thread* thread = new Thread;
+			thread->start((void*(*)(void*))Control::DCCHDispatcher,chan);
+			chan->open();
+			gBTS.addSDCCH(chan);
+		}
+		sCount++;
 	}
+
+
+	// Create C-I slots on C0Tn
+	for (unsigned i=0; i<gConfig.getNum("GSM.NumC1s"); i++) {
+		TCHFACCHLogicalChannel* chan = new TCHFACCHLogicalChannel(sCount,gTCHF_T[sCount]);
+		chan->downstream(radio);
+		Thread* thread = new Thread;
+		thread->start((void*(*)(void*))Control::DCCHDispatcher,chan);
+		chan->open();
+		gBTS.addTCH(chan);
+		sCount++;
+	}
+
+	assert(sCount<=8);
+
 
 
 	/*
@@ -209,5 +230,6 @@ int main(int argc, char *argv[])
 		if (strcmp(inbuf,"exit")==0) break;
 		gParser.process(inbuf,cout,cin);
 	}
-	kill(transceiverPid,SIGKILL);
+
+	if (transceiverPid) kill(transceiverPid,SIGKILL);
 }

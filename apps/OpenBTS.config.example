@@ -18,6 +18,15 @@ LogLevel INFO
 # The log file path.  If not set, logging goes to stdout.
 LogFileName test.out
 
+# Wireshark support
+# The standard IANA for GSMTAP is 4729
+# If if this is not defined, we do not generate the GSMTAP dumps.
+Wireshark.Port 4729
+
+# Port number for test calls.
+# This is where an external program can interact with a handset via UDP.
+TestCall.Port 28670
+
 
 #
 # Transceiver parameters
@@ -30,13 +39,14 @@ TRX.IP 127.0.0.1
 TRX.Port 5700
 
 # Path to transceiver binary
+# YOU MUST HAVE A MATCHING libusrp AS WELL!!
 TRX.Path ../Transceiver/transceiver
 
 # TRX logging.
 # Logging level.
-TRX.LogLevel NOTICE
+TRX.LogLevel DEBUG
 # Logging file.  If not defined, logs to stdout.
-TRX.LogFileName test.out
+TRX.LogFileName test.TRX.out
 
 
 
@@ -105,8 +115,8 @@ SMS.DefaultDestSMSC 0000
 
 
 # The SMS HTTP gateway.
-# Comment out if you don't have one.
-SMS.HTTP.Gateway api.clickatell.com
+# Comment out if you don't have one or if you want to use smqueue.
+#SMS.HTTP.Gateway api.clickatell.com
 
 # IF SMS.HTTP.Gateway IS DEFINED, SMS.HTTP.AccessString MUST ALSO BE DEFINED.
 SMS.HTTP.AccessString sendmsg?user=xxxx&password=xxxx&api_id=xxxx
@@ -128,17 +138,17 @@ Control.OpenRegistration 1
 #
 
 # The message sent upon full successful registration, all the way through the Asterisk server.
-Control.NormalRegistrationWelcomeMessage Welcome to OpenBTS!
+#Control.NormalRegistrationWelcomeMessage Welcome to OpenBTS!
 Control.NormalRegistrationWelcomeShortCode 0000
 
 # Then message sent to accpeted open registrations.
 # IF OPEN REGISTRATION IS ENABLED, THIS MUST ALSO BE DEFINED.
-Control.OpenRegistrationWelcomeMessage You're doing it wrong! Welcome anyway!
+#Control.OpenRegistrationWelcomeMessage You're doing it wrong! Welcome anyway!
 Control.OpenRegistrationWelcomeShortCode 23
 
 # Then message send to failed registrations.
-Control.FailedRegistrationWelcomeMessage You're doing it wrong! Go away!
-Control.FailedRegistrationWelcomeShortCode 666
+#Control.FailedRegistrationWelcomeMessage It's been fun.  See you next year.
+#Control.FailedRegistrationWelcomeShortCode 666
 
 
 
@@ -154,21 +164,20 @@ GSM.NCC 0
 # Basesation Color Code, 0-7
 GSM.BCC 0
 # Mobile Country Code, 3 digits.
+# US is 310
 # MCC MUST BE 3 DIGITS.  Prefix with 0s if needed.
-#GSM.MCC 901
 # Test code is 001.
-GSM.MCC 001
+GSM.MCC 310
 # Mobile Network Code, 2 or 3 digits.
-#GSM.MNC 55
 # Test code is 01.
-GSM.MNC 01
+GSM.MNC 410
 # Location Area Code, 0-65535
-GSM.LAC 667
+GSM.LAC 666
 # Cell ID, 0-65535
 GSM.CI 10
 # Network "short name" to display on the handset.
 # SHORT NAME MUST BE LESS THAN 8 CHARACTERS.
-GSM.ShortName OpenBTS
+GSM.ShortName NotAT&T
 
 # Assignment type for call setup.
 # This is defined in an enum AssignmentType in GSMCommon.h.
@@ -178,22 +187,30 @@ GSM.AssignmentType 1
 # Band and Frequency
 
 # Valid band values are 850, 900, 1800, 1900.
-GSM.Band 900
-#GSM.Band 850
+#GSM.Band 900
+GSM.Band 850
 
 # Valid ARFCN range depends on the band.
-GSM.ARFCN 29
-# ARCN 975 is inside the US ISM-900 band.
+#GSM.ARFCN 29
+# ARCN 975 is inside the US ISM-900 band and also in the GSM900 band.
 #GSM.ARFCN 975
-# ARFCN 207 was what we ran at BM2008, I think.
-#GSM.ARFCN 207
+# ARFCN 207 was what we ran at BM2008, I think, in the GSM850 band.
+GSM.ARFCN 207
 
 # Neightbor list
-GSM.Neighbors 975 978
-#GSM.Neighbors 207
+GSM.Neighbors 207
 
 # Downlink tx power level, dB wrt full power
 GSM.PowerAttenDB 0
+
+
+# Channel configuration
+# Number of C-VII slots (8xSDCCH)
+GSM.NumC7s 1
+# Number of C-I slots (1xTCH/F)
+GSM.NumC1s 5
+
+
 
 # Beacon parameters.
 
@@ -253,6 +270,16 @@ GSM.CS.RXLEV_ACCESS_MIN 0
 # Encoding is 2N dB, value values of N are 0..7 for 0..14 dB.
 GSM.CS.CELL_RESELECT_HYSTERESIS 7
 
+
+# Reject cause for location updating failures
+# Reject causes come from GSM 04.08 10.5.3.6
+# Reject cause 0x04, IMSI not in VLR
+GSM.LURejectCause 0x04
+
+# Maximum TA for accepted bursts.
+# Can be used to control the range of the BTS.
+# The unit is GSM symbols of round trips delay, about 550 meters per symbol.
+GSM.MaxRACHDelay 20
 
 
 

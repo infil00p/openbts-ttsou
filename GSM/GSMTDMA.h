@@ -338,6 +338,7 @@ extern const CompleteMapping gSDCCH_8_4;
 extern const CompleteMapping gSDCCH_8_5;
 extern const CompleteMapping gSDCCH_8_6;
 extern const CompleteMapping gSDCCH_8_7;
+extern const CompleteMapping gSDCCH8[8];
 //@}
 /**@name TCH/F on different slots. */
 //@{
@@ -349,6 +350,7 @@ extern const CompleteMapping gTCHF_T4;
 extern const CompleteMapping gTCHF_T5;
 extern const CompleteMapping gTCHF_T6;
 extern const CompleteMapping gTCHF_T7;
+extern const CompleteMapping gTCHF_T[8];
 //@}
 //@}
 

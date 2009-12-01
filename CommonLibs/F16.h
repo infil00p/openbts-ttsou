@@ -77,6 +77,12 @@ class F16 {
 		mV = i<<16;
 	}
 
+	F16 operator=(const F16& other)
+	{
+		mV = other.mV;
+		return mV;
+	}
+
 	F16 operator+(const F16& other) const
 	{
 		F16 retVal;

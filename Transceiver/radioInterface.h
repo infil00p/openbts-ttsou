@@ -72,7 +72,7 @@ public:
 };
 
 /** a FIFO of radioVectors */
-class VectorFIFO : public InterthreadQueue<radioVector> {};
+class VectorFIFO : public InterthreadQueueWithWait<radioVector> {};
 
 /** the basestation clock class */
 class RadioClock {

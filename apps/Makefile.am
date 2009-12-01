@@ -24,7 +24,7 @@ AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
 
 noinst_PROGRAMS = \
 	OpenBTS \
-	sendSimple
+	sendSimple 
 
 OpenBTS_SOURCES = OpenBTS.cpp
 OpenBTS_LDADD = \

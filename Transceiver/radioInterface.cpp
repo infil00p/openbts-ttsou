@@ -79,8 +79,8 @@ short *RadioInterface::USRPifyVector(signalVector &wVector)
   signalVector::iterator itr = wVector.begin();
   short *shortItr = retVector;
   while (itr < wVector.end()) {
-    *shortItr++ = (short) host_to_usrp_short(itr->real());
-    *shortItr++ = (short) host_to_usrp_short(itr->imag());
+    *shortItr++ = (short) host_to_usrp_short((short)itr->real());
+    *shortItr++ = (short) host_to_usrp_short((short)itr->imag());
     itr++;
   }
 
@@ -288,6 +288,9 @@ bool RadioInterface::tuneRx(double freq)
 void RadioInterface::start()
 {
   LOG(INFO) << "starting radio interface...";
+  writeTimestamp = 20000;
+  readTimestamp = 20000;
+
   mTransmitRadioServiceLoopThread.start((void* (*)(void*))TransmitRadioServiceLoopAdapter,
 					(void*)this);
   mReceiveRadioServiceLoopThread.start((void* (*)(void*))ReceiveRadioServiceLoopAdapter,
@@ -295,8 +298,6 @@ void RadioInterface::start()
   mAlignRadioServiceLoopThread.start((void * (*)(void*))AlignRadioServiceLoopAdapter,
                                      (void*)this);
   mOn = true;
-  writeTimestamp = 20000;
-  readTimestamp = 20000;
   LOG(DEBUG) << "radio interface started!";
 }
 

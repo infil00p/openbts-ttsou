@@ -100,7 +100,7 @@ class GSMConfig {
 	time_t mStartTime;
 
 	L3LocationAreaIdentity mLAI;
-	char mShortName[10];
+	char mShortName[94]; // GSM 03.38 6.1.2.2.1
 
 	public:
 	
@@ -182,6 +182,8 @@ class GSMConfig {
 	unsigned SDCCHTotal() const { return mSDCCHPool.size(); }
 	/** Return number of active SDCCH. */
 	unsigned SDCCHActive() const;
+	/** Just a reference to the SDCCH pool. */
+	const SDCCHList& SDCCHPool() const { return mSDCCHPool; }
 	//@}
 
 	/**@name Manage TCH pool. */
@@ -196,6 +198,8 @@ class GSMConfig {
 	unsigned TCHTotal() const { return mTCHPool.size(); }
 	/** Return number of active TCH. */
 	unsigned TCHActive() const;
+	/** Just a reference to the TCH pool. */
+	const TCHList& TCHPool() const { return mTCHPool; }
 	//@}
 
 

@@ -92,11 +92,11 @@ unsigned allocateRTPPorts()
 void forceGSMClearing(TransactionEntry& transaction, LogicalChannel *LCH, const L3Cause& cause)
 {
 	if (transaction.Q931State()==TransactionEntry::NullState) return;
-	LOG(INFO) << "forceGSMClearing from call state " << transaction.Q931State();
+	LOG(INFO) << "Q.931 state " << transaction.Q931State();
 	if (!transaction.clearing()) {
 		LCH->send(L3Disconnect(1-transaction.TIFlag(),transaction.TIValue(),cause));
 	}
-	LCH->send(L3ReleaseComplete(0,transaction.TIValue()));
+	LCH->send(L3ReleaseComplete(1-transaction.TIFlag(),transaction.TIValue()));
 	LCH->send(L3ChannelRelease());
 	transaction.resetTimers();
 	transaction.Q931State(TransactionEntry::NullState);
@@ -112,7 +112,7 @@ void forceGSMClearing(TransactionEntry& transaction, LogicalChannel *LCH, const 
 void forceSIPClearing(TransactionEntry& transaction)
 {
 	if (transaction.SIP().state()==SIP::Cleared) return;
-	LOG(INFO) << "forceSIPClearing from call state " << transaction.SIP().state();
+	LOG(INFO) << "SIP state " << transaction.SIP().state();
 	if (transaction.SIP().state()!=SIP::Clearing) {
 		// This also changes the SIP state to "clearing".
 		transaction.SIP().MODSendBYE();
@@ -133,7 +133,7 @@ void forceSIPClearing(TransactionEntry& transaction)
 */
 void abortCall(TransactionEntry& transaction, LogicalChannel *LCH, const L3Cause& cause)
 {
-	LOG(INFO) << "abortCall, cause: " << cause << ", transction: " << transaction;
+	LOG(INFO) << "cause: " << cause << ", transction: " << transaction;
 	forceGSMClearing(transaction,LCH,cause);
 	forceSIPClearing(transaction);
 	clearTransactionHistory(transaction);
@@ -175,18 +175,18 @@ bool assignTCHF(TransactionEntry& transaction, SDCCHLogicalChannel *SDCCH, TCHFA
 	// Try twice to send the assignment.
 	// (The spec says just try once...)
 	for (int i=0; i<2; i++) {
-		LOG(INFO) << "assignTCHF sending AssignmentCommand for " << TCH << " on " << SDCCH;
+		LOG(INFO) << "sending AssignmentCommand for " << TCH << " on " << SDCCH;
 		SDCCH->send(L3AssignmentCommand(TCH->channelDescription(),L3ChannelMode(L3ChannelMode::SpeechV1)));
 	
 		// This read is SUPPOSED to time out if the assignment was successful.
 		// Pad the timeout just in case there's a large latency somewhere.
 		L3Frame *result = SDCCH->recv(T3107ms+2000);
 		if (result==NULL) {
-			LOG(INFO) << "assignmentTCHF exiting normally";
-			SDCCH->send(RELEASE);
+			LOG(INFO) << "completing normally";
+			SDCCH->send(HARDRELEASE);
 			return true;
 		}
-		LOG(NOTICE) << "assignTCHF received " << *result;
+		LOG(NOTICE) << "received " << *result;
 		delete result;
 	}
 
@@ -218,7 +218,7 @@ bool assignTCHF(TransactionEntry& transaction, SDCCHLogicalChannel *SDCCH, TCHFA
 */
 bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LCH, const L3Message *message)
 {
-	LOG(DEBUG) << "callManagementDispatchGSM " << *message;
+	LOG(DEBUG) << "from " << transaction.subscriber() << " message " << *message;
 
 	// FIXME -- This dispatch section should be something more efficient with PD and MTI swtiches.
 
@@ -230,7 +230,7 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 
 	// Connect Acknowledge
 	if (dynamic_cast<const L3ConnectAcknowledge*>(message)) {
-		LOG(DEBUG) << "received GSM Connect Acknowledge";
+		LOG(INFO) << "GSM Connect Acknowledge " << transaction.subscriber();
 		transaction.resetTimers();
 		transaction.Q931State(TransactionEntry::Active);
 		gTransactionTable.update(transaction);
@@ -240,7 +240,7 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	// Connect
 	// GSM 04.08 5.2.2.5 and 5.2.2.6
 	if (dynamic_cast<const L3Connect*>(message)) {
-		LOG(DEBUG) << "received GSM Connect";
+		LOG(INFO) << "GSM Connect " << transaction.subscriber();
 		transaction.resetTimers();
 		transaction.Q931State(TransactionEntry::Active);
 		gTransactionTable.update(transaction);
@@ -251,7 +251,7 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	// GSM 04.08 5.2.2.3.2
 	// "Call Confirmed" is the GSM MTC counterpart to "Call Proceeding"
 	if (dynamic_cast<const L3CallConfirmed*>(message)) {
-		LOG(DEBUG) << "received GSM Call Confirmed";
+		LOG(INFO) << "GSM Call Confirmed " << transaction.subscriber();
 		transaction.T303().reset();
 		transaction.T310().set();
 		transaction.Q931State(TransactionEntry::MTCConfirmed);
@@ -262,7 +262,7 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	// Alerting
 	// GSM 04.08 5.2.2.3.2
 	if (dynamic_cast<const L3Alerting*>(message)) {
-		LOG(DEBUG) << "received GSM Alerting";
+		LOG(INFO) << "GSM Alerting " << transaction.subscriber();
 		transaction.T310().reset();
 		transaction.T301().set();
 		transaction.Q931State(TransactionEntry::CallReceived);
@@ -278,11 +278,9 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	// Disconnect (1st step of MOD)
 	// GSM 04.08 5.4.3.2
 	if (const L3Disconnect* disconnect = dynamic_cast<const L3Disconnect*>(message)) {
-		LOG(INFO) << "received GSM Disconnect";
-		unsigned L3TI = disconnect->TIValue();
-		unsigned L3Flag = 1 - disconnect->TIFlag();
+		LOG(INFO) << "GSM Disconnect " << transaction.subscriber();
 		transaction.resetTimers();
-		LCH->send(L3Release(L3Flag,L3TI));
+		LCH->send(L3Release(1-transaction.TIFlag(),transaction.TIValue()));
 		transaction.T308().set();
 		transaction.Q931State(TransactionEntry::ReleaseRequest);
 		transaction.SIP().MODSendBYE();
@@ -292,11 +290,9 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 
 	// Release (2nd step of MTD)
 	if (const L3Release* release = dynamic_cast<const L3Release*>(message)) {
-		LOG(INFO) << "received GSM Release";
-		unsigned L3TI = release->TIValue();
-		unsigned L3Flag = 1 - release->TIFlag();
+		LOG(INFO) << "GSM Release " << transaction.subscriber();
 		transaction.resetTimers();
-		LCH->send(L3ReleaseComplete(L3Flag,L3TI));
+		LCH->send(L3ReleaseComplete(1-transaction.TIFlag(),transaction.TIValue()));
 		LCH->send(L3ChannelRelease());
 		transaction.Q931State(TransactionEntry::NullState);
 		transaction.SIP().MTDSendOK();
@@ -307,7 +303,7 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	// Release Complete (3nd step of MOD)
 	// GSM 04.08 5.4.3.4
 	if (dynamic_cast<const L3ReleaseComplete*>(message)) {
-		LOG(INFO) << "received GSM Release Complete";
+		LOG(INFO) << "GSM Release Complete " << transaction.subscriber();
 		transaction.resetTimers();
 		LCH->send(L3ChannelRelease());
 		transaction.Q931State(TransactionEntry::NullState);
@@ -319,6 +315,7 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	// IMSI Detach -- the phone is shutting off.
 	if (const L3IMSIDetachIndication* detach = dynamic_cast<const L3IMSIDetachIndication*>(message)) {
 		// The IMSI detach procedure will release the LCH.
+		LOG(INFO) << "GSM IMSI Detach " << transaction.subscriber();
 		IMSIDetachController(detach,LCH);
 		forceSIPClearing(transaction);
 		clearTransactionHistory(transaction);
@@ -328,22 +325,19 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	// Start DTMF
 	// Send a SIP INFO to generate a tone in Asterisk.
 	if (const L3StartDTMF* keypress = dynamic_cast<const L3StartDTMF*>(message)) {
-		unsigned L3TI = keypress->TIValue();
 		unsigned keyVal = encodeBCDChar(keypress->key().IA5());
-		LOG(INFO) << "DMTF key=" << keyVal;
+		LOG(INFO) << "DMTF key=" << keyVal <<  ' ' << transaction.subscriber();
 		bool success = transaction.SIP().sendINFOAndWaitForOK(keyVal);
 		// Cause 0x3f means "service or option not available".
-		if (success) LCH->send(L3StartDTMFAcknowledge(1,L3TI,keypress->key()));
-		else LCH->send(L3StartDTMFReject(1,L3TI,0x3f));
+		if (success) LCH->send(L3StartDTMFAcknowledge(1-transaction.TIFlag(),transaction.TIValue(),keypress->key()));
+		else LCH->send(L3StartDTMFReject(1-transaction.TIFlag(),transaction.TIValue(),0x3f));
 		return false;
 	}
 
 	// Stop DTMF
 	// Since we use SIP INFO we just ack.
 	if (const L3StopDTMF* stop = dynamic_cast<const L3StopDTMF*>(message)) {
-		// Cause 0x3f means "service or option not available".
-		unsigned L3TI = stop->TIValue();
-		LCH->send(L3StopDTMFAcknowledge(1,L3TI));
+		LCH->send(L3StopDTMFAcknowledge(1-transaction.TIFlag(),transaction.TIValue()));
 		return false;
 	}
 
@@ -354,6 +348,7 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 	// This is the gateway to a much more complex state machine.
 	// For now, we're cutting it off right here.
 	if (dynamic_cast<const L3CMServiceRequest*>(message)) {
+		LOG(NOTICE) << "cannot accept additional CM Service Request from " << transaction.subscriber();
 		// Cause 0x20 means "serivce not supported".
 		LCH->send(L3CMServiceReject(0x20));
 		return false;
@@ -361,15 +356,14 @@ bool callManagementDispatchGSM(TransactionEntry& transaction, LogicalChannel* LC
 
 	// Hold
 	if (const L3Hold* hold = dynamic_cast<const L3Hold*>(message)) {
-		unsigned L3TI = hold->TIValue();
-		LOG(NOTICE) << "rejecting hold request";
+		LOG(NOTICE) << "rejecting hold request from " << transaction.subscriber();
 		// Default cause is 0x3f, option not available
-		LCH->send(L3HoldReject(1,L3TI));
+		LCH->send(L3HoldReject(1-transaction.TIFlag(),transaction.TIValue()));
 		return false;
 	}
 
-	if (message) LOG(NOTICE) << "no support for message " << *message;
-	else LOG(NOTICE) << "no support for unrecognized message";
+	if (message) LOG(NOTICE) << "no support for message " << *message << " from " << transaction.subscriber();
+	else LOG(NOTICE) << "no support for unrecognized message from " << transaction.subscriber();
 
 
 	// If we got here, we're ignoring the message.
@@ -406,12 +400,12 @@ bool updateCallTraffic(TransactionEntry &transaction, TCHFACCHLogicalChannel *TC
 
 	// Transfer in the uplink direction (GSM->RTP).
 	// Flush FIFO to limit latency.
-	while (TCH->queueSize()>2) delete TCH->recvTCH();
+	while (TCH->queueSize()>2) delete[] TCH->recvTCH();
 	if (unsigned char *txFrame = TCH->recvTCH()) {
 		activity = true;
 		// Send on RTP.
 		engine.TxFrame(txFrame);
-		delete txFrame;
+		delete[] txFrame;
 	}
 
 	// Return a flag so the caller will know if anything transferred.
@@ -448,7 +442,7 @@ bool updateGSMSignalling(TransactionEntry &transaction, LogicalChannel *LCH, uns
 		delete l3;
 		bool cleared = false;
 		if (l3msg) {
-			LOG(DEBUG) << "callManagementLoop got GSM " << *l3msg;
+			LOG(DEBUG) << "received " << *l3msg;
 			cleared = callManagementDispatchGSM(transaction, LCH, l3msg);
 			delete l3msg;
 		}
@@ -477,15 +471,15 @@ bool updateSignalling(TransactionEntry &transaction, LogicalChannel *LCH, unsign
 	SIPEngine& engine = transaction.SIP();
 	if (engine.MTDCheckBYE() == SIP::Clearing) {
 		if (!transaction.clearing()) {
-			LOG(DEBUG) << "callManagementLoop got BYE";
+			LOG(DEBUG) << "got BYE";
 			LCH->send(L3Disconnect(1-transaction.TIFlag(),transaction.TIValue()));
 			transaction.T305().set();
 			transaction.Q931State(TransactionEntry::DisconnectIndication);
 			// Return false, because it the call is not yet cleared.
 			return false;
 		} else {
-			// If we're already clearing, just ack with OK.
-			engine.MTDSendOK();
+			// If we're already clearing, send BYE again.
+			//engine.MODSendBYE();
 		}
 	}
 	bool SIPCleared = (engine.state()==SIP::Cleared);
@@ -536,7 +530,7 @@ bool pollInCall(TransactionEntry &transaction, TCHFACCHLogicalChannel *TCH)
 bool waitInCall(TransactionEntry& transaction, TCHFACCHLogicalChannel *TCH, unsigned waitTime_ms)
 {
 	Timeval targetTime(waitTime_ms);
-	LOG(DEBUG) << "waitInCall";
+	LOG(DEBUG);
 	while (!targetTime.passed()) {
 		if (pollInCall(transaction,TCH)) return true;
 	}
@@ -553,7 +547,7 @@ bool waitInCall(TransactionEntry& transaction, TCHFACCHLogicalChannel *TCH, unsi
 */
 void callManagementLoop(TransactionEntry &transaction, TCHFACCHLogicalChannel* TCH)
 {
-	LOG(INFO) << "MOC MTC connected, entering callManagementLoop";
+	LOG(INFO) << "MOC MTC connected, " << transaction.subscriber() << " entering callManagementLoop";
 	transaction.SIP().FlushRTP();
 	// poll everything until the call is cleared
 	while (!pollInCall(transaction,TCH)) { }
@@ -620,7 +614,7 @@ void Control::MOCStarter(const L3CMServiceRequest* req, LogicalChannel *LCH)
 		// FIXME -- This is quick-and-dirty, not following GSM 04.08 5.
 		LOG(WARN) << "MOC setup with no number";
 		// Cause 0x60 "Invalid mandatory information"
-		LCH->send(L3ReleaseComplete(0,L3TI,L3Cause(0x60)));
+		LCH->send(L3ReleaseComplete(1,L3TI,L3Cause(0x60)));
 		LCH->send(L3ChannelRelease());
 		// The SIP side and transaction record don't exist yet.
 		// So we're done.
@@ -640,6 +634,7 @@ void Control::MOCStarter(const L3CMServiceRequest* req, LogicalChannel *LCH)
 		req->serviceType(),
 		L3TI,
 		setup->calledPartyBCDNumber());
+	assert(transaction.TIFlag()==0);
 	transaction.SIP().User(IMSI);
 	transaction.Q931State(TransactionEntry::MOCInitiated);
 	LCH->transactionID(transaction.ID());
@@ -703,6 +698,7 @@ void Control::MOCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 {
 	LOG(INFO) << "MOC: transaction: " << transaction;
 	unsigned L3TI = transaction.TIValue();
+	assert(transaction.TIFlag()==0);
 	assert(TCH);
 
 	// Once we can start SIP call setup, send Call Proceeding.
@@ -844,9 +840,12 @@ void Control::MTCStarter(TransactionEntry& transaction, LogicalChannel *LCH)
 
 
 	// Get transaction identifiers.
+	// This transaction was created by the SIPInterface when it
+	// processed the INVITE that started this call.
 	if (!veryEarly) TCH->transactionID(transaction.ID());	
 	LCH->transactionID(transaction.ID());	
 	unsigned L3TI = transaction.TIValue();
+	assert(transaction.TIFlag()==1);
 
 	// GSM 04.08 5.2.2.1
 	LOG(INFO) << "MTC: sending GSM Setup to call " << transaction.calling();
@@ -881,6 +880,7 @@ void Control::MTCStarter(TransactionEntry& transaction, LogicalChannel *LCH)
 	}
 
 	// The transaction is moving to the MTCController.
+	// Once this update happens, don't change the transaction object again in this function.
 	gTransactionTable.update(transaction);
 	LOG(DEBUG) << "MTC: transaction: " << transaction;
 	if (veryEarly) {
@@ -915,6 +915,7 @@ void Control::MTCController(TransactionEntry& transaction, TCHFACCHLogicalChanne
 
 	LOG(DEBUG) << "MTC: transaction: " << transaction;
 	unsigned L3TI = transaction.TIValue();
+	assert(transaction.TIFlag()==1);
 	assert(TCH);
 
 	// Get the alerting message.
@@ -1019,12 +1020,12 @@ void Control::EmergencyCall(const L3CMServiceRequest* req, LogicalChannel *LCH)
 
 	// Still no valid ID???  F*, just make something up!
 	if (mobileIdentity.type()==TMSIType) {
-		LOG(NOTICE) << "E-MOC with no identity, forcing to null IMSI.";
+		LOG(WARN) << "E-MOC with no identity, forcing to null IMSI.";
 		mobileIdentity = L3MobileIdentity("000000000000000");
 	}
 
 	// Let the phone know we're going ahead with the transaction.
-	LOG(DEBUG) << "E-MOC: sending CMServiceAccept";
+	LOG(NOTICE) << "E-MOC: sending CMServiceAccept";
 	TCH->send(L3CMServiceAccept());
 
 	// Get the Setup message.
@@ -1034,7 +1035,7 @@ void Control::EmergencyCall(const L3CMServiceRequest* req, LogicalChannel *LCH)
 		if (msg_setup) delete msg_setup;
 		throw UnexpectedMessage();
 	}
-	LOG(INFO) << "E-MOC: " << *setup;
+	LOG(NOTICE) << "E-MOC: " << *setup;
 	// Pull out the L3 short transaction information now.
 	// See GSM 04.07 11.2.3.1.3.
 	unsigned L3TI = setup->TIValue();
@@ -1044,10 +1045,11 @@ void Control::EmergencyCall(const L3CMServiceRequest* req, LogicalChannel *LCH)
 
 	LOG(DEBUG) << "E-MOC: SIP start engine";
 	// Create a transaction table entry so the TCH controller knows what to do later.
-	// The transaction on the TCH is a continuation of this one and uses the same ID.
+	// The transaction on the TCH is a continuation of this one and uses the same ID
 	TransactionEntry transaction(mobileIdentity,
 		req->serviceType(),
 		L3TI, L3CalledPartyBCDNumber(bcd_digits));
+	assert(transaction.TIFlag()==0);
 	if (mobileIdentity.type()!=TMSIType) transaction.SIP().User(mobileIdentity.digits());
 	transaction.Q931State(TransactionEntry::MOCInitiated);
 	TCH->transactionID(transaction.ID());
@@ -1086,6 +1088,97 @@ void Control::EmergencyCall(const L3CMServiceRequest* req, LogicalChannel *LCH)
 	// From here on, it's normal call setup.
 	MOCController(transaction,TCH);
 }
+
+
+
+
+void Control::TestCall(TransactionEntry& transaction, LogicalChannel *LCH)
+{
+	assert(LCH);
+	LOG(INFO) << LCH->type() << " transaction: "<< transaction;
+
+	// Mark the call as active.
+	transaction.Q931State(TransactionEntry::Active);
+	gTransactionTable.update(transaction);
+
+	// Create and open the control port.
+	UDPSocket controlSocket(gConfig.getNum("TestCall.Port"));
+
+	// If this is a FACCH, change the mode from signaling-only to speech.
+	if (LCH->type()==FACCHType) {
+		static const L3ChannelMode mode(L3ChannelMode::SpeechV1);
+		LCH->send(L3ChannelModeModify(LCH->channelDescription(),mode));
+		L3Message *msg_ack = getMessage(LCH);
+		const L3ChannelModeModifyAcknowledge *ack =
+			dynamic_cast<L3ChannelModeModifyAcknowledge*>(msg_ack);
+		if (!ack) {
+			if (msg_ack) delete msg_ack;
+			controlSocket.close();
+			throw UnexpectedMessage(transaction.ID());
+		}
+		// Cause 0x06 is "channel unacceptable"
+		bool modeOK = (ack->mode()==mode);
+		delete msg_ack;
+		if (!modeOK) {
+			controlSocket.close();
+			return abortCall(transaction,LCH,L3Cause(0x06));
+		}
+	}
+
+	unsigned L3TI = transaction.TIValue();
+	assert(transaction.TIFlag()==1);
+
+	unsigned RTPPorts = allocateRTPPorts();
+	// FIXME -- Somehow, the RTP ports need to be attached to the transaction.
+
+	// This loop will run or block until some outside entity writes a
+	// channel release on the socket.
+
+	LOG(INFO) << "entering test loop";
+	while (true) {
+		// Get the outgoing message from the test call port.
+		char iBuf[MAX_UDP_LENGTH];
+		int msgLen = controlSocket.read(iBuf);
+		LOG(INFO) << "got " << msgLen << " bytes on UDP";
+		// Send it to the handset.
+		L3Frame query(iBuf,msgLen);
+		LOG(INFO) << "sending " << query;
+		LCH->send(query);
+		// Wait for a response.
+		// FIXME -- This should be a proper T3xxx value of some kind.
+		L3Frame* resp = LCH->recv(30000);
+		if (!resp) {
+			LOG(NOTICE) << "read timeout";
+			break;
+		}
+		if (resp->primitive() != DATA) {
+			LOG(NOTICE) << "unexpected primitive " << resp->primitive();
+			break;
+		}
+		LOG(INFO) << "received " << *resp;
+		// Send response on the port.
+		unsigned char oBuf[resp->size()];
+		resp->pack(oBuf);
+		controlSocket.writeBack((char*)oBuf);
+		// Delete and close the loop.
+		delete resp;
+	}
+	controlSocket.close();
+	LOG(INFO) << "ending";
+	LCH->send(L3ChannelRelease());
+	LCH->send(RELEASE);
+	clearTransactionHistory(transaction);
+}
+
+
+
+void Control::initiateMTTransaction(const TransactionEntry& transaction, GSM::ChannelType chanType, unsigned pageTime)
+{
+	gTransactionTable.add(transaction);
+	gBTS.pager().addID(transaction.subscriber(),chanType,transaction.ID(),pageTime);
+}
+
+
 
 
 

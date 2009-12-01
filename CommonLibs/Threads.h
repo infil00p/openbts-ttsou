@@ -26,7 +26,6 @@
 #ifndef THREADS_H
 #define THREADS_H
 
-
 #include <pthread.h>
 #include <iostream>
 #include <assert.h>
@@ -134,13 +133,13 @@ class Thread {
 	pthread_t mThread;
 	pthread_attr_t mAttrib;
 	// FIXME -- Can this be reduced now?
-	const static size_t mStackSize=4*65536;
+	size_t mStackSize;
 	
 
 	public:
 
 	/** Create a thread in a non-running state. */
-	Thread():mThread((pthread_t)0) { }
+	Thread(size_t wStackSize = (65536*4)):mThread((pthread_t)0) { mStackSize=wStackSize;}
 
 	/**
 		Destroy the Thread.

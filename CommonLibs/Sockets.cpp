@@ -27,6 +27,7 @@
 
 #include "Threads.h"
 #include "Sockets.h"
+#include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -89,12 +90,29 @@ int DatagramSocket::write( const char * message, size_t length )
 	return retVal;
 }
 
+int DatagramSocket::writeBack( const char * message, size_t length )
+{
+	assert(length<=MAX_UDP_LENGTH);
+	int retVal = sendto(mSocketFD, message, length, 0,
+		(struct sockaddr *)mSource, addressSize());
+	if (retVal == -1 ) perror("DatagramSocket::write() failed");
+	return retVal;
+}
+
+
 
 int DatagramSocket::write( const char * message)
 {
 	size_t length=strlen(message)+1;
 	return write(message,length);
 }
+
+int DatagramSocket::writeBack( const char * message)
+{
+	size_t length=strlen(message)+1;
+	return writeBack(message,length);
+}
+
 
 
 int DatagramSocket::send(const struct sockaddr* dest, const char * message, size_t length )

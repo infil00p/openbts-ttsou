@@ -1,4 +1,4 @@
-/**@file Elements for Mobility Management, GSM 04.08 10.5.3.  */
+/**@file Elements for Call Control, GSM 04.08 10.5.4.  */
 /*
 * Copyright 2008, 2009 Free Software Foundation, Inc.
 *
@@ -68,7 +68,7 @@ class L3BCDDigits {
 
 	L3BCDDigits() { mDigits[0]='\0'; }
 
-	L3BCDDigits(const char* wDigits) { strncpy(mDigits,wDigits,15); }
+	L3BCDDigits(const char* wDigits) { strncpy(mDigits,wDigits,sizeof(mDigits)-1); mDigits[sizeof(mDigits)-1]='\0'; }
 
 	void parse(const L3Frame& src, size_t &rp, size_t numOctets);
 	void write(L3Frame& dest, size_t &wp) const;

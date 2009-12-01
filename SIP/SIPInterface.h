@@ -52,6 +52,8 @@ class OSIPMessageFIFO : public _OSIPMessageFIFO {
 
 	struct sockaddr_in mReturnAddress;
 
+	virtual void freeElement(osip_message_t* element) const { osip_message_free(element); };
+
 	public:
 
 	OSIPMessageFIFO(const struct sockaddr_in* wReturnAddress)
@@ -60,6 +62,15 @@ class OSIPMessageFIFO : public _OSIPMessageFIFO {
 		memcpy(&mReturnAddress,wReturnAddress,sizeof(mReturnAddress));
 	}
 
+	~OSIPMessageFIFO()
+	{
+		// We must call clear() here, because if it is called from InterthreadQueue
+		// destructor, then clear() will call InterthreadQueue's freeElement() which
+		// is not what we want. This destructor behaviour is intntional, because
+		// inherited object's data is already destroyed at the time parent's destructor
+		// is called.
+		clear();
+	}
 
 	const struct sockaddr_in* returnAddress() const { return &mReturnAddress; }
 

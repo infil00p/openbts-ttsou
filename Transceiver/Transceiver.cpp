@@ -29,7 +29,9 @@
 */
 
 
-#define NDEBUG
+#include <stdio.h>
+#include <cstdio>
+
 #include "Transceiver.h"
 #include <Logger.h>
 
@@ -146,7 +148,7 @@ void Transceiver::pushRadioVector(GSM::Time &nowTime)
     int TN = nextTime.TN();
     int modFN = nextTime.FN() % fillerModulus[TN];
     delete fillerTable[modFN][TN];
-    fillerTable[modFN][TN] = mTransmitPriorityQueue.read();
+    fillerTable[modFN][TN] = mTransmitPriorityQueue.readNoBlock();
   }
   
   int TN = nowTime.TN();
@@ -155,7 +157,7 @@ void Transceiver::pushRadioVector(GSM::Time &nowTime)
   // if queue contains data at the desired timestamp, stick it into FIFO
   if ((mTransmitPriorityQueue.size() > 0) && 
       (mTransmitPriorityQueue.nextTime() == nowTime)) {
-    radioVector *next = mTransmitPriorityQueue.read();
+    radioVector *next = mTransmitPriorityQueue.readNoBlock();
     LOG(DEEPDEBUG) << "transmitFIFO: wrote burst " << next << " at time: " << nowTime;
     delete fillerTable[modFN][TN];
     fillerTable[modFN][TN] = new signalVector(*(next));
@@ -248,9 +250,9 @@ Transceiver::CorrType Transceiver::expectedCorrType(GSM::Time currTime)
     break;
   }
   case VII:
-    if ((burstFN % 51 <= 14) && (burstFN % 51 >= 12))
-      return IDLE;
-    else
+      if (burstFN%51 == 12) return IDLE;
+      if (burstFN%51 == 13) return IDLE;
+      if (burstFN%51 == 14) return IDLE;
       return TSC;
     break;
   case LOOPBACK:

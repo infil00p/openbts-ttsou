@@ -149,11 +149,16 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when, float tim
 	static const unsigned maxAge = GSM::RACHSpreadSlots[txInteger] + GSM::RACHWaitSParam[txInteger];
 	// Check burst age.
 	int age = gBTS.time() - when;
-	LOG(INFO) << "AccessGrantResponder RA=0x" << hex << RA << dec
+	LOG(INFO) << "RA=0x" << hex << RA << dec
 		<< " when=" << when << " age=" << age << " TOA=" << timingError;
 	if (age>maxAge) {
-		LOG(NOTICE) << "AccessGrantResponer ignoring RACH bust with age " << age;
+		LOG(NOTICE) << "ignoring RACH bust with age " << age;
 		return;
+	}
+
+	// Screen for delay.
+	if (gConfig.defines("GSM.MaxRACHDelay")) {
+		if (timingError > gConfig.getNum("GSM.MaxRACHDelay")) return;
 	}
 
 	// Allocate the channel according to the needed type indicated by RA.
@@ -182,18 +187,24 @@ void Control::AccessGrantResponder(unsigned RA, const GSM::Time& when, float tim
 		// Rejection, GSM 04.08 3.3.1.1.3.2.
 		// BTW, emergency calls are not subject to T3122 hold-off.
 		unsigned waitTime = curT3122()/1000;
-		LOG(NOTICE) << "AccessGrantResponder: CONGESTION, T3122=" << waitTime;
+		LOG(NOTICE) << "CONGESTION, T3122=" << waitTime;
 		const L3ImmediateAssignmentReject reject(L3RequestReference(RA,when),waitTime);
-		LOG(DEBUG) << "AccessGrantResponder: rejection, sending " << reject;
+		LOG(DEBUG) << "rejection, sending " << reject;
 		AGCH->send(reject);
 		return;
 	}
 
 	// Assignment, GSM 04.08 3.3.1.1.3.1.
 	// Create the ImmediateAssignment message.
-	// For most of the message, default IE values are correct.
-	const L3ImmediateAssignment assign(L3RequestReference(RA,when),LCH->channelDescription());
-	LOG(INFO) << "AccessGrantResponder sending " << assign;
+	int initialTA = (int)(timingError + 0.5F);
+	if (initialTA<0) initialTA=0;
+	if (initialTA>63) initialTA=63;
+	const L3ImmediateAssignment assign(
+		L3RequestReference(RA,when),
+		LCH->channelDescription(),
+		L3TimingAdvance(initialTA)
+	);
+	LOG(INFO) << "sending " << assign;
 	AGCH->send(assign);
 
 	// Reset exponential back-off upon successful allocation.
@@ -208,7 +219,7 @@ void Control::PagingResponseHandler(const L3PagingResponse* resp, LogicalChannel
 {
 	assert(resp);
 	assert(DCCH);
-	LOG(INFO) << "PagingResponseHandler " << *resp;
+	LOG(INFO) << *resp;
 
 	// If we got a TMSI, find the IMSI.
 	L3MobileIdentity mobileID = resp->mobileIdentity();
@@ -248,13 +259,16 @@ void Control::PagingResponseHandler(const L3PagingResponse* resp, LogicalChannel
 			case L3CMServiceType::MobileTerminatedCall:
 				MTCStarter(transaction, DCCH);
 				return;
+			case L3CMServiceType::TestCall:
+				TestCall(transaction, DCCH);
+				return;
 			case L3CMServiceType::MobileTerminatedShortMessage:
 				MTSMSController(transaction, DCCH);
 				return;
 			default:
 				// Flush stray MOC entries.
-				LOG(WARN) << "PagingResponseHandler flushing stray " << 
-					transaction.service().type() << " transaction entry";
+				// There should not be any, but...
+				LOG(WARN) << "flushing stray " << transaction.service().type() << " transaction entry";
 				gTransactionTable.remove(transaction.ID());
 				continue;
 		}
@@ -273,7 +287,7 @@ void Control::AssignmentCompleteHandler(const L3AssignmentComplete *confirm, TCH
 
 	assert(TCH);
 	assert(confirm);
-	LOG(DEBUG) << "AssignmentCompleteHandler " << *confirm;
+	LOG(DEBUG) << *confirm;
 
 	// Check the transaction table to know what to do next.
 	TransactionEntry transaction;
@@ -281,7 +295,7 @@ void Control::AssignmentCompleteHandler(const L3AssignmentComplete *confirm, TCH
 		LOG(WARN) << "Assignment Complete with no transaction record";
 		throw UnexpectedMessage();
 	}
-	LOG(INFO) << "AssignmentCompleteHandler service="<<transaction.service().type();
+	LOG(INFO) << "service="<<transaction.service().type();
 
 	// These "controller" functions don't return until the call is cleared.
 	switch (transaction.service().type()) {
@@ -292,7 +306,7 @@ void Control::AssignmentCompleteHandler(const L3AssignmentComplete *confirm, TCH
 			MTCController(transaction,TCH);
 			break;
 		default:
-			LOG(WARN) << "Assignment Complete, unsupported service " << transaction.service();
+			LOG(WARN) << "unsupported service " << transaction.service();
 			throw UnsupportedMessage(transaction.ID());
 	}
 	// If we got here, the call is cleared.
@@ -317,7 +331,7 @@ void Pager::addID(const L3MobileIdentity& newID, ChannelType chanType,
 	bool renewed = false;
 	for (PagingEntryList::iterator lp = mPageIDs.begin(); lp != mPageIDs.end(); ++lp) {
 		if (lp->ID()==newID) {
-			LOG(DEBUG) << "Pager::addID " << newID << " already in table";
+			LOG(DEBUG) << newID << " already in table";
 			lp->renew(wLife);
 			mPageSignal.signal();
 			mLock.unlock();
@@ -326,7 +340,7 @@ void Pager::addID(const L3MobileIdentity& newID, ChannelType chanType,
 	}
 	// If this ID is new, put it in the list.
 	mPageIDs.push_back(PagingEntry(newID,chanType,wTransactionID,wLife));
-	LOG(INFO) << "Pager::addID " << newID << " added to table";
+	LOG(INFO) << newID << " added to table";
 	mPageSignal.signal();
 	mLock.unlock();
 }
@@ -336,7 +350,7 @@ unsigned Pager::removeID(const L3MobileIdentity& delID)
 {
 	// Return the associated transaction ID, or 0 if none found.
 	unsigned retVal = 0;
-	LOG(INFO) << "Pager::removeID " << delID;
+	LOG(INFO) << delID;
 	mLock.lock();
 	for (PagingEntryList::iterator lp = mPageIDs.begin(); lp != mPageIDs.end(); ++lp) {
 		if (lp->ID()==delID) {
@@ -367,12 +381,12 @@ unsigned Pager::pageAll()
 		else {
 			// DO NOT remove the transaction entry here.
 			// It may be in use in an active call.
-			LOG(INFO) << "Pager::pageAll erasing " << lp->ID();
+			LOG(INFO) << "erasing " << lp->ID();
 			lp=mPageIDs.erase(lp);
 		}
 	}
 
-	LOG(INFO) << "Pager::pageAll paging " << mPageIDs.size() << " mobile(s)";
+	LOG(INFO) << "paging " << mPageIDs.size() << " mobile(s)";
 
 	// Page remaining entries, two at a time if possible.
 	// These PCH send operations are non-blocking.
@@ -389,7 +403,7 @@ unsigned Pager::pageAll()
 		++lp;
 		if (lp==mPageIDs.end()) {
 			// Just one ID left?
-			LOG(DEBUG) << "Pager::pageAll paging " << id1;
+			LOG(DEBUG) << "paging " << id1;
 			PCH->send(L3PagingRequestType1(id1,type1));
 			PCH->send(L3PagingRequestType1(id1,type1));
 			break;
@@ -398,7 +412,7 @@ unsigned Pager::pageAll()
 		const L3MobileIdentity& id2 = lp->ID();
 		ChannelType type2 = lp->type();
 		++lp;
-		LOG(DEBUG) << "Pager::pageAll paging " << id1 << " and " << id2;
+		LOG(DEBUG) << "paging " << id1 << " and " << id2;
 		PCH->send(L3PagingRequestType1(id1,type1,id2,type2));
 		PCH->send(L3PagingRequestType1(id1,type1,id2,type2));
 	}

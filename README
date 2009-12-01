@@ -1,6 +1,12 @@
 Welcome to the OpenBTS source code.
 
 
+For free support, please subscribe to openbts-discuss@lists.sourceforge.net.
+See http://sourceforge.net/mailarchive/forum.php?forum_name=openbts-discuss
+and https://lists.sourceforge.net/lists/listinfo/openbts-discuss for details.
+For additional information, refer to http://gnuradio.org/trac/wiki/OpenBTS.
+
+
 These are the directories:
 
 AsteriskConfig	Asterisk configuration files for use with OpenBTS.
@@ -27,6 +33,10 @@ OpenBTS uses the following UDP port assignments:
 
 These can be controlled in the configuration file, apps/OpenBTS.config.
 
+
+Releases 2.5 and later include the smqueue SMS server.  It is NOT part of the
+normal GNU build process with the rest of OpenBTS.  To build smqueue, go
+into the smqueue directory and just type "make".
 
 
 
@@ -92,4 +102,14 @@ Release	Name		SVN Reposiory	SVN Rev	Comments
 							proper rejection of Hold messages
 							fixed L3 hanging bug in MTDCheckBYE
 
+
+2.4.1	Kinder		KSP				fixed lots of valgrind errors
+
+2.4.2	Kinder		KSP				zero-length calling party number bug
+							g++ 4.4 #includes
+
+2.5	Lacassine					SMS server support
+							GNU Radio 3.2 compatibility
+							configurable max range and LU-reject cause
+							"page" & "testcall" CLI features
 

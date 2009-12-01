@@ -326,6 +326,10 @@ const CompleteMapping GSM::gSDCCH_8_4(gSDCCH_8_4Pair,gSACCH_C8_4Pair);
 const CompleteMapping GSM::gSDCCH_8_5(gSDCCH_8_5Pair,gSACCH_C8_5Pair);
 const CompleteMapping GSM::gSDCCH_8_6(gSDCCH_8_6Pair,gSACCH_C8_6Pair);
 const CompleteMapping GSM::gSDCCH_8_7(gSDCCH_8_7Pair,gSACCH_C8_7Pair);
+const CompleteMapping GSM::gSDCCH8[8] = {
+	GSM::gSDCCH_8_0, GSM::gSDCCH_8_1, GSM::gSDCCH_8_2, GSM::gSDCCH_8_3,
+	GSM::gSDCCH_8_4, GSM::gSDCCH_8_5, GSM::gSDCCH_8_6, GSM::gSDCCH_8_7,
+};
 
 const CompleteMapping GSM::gTCHF_T0(gFACCH_TCHFPair,gSACCH_FT_T0Pair);
 const CompleteMapping GSM::gTCHF_T1(gFACCH_TCHFPair,gSACCH_FT_T1Pair);
@@ -335,6 +339,10 @@ const CompleteMapping GSM::gTCHF_T4(gFACCH_TCHFPair,gSACCH_FT_T4Pair);
 const CompleteMapping GSM::gTCHF_T5(gFACCH_TCHFPair,gSACCH_FT_T5Pair);
 const CompleteMapping GSM::gTCHF_T6(gFACCH_TCHFPair,gSACCH_FT_T6Pair);
 const CompleteMapping GSM::gTCHF_T7(gFACCH_TCHFPair,gSACCH_FT_T7Pair);
+const CompleteMapping GSM::gTCHF_T[8] = {
+	GSM::gTCHF_T0, GSM::gTCHF_T1, GSM::gTCHF_T2, GSM::gTCHF_T3,
+	GSM::gTCHF_T4, GSM::gTCHF_T5, GSM::gTCHF_T6, GSM::gTCHF_T7,
+};
 
 
 

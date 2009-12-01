@@ -142,22 +142,25 @@ GSM::L3Message* GSM::parseL3(const GSM::L3Frame& source)
 	LOG(DEBUG) << "GSM::parseL3 "<< source;
 	L3PD PD = source.PD();
 	
+	L3Message *retVal = NULL;
 	try {
 		switch (PD) {
-			case L3RadioResourcePD: return parseL3RR(source);
-			case L3MobilityManagementPD: return parseL3MM(source);
-			case L3CallControlPD: return parseL3CC(source);
+			case L3RadioResourcePD: retVal=parseL3RR(source); break;
+			case L3MobilityManagementPD: retVal=parseL3MM(source); break;
+			case L3CallControlPD: retVal=parseL3CC(source); break;
 			//case L3SMSPD: return parseSMS(source);
 			default:
-				LOG(WARN) << "L3 parsing failed for unsupported protocol " << PD;
+				LOG(NOTICE) << "L3 parsing failed for unsupported protocol " << PD;
 				return NULL;
 		}
 	}
-
 	catch (L3ReadError) {
 		LOG(NOTICE) << "L3 parsing failed for " << source;
 		return NULL;
 	}
+
+	if (retVal) LOG(INFO) << "L3 recv " << *retVal;
+	return retVal;
 }
 
 
@@ -212,8 +215,9 @@ bool L3ProtocolElement::parseTLV(unsigned IEI, const L3Frame& source, size_t &rp
 
 void L3ProtocolElement::writeLV(L3Frame& dest, size_t &wp) const
 {
-	dest.writeField(wp, lengthV(), 8);
-	writeV(dest, wp);
+	unsigned len = lengthV();
+	dest.writeField(wp, len, 8);
+	if (len) writeV(dest, wp);
 }
 
 void L3ProtocolElement::writeTLV(unsigned IEI, L3Frame& dest, size_t &wp) const

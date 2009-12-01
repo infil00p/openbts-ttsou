@@ -23,6 +23,7 @@
 */
 
 
+#include <stdio.h>
 #include <iostream>
 #include <Sockets.h>
 #include <Threads.h>

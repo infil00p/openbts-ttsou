@@ -63,7 +63,7 @@ void DCCHDispatchMM(const L3MMMessage* req, LogicalChannel *DCCH)
 			CMServiceResponder(dynamic_cast<const L3CMServiceRequest*>(req),DCCH);
 			break;
 		default:
-			LOG(NOTICE) << "(ControlLayer) unhandled MM message " << MTI << " on " << DCCH->type();
+			LOG(NOTICE) << "unhandled MM message " << MTI << " on " << DCCH->type();
 			throw UnsupportedMessage();
 	}
 }
@@ -76,7 +76,7 @@ void DCCHDispatchMM(const L3MMMessage* req, LogicalChannel *DCCH)
 */
 void DCCHDispatchRR(const L3RRMessage* req, LogicalChannel *DCCH)
 {
-	LOG(DEBUG) << "DCCHDispatchRR: checking MTI"<< (L3RRMessage::MessageType)req->MTI();
+	LOG(DEBUG) << "checking MTI"<< (L3RRMessage::MessageType)req->MTI();
 
 	assert(req);
 	L3RRMessage::MessageType MTI = (L3RRMessage::MessageType)req->MTI();
@@ -89,7 +89,7 @@ void DCCHDispatchRR(const L3RRMessage* req, LogicalChannel *DCCH)
 										dynamic_cast<TCHFACCHLogicalChannel*>(DCCH));
 			break;
 		default:
-			LOG(NOTICE) << "(ControlLayer) unhandled RR message " << MTI << " on " << DCCH->type();
+			LOG(NOTICE) << "unhandled RR message " << MTI << " on " << DCCH->type();
 			throw UnsupportedMessage();
 	}
 }
@@ -105,11 +105,11 @@ void Control::DCCHDispatcher(LogicalChannel *DCCH)
 	while (1) {
 		try {
 			// Wait for a transaction to start.
-			LOG(DEBUG) << "DCCHDisptacher waiting for " << DCCH->type() << " ESTABLISH";
+			LOG(DEBUG) << "waiting for " << DCCH->type() << " ESTABLISH";
 			waitForPrimitive(DCCH,ESTABLISH);
 			// Pull the first message and dispatch a new transaction.
 			const L3Message *message = getMessage(DCCH);
-			LOG(DEBUG) << "DCCHDispatcher got " << *message;
+			LOG(DEBUG) << "received " << *message;
 			// Each protocol has it's own sub-dispatcher.
 			switch (message->PD()) {
 				case L3MobilityManagementPD:
@@ -119,8 +119,7 @@ void Control::DCCHDispatcher(LogicalChannel *DCCH)
 					DCCHDispatchRR(dynamic_cast<const L3RRMessage*>(message),DCCH);
 					break;
 				default:
-					LOG(NOTICE) << "(ControlLayer) unhandled protocol " 
-						<< message->PD() << " on DCCH";
+					LOG(NOTICE) << "unhandled protocol " << message->PD() << " on " << DCCH->type();
 					throw UnsupportedMessage();
 			}
 			delete message;

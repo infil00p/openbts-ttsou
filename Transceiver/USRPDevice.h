@@ -24,6 +24,10 @@
 
 
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "usrp_standard.h"
 #include "usrp_bytesex.h"
 #include "usrp_prims.h"
@@ -33,6 +37,13 @@
 #include <iostream>
 
 
+/** Define types which are not defined in libusrp-3.1 */
+#ifndef HAVE_LIBUSRP_3_2
+#include <boost/shared_ptr.hpp>
+typedef boost::shared_ptr<usrp_standard_tx> usrp_standard_tx_sptr;
+typedef boost::shared_ptr<usrp_standard_rx> usrp_standard_rx_sptr;
+#endif // HAVE_LIBUSRP_3_2
+
 /** a 64-bit virtual timestamp for USRP data */
 typedef unsigned long long TIMESTAMP;
 
@@ -41,9 +52,10 @@ class USRPDevice {
 
 private:
 
+  static const double masterClockRate;///< the USRP clock rate
   double desiredSampleRate; 	///< the desired sampling rate
-  usrp_standard_rx* m_uRx;	///< the USRP receiver
-  usrp_standard_tx* m_uTx;	///< the USRP transmitter
+  usrp_standard_rx_sptr m_uRx;	///< the USRP receiver
+  usrp_standard_tx_sptr m_uTx;	///< the USRP transmitter
 	
   double actualSampleRate;	///< the actual USRP sampling rate
   unsigned int decimRate;	///< the USRP decimation rate

@@ -18,7 +18,7 @@ dnl You should have received a copy of the GNU General Public License
 dnl along with this program.  If not, see <http://www.gnu.org/licenses/>.
 dnl
 
-AC_INIT(openbts,2.4Kinder)
+AC_INIT(openbts,2.5Lacassine)
 AC_PREREQ(2.57)
 AC_CONFIG_SRCDIR([config/Makefile.am])
 AC_CONFIG_AUX_DIR([.])	
@@ -54,6 +54,11 @@ AC_C_BIGENDIAN
 
 # Defines USRP_CFLAGS, USRP_INCLUDEDIR, and USRP_LIBS
 PKG_CHECK_MODULES(USRP, usrp > 3.1)
+# And now check whether we have libusrp >= 3.2
+PKG_CHECK_EXISTS(usrp >= 3.2, libusrp_3_2=yes, libusrp_3_2=no)
+if test "x$libusrp_3_2" = "xyes";then
+    AC_DEFINE(HAVE_LIBUSRP_3_2, 1, Define to 1 if you have libusrp >= 3.2)
+fi
 
 # Defines OSIP_CFLAGS, OSIP_INCLUDEDIR, and OSIP_LIBS
 PKG_CHECK_MODULES(OSIP, libosip2)
@@ -78,6 +83,8 @@ AC_CONFIG_FILES([\
     Transceiver/Makefile \
     TRXManager/Makefile \
     CLI/Makefile \
+    HLR/Makefile \
+    smqueue/Makefile \
 ])
 
 AC_OUTPUT

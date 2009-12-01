@@ -331,6 +331,9 @@ class BitVector : public Vector<char> {
 	/** Unopack from a char array. */
 	void unpack(const unsigned char*);
 
+	/** Make a hexdump string. */
+	void hex(std::ostream&) const;
+
 };
 
 

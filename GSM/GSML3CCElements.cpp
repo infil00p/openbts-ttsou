@@ -139,6 +139,7 @@ void L3CalledPartyBCDNumber::parseV( const L3Frame &src, size_t &rp, size_t expe
 
 size_t L3CalledPartyBCDNumber::lengthV() const
 {
+	if (mDigits.lengthV()==0) return 0;
 	return 1 + mDigits.lengthV();
 }
 

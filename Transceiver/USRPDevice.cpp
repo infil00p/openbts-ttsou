@@ -30,7 +30,7 @@
 */ 
 
 
-#define NDEBUG
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include "Threads.h"
@@ -51,6 +51,7 @@ string write_it(unsigned v) {
 
 
 const float USRPDevice::LO_OFFSET = 4.0e6;
+const double USRPDevice::masterClockRate = (double) 64.0e6;
 
 bool USRPDevice::compute_regs(double freq,
 			      unsigned *R,
@@ -139,11 +140,8 @@ bool USRPDevice::rx_setFreq(double freq, double *actual_freq)
 USRPDevice::USRPDevice (double _desiredSampleRate) 
 {
   LOG(INFO) << "creating USRP device...";
-  double masterClockRate = (double) 64.0e6;
   decimRate = (unsigned int) round(masterClockRate/_desiredSampleRate);
   actualSampleRate = masterClockRate/decimRate;
-  m_uRx = NULL;
-  m_uTx = NULL;
 
 #ifdef SWLOOPBACK 
   samplePeriod = 1.0e6/actualSampleRate;
@@ -161,32 +159,54 @@ bool USRPDevice::make(bool wSkipRx)
 #ifndef SWLOOPBACK 
   string rbf = "std_inband.rbf";
   //string rbf = "inband_1rxhb_1tx.rbf"; 
-  m_uRx = NULL;
+  m_uRx.reset();
   if (!skipRx) {
   try {
-    m_uRx = (usrp_standard_rx::make(0,decimRate,1,-1,
-				    usrp_standard_rx::FPGA_MODE_NORMAL,
-				    1024,16*8,rbf));
+    m_uRx = usrp_standard_rx_sptr(usrp_standard_rx::make(0,decimRate,1,-1,
+                                                         usrp_standard_rx::FPGA_MODE_NORMAL,
+                                                         1024,16*8,rbf));
+#ifdef HAVE_LIBUSRP_3_2
+    m_uRx->set_fpga_master_clock_freq(masterClockRate);
+#endif
   }
   
   catch(...) {
     LOG(ERROR) << "make failed on Rx";
-    delete m_uRx;
+    m_uRx.reset();
+    return false;
+  }
+
+  if (m_uRx->fpga_master_clock_freq() != masterClockRate)
+  {
+    LOG(ERROR) << "WRONG FPGA clock freq = " << m_uRx->fpga_master_clock_freq()
+               << ", desired clock freq = " << masterClockRate;
+    m_uRx.reset();
     return false;
   }
   }
 
   try {
-    m_uTx = (usrp_standard_tx::make(0,decimRate*2,1,-1,
-				    1024,16*8,rbf));
+    m_uTx = usrp_standard_tx_sptr(usrp_standard_tx::make(0,decimRate*2,1,-1,
+                                                         1024,16*8,rbf));
+#ifdef HAVE_LIBUSRP_3_2
+    m_uTx->set_fpga_master_clock_freq(masterClockRate);
+#endif
   }
   
   catch(...) {
     LOG(ERROR) << "make failed on Tx";
-    delete m_uTx;
+    m_uTx.reset();
     return false;
   }
-  
+
+  if (m_uTx->fpga_master_clock_freq() != masterClockRate)
+  {
+    LOG(ERROR) << "WRONG FPGA clock freq = " << m_uTx->fpga_master_clock_freq()
+               << ", desired clock freq = " << masterClockRate;
+    m_uTx.reset();
+    return false;
+  }
+
   if (!skipRx) m_uRx->stop();
   m_uTx->stop();
   

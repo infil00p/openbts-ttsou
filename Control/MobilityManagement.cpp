@@ -56,7 +56,7 @@ void Control::CMServiceResponder(const L3CMServiceRequest* cmsrq, LogicalChannel
 {
 	assert(cmsrq);
 	assert(DCCH);
-	LOG(INFO) << "CMServiceResponder " << *cmsrq;
+	LOG(INFO) << *cmsrq;
 	switch (cmsrq->serviceType().type()) {
 		case L3CMServiceType::MobileOriginatedCall:
 			MOCStarter(cmsrq,DCCH);
@@ -68,7 +68,7 @@ void Control::CMServiceResponder(const L3CMServiceRequest* cmsrq, LogicalChannel
 			EmergencyCall(cmsrq,DCCH);
 			break;
 		default:
-			LOG(NOTICE) << "CMServiceResponder service not supported";
+			LOG(NOTICE) << "service not supported";
 			// Cause 0x20 means "serivce not supported".
 			DCCH->send(L3CMServiceReject(0x20));
 			DCCH->send(L3ChannelRelease());
@@ -85,7 +85,7 @@ void Control::IMSIDetachController(const L3IMSIDetachIndication* idi, LogicalCha
 {
 	assert(idi);
 	assert(DCCH);
-	LOG(INFO) << "IMSIDetachController " << *idi;
+	LOG(INFO) << *idi;
 
 	// The IMSI detach maps to a SIP unregister with the local Asterisk server.
 	try { 
@@ -103,7 +103,7 @@ void Control::IMSIDetachController(const L3IMSIDetachIndication* idi, LogicalCha
 	DCCH->send(L3ChannelRelease());
 	// Many handsets never complete the transaction.
 	// So force a shutdown of the channel.
-	DCCH->send(ERROR);
+	DCCH->send(HARDRELEASE);
 }
 
 
@@ -136,16 +136,11 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 {
 	assert(SDCCH);
 	assert(lur);
-	LOG(INFO) << "LocationUpdatingController " << *lur;
+	LOG(INFO) << *lur;
 
 	// The location updating request gets mapped to a SIP
-	// registration with the local Asterisk server.
+	// registration with the Asterisk server.
 	// If the registration is successful, we may assign a new TMSI.
-
-	// Reject causes come from GSM 04.08 10.5.3.6
-	// Be careful what cause you send, since some of
-	// them (like the "invalid MS/ME" codes) can leave the phone
-	// locked up until the battery is removed.
 
 	// Resolve an IMSI and see if there's a pre-existing IMSI-TMSI mapping.
 	// This operation will throw an exception, caught in a higher scope,
@@ -161,7 +156,7 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 	try {
 		SIPEngine engine;
 		engine.User(mobID.digits());
-		LOG(DEBUG) << "LocationUpdatingController waiting for registration";
+		LOG(DEBUG) << "waiting for registration";
 		success = engine.Register(); 
 	}
 	catch(SIPTimeout) {
@@ -181,9 +176,8 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 
 	// We fail closed unless we're configured otherwise
 	if (!success && !openRegistration) {
-		LOG(INFO) << "LocationUpdatingController registration FAILED: " << mobID;
-		// Reject cause 0x03, IMSI not in VLR
-		SDCCH->send(L3LocationUpdatingReject(0x03));
+		LOG(INFO) << "registration FAILED: " << mobID;
+		SDCCH->send(L3LocationUpdatingReject(gConfig.getNum("GSM.LURejectCause")));
 		sendWelcomeMessage( "Control.FailedRegistrationWelcomeMessage",
 			"Control.FailedRegistrationWelcomeShortCode", SDCCH);
 	}
@@ -192,8 +186,8 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 	// Otherwise, we are here because of open registration.
 	// Either way, we're going to register a phone if we arrive here.
 
-	if (success) LOG(INFO) << "LocationUpdatingController registration SUCCESS: " << mobID;
-	else LOG(INFO) << "LocationUpdatingController registration ALLOWED: " << mobID;
+	if (success) LOG(INFO) << "registration SUCCESS: " << mobID;
+	else LOG(INFO) << "registration ALLOWED: " << mobID;
 
 
 	// Send the "short name".

@@ -99,6 +99,10 @@ ostream& GSM::operator<<(ostream& os, L3RRMessage::MessageType val)
 			os << "Assignment Failure"; break;
 		case L3RRMessage::ChannelRelease: 
 			os << "Channel Release"; break;
+		case L3RRMessage::ChannelModeModify:
+			os << "Channel Mode Modify"; break;
+		case L3RRMessage::ChannelModeModifyAcknowledge:
+			os << "Channel Mode Modify Acknowledge"; break;
 		case L3RRMessage::GPRSSuspensionRequest: 
 			os << "GPRS Suspension Request"; break;
 		case L3RRMessage::ClassmarkChange: 
@@ -126,6 +130,7 @@ L3RRMessage* GSM::L3RRFactory(L3RRMessage::MessageType MTI)
 		case L3RRMessage::RRStatus: return new L3RRStatus();
 		case L3RRMessage::PagingResponse: return new L3PagingResponse();
 		case L3RRMessage::ChannelModeModifyAcknowledge: return new L3ChannelModeModifyAcknowledge();
+		case L3RRMessage::GPRSSuspensionRequest: return new L3GPRSSuspensionRequest();
 		default:
 			LOG(WARN) << "no L3 RR factory support for " << MTI;
 			return NULL;
@@ -456,7 +461,7 @@ size_t L3AssignmentCommand::bodyLength() const
 void L3AssignmentCommand::text(ostream& os) const
 {
 	L3RRMessage::text(os);
-	os <<"channelDescription=("<<mChannelDescription<<"),";
+	os <<"channelDescription=("<<mChannelDescription<<")";
 	os <<" powerCommand="<<mPowerCommand;
 	if (mHaveMode1) os << " mode1=" << mMode1;
 }
@@ -558,6 +563,13 @@ void L3ChannelModeModifyAcknowledge::text(ostream& os) const
 	L3RRMessage::text(os);
 	os << "description=(" << mDescription << ")";
 	os << " mode=(" << mMode << ")";
+}
+
+
+void L3GPRSSuspensionRequest::parseBody(const L3Frame &src, size_t& rp)
+{
+	// We don't really parse this yet.
+	return;
 }
 
 

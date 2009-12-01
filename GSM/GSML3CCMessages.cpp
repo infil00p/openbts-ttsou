@@ -62,6 +62,8 @@ ostream& GSM::operator<<(ostream& os, L3CCMessage::MessageType val)
 				os <<"CC Status"; break;
 		case L3CCMessage::CallConfirmed: 
 				os <<"Call Confirmed"; break;
+		case L3CCMessage::CallProceeding: 
+				os <<"Call Proceeding"; break;
 		case L3CCMessage::StartDTMF:
 				os << "Start DTMF"; break;
 		case L3CCMessage::StartDTMFReject:
@@ -461,8 +463,8 @@ void L3Progress::parseBody(const L3Frame& src, size_t &rp)
 
 void L3Progress::text(ostream& os) const
 {
-	os <<" L3Progress = ";
-	os << "progress_indicator=(" << mProgress << ")";
+	L3CCMessage::text(os);
+	os << "prog_ind=(" << mProgress << ")";
 }
 
 

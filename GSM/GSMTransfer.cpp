@@ -38,7 +38,9 @@ using namespace GSM;
 ostream& GSM::operator<<(ostream& os, const L2Frame& frame)
 {
 	os << "primitive=" << frame.primitive();
-	os << " raw=(" << (const BitVector&)frame << ")";
+	os << " raw=(";
+	frame.hex(os);
+	os << ")";
 	return os;
 }
 
@@ -46,7 +48,9 @@ ostream& GSM::operator<<(ostream& os, const L2Frame& frame)
 ostream& GSM::operator<<(ostream& os, const L3Frame& frame)
 {
 	os << "primitive=" << frame.primitive();
-	os << " raw=(" << (const BitVector&)frame << ")";
+	os << " raw=(";
+	frame.hex(os);
+	os << ")";
 	return os;
 }
 
@@ -208,10 +212,8 @@ void L2Frame::idleFill()
 {
 	// GSM 04.06 2.2
 	static const int pattern[8] = {0,0,1,0,1,0,1,1};
-	unsigned accum = 0;
 	for (size_t i=0; i<size(); i++) {
-		accum = (accum<<1) | pattern[i%8];
-		mStart[i] = accum;
+		mStart[i] = pattern[i%8];
 	}
 }
 
@@ -429,6 +431,7 @@ ostream& GSM::operator<<(ostream& os, Primitive prim)
 		case DATA: os << "DATA"; break;
 		case UNIT_DATA: os << "UNIT_DATA"; break;
 		case ERROR: os << "ERROR"; break;
+		case HARDRELEASE: os << "HARDRELEASE"; break;
 		default: os << "?" << (int)prim << "?";
 	}
 	return os;
@@ -441,6 +444,33 @@ L3Frame::L3Frame(const L3Message& msg, Primitive wPrimitive)
 	:BitVector(msg.bitsNeeded()),mPrimitive(wPrimitive)
 {
 	msg.write(*this);
+}
+
+
+
+L3Frame::L3Frame(const char* hexString)
+	:mPrimitive(DATA)
+{
+	size_t len = strlen(hexString);
+	resize(len*4);
+	size_t wp=0;
+	for (size_t i=0; i<len; i++) {
+		char c = hexString[i];
+		int v = c - '0';
+		if (v>9) v = c - 'a' + 10;
+		writeField(wp,v,4);
+	}
+}
+
+
+L3Frame::L3Frame(const char* binary, size_t len)
+	:mPrimitive(DATA)
+{
+	resize(len*8);
+	size_t wp=0;
+	for (size_t i=0; i<len; i++) {
+		writeField(wp,binary[i],8);
+	}
 }
 
 

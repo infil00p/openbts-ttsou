@@ -61,7 +61,7 @@ void GSMConfig::regenerateBeacon()
 
 	// Short name
 	const char* shortName = gConfig.getStr("GSM.ShortName");
-	assert(strlen(shortName)<9);
+	assert(strlen(shortName)<=93);
 	strcpy(mShortName,shortName);
 	
 	// Now regenerate all of the system information messages.

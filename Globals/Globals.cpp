@@ -23,6 +23,7 @@
 
 */
 
+#include "config.h"
 #include <Globals.h>
 #include <CLI.h>
 
@@ -30,13 +31,14 @@
 const char* gOpenBTSWelcome =
 	//23456789123456789223456789323456789423456789523456789623456789723456789
 	"OpenBTS, Copyright 2008, 2009 Free Software Foundation, Inc.\n"
+	"Version: " VERSION "\n"
 	"Contributors:\n"
 	"\tKestrel Signal Processing, Inc.:\n"
 	"\t\tDavid Burgess, Harvind Samra, Raffi Sevlian, Roshan Baliga\n"
 	"\tGNU Radio:\n"
 	"\t\tJohnathan Corgan\n"
 	"\tOthers:\n"
-	"\t\tAnne Kwong, Jacob Appelbaum\n"
+	"\t\tAnne Kwong, Jacob Appelbaum, Alberto Escudero-Pascual\n"
 	"\tIncorporated GPL libraries and components:\n"
 	"\t\tlibosip2, liportp2\n"
 	"This program comes with ABSOLUTELY NO WARRANTY.\n"

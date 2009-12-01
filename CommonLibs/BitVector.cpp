@@ -450,7 +450,7 @@ void SoftVector::decode(ViterbiR2O4 &decoder, BitVector& target) const
 {
 	const size_t sz = size();
 	const unsigned deferral = decoder.deferral();
-	const size_t ctsz = sz + deferral;
+	const size_t ctsz = sz + deferral*decoder.iRate();
 	assert(sz <= decoder.iRate()*target.size());
 
 	// Build a "history" array where each element contains the full history.
@@ -510,12 +510,14 @@ void SoftVector::decode(ViterbiR2O4 &decoder, BitVector& target) const
 		size_t oCount = 0;
 		while (op<opt) {
 			// Viterbi algorithm
+			assert(match-matchCostTable<sizeof(matchCostTable)/sizeof(matchCostTable[0])-1);
+			assert(mismatch-mismatchCostTable<sizeof(mismatchCostTable)/sizeof(mismatchCostTable[0])-1);
 			const ViterbiR2O4::vCand &minCost = decoder.step(*ip, match, mismatch);
 			ip += step;
 			match += step;
 			mismatch += step;
 			// output
-			if (oCount>=deferral) *op++ = (minCost.iState >> deferral);
+			if (oCount>=deferral) *op++ = (minCost.iState >> deferral)&0x01;
 			oCount++;
 		}
 	}
@@ -561,6 +563,18 @@ void BitVector::unpack(const unsigned char* src)
 	unsigned rem = size() - whole;
 	if (rem==0) return;
 	fillField(whole,src[bytes],rem);
+}
+
+void BitVector::hex(ostream& os) const
+{
+	os << std::hex;
+	int v=0;
+	unsigned digits = size()/4;
+	size_t wp=0;
+	for (unsigned i=0; i<digits; i++) {
+		os << readField(wp,4);
+	}
+	os << std::dec;
 }
 
 // vim: ts=4 sw=4

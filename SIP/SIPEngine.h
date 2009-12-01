@@ -79,10 +79,9 @@ public:
 private:
 
 	// MOC, MTC information.
-	std::string  mOAddr;
 	short mRTPPort;
-	std::string mCalledUsername;
-	std::string mCalledDomain;
+	std::string mRemoteUsername;
+	std::string mRemoteDomain;
 	unsigned mCodec;
 
 	// General SIP tags and ids.	
@@ -144,10 +143,12 @@ public:
 
 	// will automatically allocate mCallID. 
 	// good for mobile originated call and registration.
-	void User( const char * w_username );
+	// IMSI gets prefixed with "IMSI" to form a SIP username
+	void User( const char * IMSI );
 
 	// use this for incoming invite message in SIPInterface.
-	void User( const char * wCallID, const char * w_username , const char *origID);
+	// IMSI gets prefixed with "IMSI" to form a SIP username
+	void User( const char * wCallID, const char * IMSI , const char *origID, const char *origHost);
 
 	/**@name Messages for SIP registration. */
 	//@{
@@ -268,7 +269,7 @@ public:
 	int  RxFrame(unsigned char * rx_frame);
 
 	// We need the host sides RTP information contained
-	// in INVITE or 200_OKAY
+	// in INVITE or 200 OK
 	void InitRTP(const osip_message_t * msg );
 	void MOCInitRTP();
 	void MTCInitRTP();

@@ -48,31 +48,35 @@ using namespace Control;
 
 
 
+static const char emptyString[] = "";
+
+
 // SIPMessageMap method definitions.
 
 void SIPMessageMap::write(const std::string& call_id, osip_message_t * msg)
 {
-	LOG(DEBUG) << "SIPMessageMap::write " << call_id << " msg " << msg;
+	LOG(DEBUG) << "call_id=" << call_id << " msg=" << msg;
 	OSIPMessageFIFO * fifo = mMap.readNoBlock(call_id);
 	if( fifo==NULL ) {
-		LOG(NOTICE) << "write missing SIP FIFO "<<call_id;
+		// FIXME -- If this write fails, send "call leg non-existent" response on SIP interface.
+		LOG(NOTICE) << "missing SIP FIFO "<<call_id;
 		throw SIPError();
 	}
-	LOG(DEBUG) << "SIPMessage::write on fifo " << fifo;
+	LOG(DEBUG) << "write on fifo " << fifo;
 	fifo->write(msg);	
 }
 
 osip_message_t * SIPMessageMap::read(const std::string& call_id, unsigned readTimeout)
 { 
-	LOG(DEBUG) << "SIPMessageMap::read " << call_id;
+	LOG(DEBUG) << "call_id=" << call_id;
 	OSIPMessageFIFO * fifo = mMap.readNoBlock(call_id);
-	if( fifo == NULL ) {
-		LOG(NOTICE) << "read missing SIP FIFO "<<call_id;
+	if (!fifo) {
+		LOG(NOTICE) << "missing SIP FIFO "<<call_id;
 		throw SIPError();
 	}	
-	LOG(DEBUG) << "SIPMessageMap::read blocking on fifo " << fifo;
+	LOG(DEBUG) << "blocking on fifo " << fifo;
 	osip_message_t * msg =  fifo->read(readTimeout);	
-	if( msg == NULL ) throw SIPTimeout();
+	if (!msg) throw SIPTimeout();
 	return msg;
 }
 
@@ -154,7 +158,15 @@ void SIPInterface::write(const struct sockaddr_in* dest, osip_message_t *msg)
 	char * str;
 	size_t msgSize;
 	osip_message_to_str(msg, &str, &msgSize);
-	LOG(DEBUG) << "SIPInterface::write:\n"<< str;
+	if (!str) {
+		LOG(ALARM) << "osip_message_to_str produced a NULL pointer.";
+		return;
+	}
+	char line[1000];
+	sscanf(str,"%[^\n]",line);
+	LOG(INFO) << "write " << line;
+	LOG(DEBUG) << "write " << str;
+
 	mSocketLock.lock();
 	mSIPSocket.send((const struct sockaddr*)dest,str);
 	mSocketLock.unlock();
@@ -167,9 +179,18 @@ void SIPInterface::drive()
 {
 	char buffer[2048];
 
-	LOG(DEBUG) << "SIPInterface::drive() blocking on socket";
-	mSIPSocket.read(buffer);
-	LOG(DEBUG) << "SIPInterface::drive() read " << buffer;
+	LOG(DEBUG) << "blocking on socket";
+	int numRead = mSIPSocket.read(buffer);
+	if (numRead<0) {
+		LOG(ALARM) << "cannot read SIP socket.";
+		return;
+	}
+	buffer[numRead+1] = '\0';
+
+	char line[sizeof(buffer)];
+	sscanf(buffer,"%[^\n]",line);
+	LOG(INFO) << "read " << line;
+	LOG(DEBUG) << "read " << buffer;
 
 	try {
 
@@ -178,11 +199,7 @@ void SIPInterface::drive()
 		osip_message_init(&msg);
 		osip_message_parse(msg, buffer, strlen(buffer));
 	
-		if (msg->sip_method!=NULL) {
-			LOG(DEBUG) << "drive() read method " << msg->sip_method;
-		} else {
-			LOG(DEBUG) << "drive() read (no method)";
-		}
+		if (msg->sip_method) LOG(DEBUG) << "read method " << msg->sip_method;
 	
 		// Must check if msg is an invite.
 		// if it is, handle appropriatly.
@@ -203,15 +220,17 @@ void SIPInterface::drive()
 		// Don't free call_id_num.  It points into msg->call_id.
 		char * call_id_num = osip_call_id_get_number(msg->call_id);	
 		if( call_id_num == NULL ) {
-			LOG(WARN) << "SIPInterface::drive message with no call id";
+			LOG(WARN) << "message with no call id";
 			throw SIPError();
 		}
-		LOG(DEBUG) << "drive: got message " << msg << " with call id " << call_id_num << " and writing it to the map.";
+		LOG(DEBUG) << "got message " << msg << " with call id " << call_id_num << " and writing it to the map.";
 		string call_num(call_id_num);
+		// FIXME -- If this write fails, send "call leg non-existent" response on SIP interface.
 		mSIPMap.write(call_num, msg);
 	}
 	catch(SIPException) {
-		LOG(WARN) << "Errant SIP Message: "<<buffer;
+		sscanf(buffer,"%[^\n]",line);
+		LOG(WARN) << "errant SIP Message: " << line;
 	}
 }
 
@@ -220,16 +239,17 @@ void SIPInterface::drive()
 
 bool SIPInterface::checkInvite( osip_message_t * msg )
 {
-	LOG(DEBUG) << "SIPInterface::checkInvite";
+	LOG(DEBUG);
 
-	// Is there even a message?
-	if(!msg->sip_method) return false;
+	// Is there even a method?
+	const char *method = msg->sip_method;
+	if (!method) return false;
 
 	// Check for INVITE or MESSAGE methods.
 	GSM::ChannelType requiredChannel;
 	bool channelAvailable = false;
 	GSM::L3CMServiceType serviceType;
-	if (strcmp(msg->sip_method,"INVITE") == 0) {
+	if (strcmp(method,"INVITE") == 0) {
 		// INVITE is for MTC.
 		// Set the required channel type to match the assignment style.
 		switch ((AssignmentType)gConfig.getNum("GSM.AssignmentType")) {
@@ -247,108 +267,116 @@ bool SIPInterface::checkInvite( osip_message_t * msg )
 		}
 		serviceType = L3CMServiceType::MobileTerminatedCall;
 	}
-	else if (strcmp(msg->sip_method,"MESSAGE") == 0) {
+	else if (strcmp(method,"MESSAGE") == 0) {
 		// MESSAGE is for MTSMS.
 		requiredChannel = GSM::SDCCHType;
 		channelAvailable = gBTS.SDCCHAvailable();
 		serviceType = L3CMServiceType::MobileTerminatedShortMessage;
 	}
 	else {
+		// We must not handle this method.
+		LOG(DEBUG) << "non-initiating SIP method " << method;
 		return false;
 	}
 
-	LOG(INFO) << "set up MTC paging for channel=" << requiredChannel << " available=" << channelAvailable;
 	// Check gBTS for channel availability.
 	if (!channelAvailable) {
-		// FIXME -- Send 480 "Temporarily Unavailable" response on SIP interface.
-		// FIXME -- We need this for SMS.
-		LOG(NOTICE) << "MTC CONGESTION, no channel availble for assignment";
+		// FIXME -- Send 503 "Service Unavailable" response on SIP interface.
+		LOG(NOTICE) << "MTC CONGESTION, no " << requiredChannel << " availble for assignment";
 		return false;
 	}
+	LOG(INFO) << "set up MTC paging for channel=" << requiredChannel;
 
 	// Get call_id from invite message.
 	if (!msg->call_id) {
 		// FIXME -- Send appropriate error on SIP interface.
-		LOG(WARN) << "Incoming INVITE/MESSAGE with no valid call ID";
+		LOG(WARN) << "Incoming INVITE/MESSAGE with no call ID";
 		return false;
 	}
 
 	// Don't free call_id_num.  It points into msg->call_id.
-	char * call_id_num = osip_call_id_get_number(msg->call_id);	
-	string call_id_string(call_id_num);
+	const char * call_id_num = osip_call_id_get_number(msg->call_id);	
 
-	// Get sip_username (IMSI) from invite. 
-	// typical to_uri: sip:310410186585289@192.168.1.3:5050
-	// IMSI:310410186585289 
-	// FIXME -- This will CRASH if we receive a malformed INVITE.
-	char * to_uri;
-	osip_uri_to_str(msg->to->url, &to_uri);	
-	LOG(DEBUG) << "SIPInterface::checkInvite: " << msg->sip_method << " to "<< to_uri;
-	char * IMSI = strtok(&to_uri[4],"@");
+	// Get request username (IMSI) from invite. 
+	// Form of the name is IMSI<digits>, and it should always be 19 char.
+	const char * IMSI = msg->req_uri->username;
+	LOG(INFO) << msg->sip_method << " to "<< IMSI;
+	// Skip first 4 char "IMSI".
+	if (strlen(IMSI)!=19) {
+		LOG(WARN) << "INVITE with malformed username";
+		return false;
+	}
+	else IMSI+=4;
 	// Make the mobile id we need for transaction and paging enties.
 	L3MobileIdentity mobile_id(IMSI);
 
 	// Check SIP map.  Repeated entry?  Page again.
-	if (mSIPMap.map().readNoBlock(call_id_string) != NULL) { 
+	if (mSIPMap.map().readNoBlock(call_id_num) != NULL) { 
 		TransactionEntry transaction;
 		if (!gTransactionTable.find(mobile_id,transaction)) {
 			// FIXME -- Send "call leg non-existent" response on SIP interface.
 			LOG(WARN) << "repeated INVITE/MESSAGE with no transaction record";
+			// Delete the bogus FIFO.
+			mSIPMap.remove(call_id_num);
 			return false;
 		}
-		LOG(DEBUG) << "SIPInterface::checkInvite: repeated SIP INVITE/MESSAGE, repaging"; 
+		LOG(INFO) << "repeated SIP INVITE/MESSAGE, repaging"; 
 		gBTS.pager().addID(mobile_id,requiredChannel,transaction.ID());	
 		transaction.T3113().set();
 		gTransactionTable.update(transaction);
-		osip_free(to_uri);
 		return false;
 	}
 
 	// Add an entry to the SIP Map to route inbound SIP messages.
-	//mSIPMap.add(call_id_string,mSIPSocket.source());
-	addCall(call_id_string);
+	addCall(call_id_num);
 
 	// Install transaction.
-	LOG(DEBUG) << "SIPInterface::checkInvite: make new transaction ";
+	LOG(INFO) << "make new transaction ";
 	// Put the caller ID in here if it's available.
-	const char emptyString[] = "";
 	const char *callerID = NULL;
+	const char *callerHost = NULL;
 	osip_from_t *from = osip_message_get_from(msg);
 	if (from) {
 		osip_uri_t* url = osip_contact_get_url(from);
-		if (url) callerID = url->username;
-	} else {
+		if (url) {
+			callerID = url->username;
+			callerHost = url->host;
+		}
+	}
+	if (!callerID) {
+		callerID = emptyString;
+		callerHost = emptyString;
 		LOG(NOTICE) << "INVITE with no From: username";
 	}
-	if (!callerID) callerID = emptyString;
-	LOG(DEBUG) << "SIPInterface: callerID \"" << callerID << "\"";
+	LOG(DEBUG) << "callerID " << callerID << "@" << callerHost;
 	// Build the transaction table entry.
+	// This constructor sets TI flag=0, TI=0 for an MT transaction.
 	TransactionEntry transaction(mobile_id,serviceType,callerID);
 	transaction.T3113().set();
 	transaction.Q931State(TransactionEntry::Paging);
-	LOG(DEBUG) << "SIPInterface: call_id_num \"" << call_id_num << "\"";
-	LOG(DEBUG) << "SIPInterface: IMSI \"" << IMSI << "\"";
+	LOG(DEBUG) << "call_id_num \"" << call_id_num << "\"";
+	LOG(DEBUG) << "IMSI \"" << IMSI << "\"";
 
-
-	transaction.SIP().User(call_id_num,IMSI,callerID);
+	transaction.SIP().User(call_id_num,IMSI,callerID,callerHost);
 	transaction.SIP().saveINVITE(msg);
 	if (serviceType == L3CMServiceType::MobileTerminatedShortMessage) {
 		osip_body_t *body;
 		osip_message_get_body(msg,0,&body);
-		char *text;
-		size_t length;
-		osip_body_to_str(body,&text,&length);
-		if (text) transaction.message(text);
-		else LOG(NOTICE) << "incoming MESSAGE method with no message body";
+		if (!body) return false;
+		char *text = body->body;
+		if (text) {
+			transaction.message(text, body->length);
+		}
+		else LOG(NOTICE) << "MTSMS incoming MESSAGE method with no message body";
 	}
-	LOG(DEBUG) << "SIPInterface::checkInvite: making transaction and add to transaction table: "<< transaction;
+	LOG(DEBUG) << "MTC MTSMS making transaction and add to transaction table: "<< transaction;
 	gTransactionTable.add(transaction); 
 	
-	// Add to paging list.
-	LOG(DEBUG) << "SIPInterface::checkInvite: new SIP invite, initial paging for mobile ID " << mobile_id;
+	// Add to paging list and tell the remote SIP end that we are trying.
+	LOG(DEBUG) << "MTC MTSMS new SIP invite, initial paging for mobile ID " << mobile_id;
 	gBTS.pager().addID(mobile_id,requiredChannel,transaction.ID());	
+	// FIXME -- Send TRYING?  See MTCSendTrying for example.
 
-	osip_free(to_uri);
 	return true;
 }
 

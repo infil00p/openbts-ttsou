@@ -69,7 +69,7 @@ public:
 
 	/**
 		Send a binary packet.
-		@param buffer The data bytes to send.
+		@param buffer The data bytes to send to mDestination.
 		@param length Number of bytes to send, or strlen(buffer) if defaulted to -1.
 		@return number of bytes written, or -1 on error.
 	*/
@@ -77,10 +77,26 @@ public:
 
 	/**
 		Send a C-style string packet.
-		@param buffer The data bytes to send.
+		@param buffer The data bytes to send to mDestination.
 		@return number of bytes written, or -1 on error.
 	*/
 	int write( const char * buffer);
+
+	/**
+		Send a binary packet.
+		@param buffer The data bytes to send to mSource.
+		@param length Number of bytes to send, or strlen(buffer) if defaulted to -1.
+		@return number of bytes written, or -1 on error.
+	*/
+	int writeBack(const char * buffer, size_t length);
+
+	/**
+		Send a C-style string packet.
+		@param buffer The data bytes to send to mSource.
+		@return number of bytes written, or -1 on error.
+	*/
+	int writeBack(const char * buffer);
+
 
 	/**
 		Receive a packet.

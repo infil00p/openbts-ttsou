@@ -28,13 +28,9 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#include <signal.h>
-#include <stdlib.h>
-
 #include <ortp/ortp.h>
 #include <osipparser2/sdp_message.h>
 #include <osipparser2/osip_md5.h>
-
 
 #include "SIPInterface.h"
 #include "SIPUtility.h"
@@ -45,7 +41,6 @@ using namespace SIP;
 
 
 #define DEBUG 1
-
 #define MAX_VIA 10
 
 
@@ -57,6 +52,8 @@ osip_message_t * SIP::sip_register( const char * sip_username, short timeout, sh
 	// Message URI
 	osip_message_t * request;
 	osip_message_init(&request);
+	// FIXME -- Should use the "force_update" function.
+	request->message_property = 2; // buffer is not synchronized with object
 	request->sip_method = strdup("REGISTER");
 	osip_message_set_version(request, strdup("SIP/2.0"));	
 	osip_uri_init(&request->req_uri);
@@ -73,12 +70,16 @@ osip_message_t * SIP::sip_register( const char * sip_username, short timeout, sh
 
 	// VIA BRANCH
 	osip_via_set_branch(via, strdup(via_branch));
+
 	// MAX FORWARDS
 	osip_message_set_max_forwards(request, strdup("70"));
 
 	char  * via_str;
 	osip_via_to_str(via, &via_str);
 	osip_message_set_via(request, via_str);
+	// set via
+	osip_list_add(&request->vias, via, -1);
+
 
 	// FROM
 	osip_from_init(&request->from);
@@ -105,12 +106,11 @@ osip_message_t * SIP::sip_register( const char * sip_username, short timeout, sh
 	// CSEQ
 	osip_cseq_init(&request->cseq);
 	osip_cseq_set_method(request->cseq, strdup("REGISTER"));
-	char temp_buf[10];
+	char temp_buf[14];
 	sprintf(temp_buf,"%i",cseq);
 	osip_cseq_set_number(request->cseq, strdup(temp_buf));	
 
 	// CONTACT
-	char * contact_str;
 	osip_contact_t * con;
 	osip_to_init(&con);
 
@@ -123,8 +123,9 @@ osip_message_t * SIP::sip_register( const char * sip_username, short timeout, sh
 	sprintf(numbuf,"%d",timeout);
 	osip_contact_param_add(con, strdup("expires"), strdup(numbuf) );
 
-	osip_contact_to_str(con, &contact_str);
-	osip_message_set_contact(request, contact_str);
+	// add contact
+	osip_list_add(&request->contacts, con, -1);
+
 
 	// If dont need authentication, return.
 	return request;	
@@ -139,12 +140,13 @@ osip_message_t * SIP::sip_unregister( const char * sip_username, short wlocal_po
 	// Message URI
 	osip_message_t * request;
 	osip_message_init(&request);
+	// FIXME -- Should use the "force_update" function.
+	request->message_property = 2;
 	request->sip_method = strdup("REGISTER");
 	osip_message_set_version(request, strdup("SIP/2.0"));	
 	osip_uri_init(&request->req_uri);
 	osip_uri_set_host(request->req_uri, strdup(proxy_ip));
 
-	
 	// VIA
 	osip_via_t * via;
 	osip_via_init(&via);
@@ -155,12 +157,12 @@ osip_message_t * SIP::sip_unregister( const char * sip_username, short wlocal_po
 
 	// VIA BRANCH
 	osip_via_set_branch(via, strdup(via_branch));
+
 	// MAX FORWARDS
 	osip_message_set_max_forwards(request, strdup("70"));
 
-	char  * via_str;
-	osip_via_to_str(via, &via_str);
-	osip_message_set_via(request, via_str);
+	// add via
+	osip_list_add(&request->vias, via, -1);
 
 	// FROM
 	osip_from_init(&request->from);
@@ -187,12 +189,11 @@ osip_message_t * SIP::sip_unregister( const char * sip_username, short wlocal_po
 	// CSEQ
 	osip_cseq_init(&request->cseq);
 	osip_cseq_set_method(request->cseq, strdup("REGISTER"));
-	char temp_buf[10];
+	char temp_buf[14];
 	sprintf(temp_buf,"%i",cseq);
 	osip_cseq_set_number(request->cseq, strdup(temp_buf));	
 
 	// CONTACT
-	char * contact_str;
 	osip_contact_t * con;
 	osip_to_init(&con);
 
@@ -203,14 +204,14 @@ osip_message_t * SIP::sip_unregister( const char * sip_username, short wlocal_po
 	osip_uri_set_username(con->url, strdup(sip_username));
 	osip_contact_param_add(con, strdup("expires"), strdup("0") );
 
-	osip_contact_to_str(con, &contact_str);
-	osip_message_set_contact(request, contact_str);
+	// add contact
+	osip_list_add(&request->contacts, con, -1);
+
 	//osip_message_set_contact(request, strdup(" * "));
 
 	// If don't need authentication, return.
 	return request;	
 }
-
 
 
 osip_message_t * SIP::sip_message( const char * dialed_number, const char * sip_username, short wlocal_port, const char * local_ip, const char * proxy_ip, const char * from_tag, const char * via_branch, const char * call_id, int cseq, const char* message) {
@@ -220,6 +221,8 @@ osip_message_t * SIP::sip_message( const char * dialed_number, const char * sip_
 
 	osip_message_t * request;
 	osip_message_init(&request);
+	// FIXME -- Should use the "force_update" function.
+	request->message_property = 2;
 	request->sip_method = strdup("MESSAGE");
 	osip_message_set_version(request, strdup("SIP/2.0"));	
 	osip_uri_init(&request->req_uri);
@@ -234,18 +237,20 @@ osip_message_t * SIP::sip_message( const char * dialed_number, const char * sip_
 	via_set_host(via, strdup(local_ip));
 	via_set_port(via, strdup(local_port));
 	osip_via_set_branch(via, strdup(via_branch));
+
 	// MAX FORWARDS
 	osip_message_set_max_forwards(request, strdup("70"));
-	// set it
-	char  * via_str;
-	osip_via_to_str(via, &via_str);
-	osip_message_set_via(request, via_str);
+
+	// add via
+	osip_list_add(&request->vias, via, -1);
 
 	// FROM
 	osip_from_init(&request->from);
 	osip_from_set_displayname(request->from, strdup(sip_username));
+
 	// FROM TAG
 	osip_from_set_tag(request->from, strdup(from_tag));
+
 	// set it
 	osip_uri_init(&request->from->url);
 	osip_uri_set_host(request->from->url, strdup(proxy_ip));
@@ -266,12 +271,12 @@ osip_message_t * SIP::sip_message( const char * dialed_number, const char * sip_
 	// CSEQ
 	osip_cseq_init(&request->cseq);
 	osip_cseq_set_method(request->cseq, strdup("MESSAGE"));
-	char temp_buf[10];
+	char temp_buf[21];
 	sprintf(temp_buf,"%i",cseq);
 	osip_cseq_set_number(request->cseq, strdup(temp_buf));	
 
 	osip_message_set_content_type(request, strdup("text/plain"));
-	sprintf(temp_buf,"%i",strlen(message));
+	sprintf(temp_buf,"%lu",strlen(message));
 	osip_message_set_content_length(request, strdup(temp_buf));
 
 	// Payload.
@@ -281,8 +286,6 @@ osip_message_t * SIP::sip_message( const char * dialed_number, const char * sip_
 }
 
 
-
-
 osip_message_t * SIP::sip_invite( const char * dialed_number, short rtp_port, const char * sip_username, short wlocal_port, const char * local_ip, const char * proxy_ip, const char * from_tag, const char * via_branch, const char * call_id, int cseq, unsigned codec) {
 
 	char local_port[10];
@@ -290,6 +293,8 @@ osip_message_t * SIP::sip_invite( const char * dialed_number, short rtp_port, co
 
 	osip_message_t * request;
 	osip_message_init(&request);
+	// FIXME -- Should use the "force_update" function.
+	request->message_property = 2;
 	request->sip_method = strdup("INVITE");
 	osip_message_set_version(request, strdup("SIP/2.0"));	
 	osip_uri_init(&request->req_uri);
@@ -306,12 +311,12 @@ osip_message_t * SIP::sip_invite( const char * dialed_number, short rtp_port, co
 
 	// VIA BRANCH
 	osip_via_set_branch(via, strdup(via_branch));
+
 	// MAX FORWARDS
 	osip_message_set_max_forwards(request, strdup("70"));
 
-	char  * via_str;
-	osip_via_to_str(via, &via_str);
-	osip_message_set_via(request, via_str);
+	// add via
+	osip_list_add(&request->vias, via, -1);
 
 	// FROM
 	osip_from_init(&request->from);
@@ -335,7 +340,6 @@ osip_message_t * SIP::sip_invite( const char * dialed_number, short rtp_port, co
 	//osip_uri_param_t * to_tag_param;
 	//osip_from_get_tag(rsp->to, &to_tag_param);
 
-
 	// CALL ID
 	osip_call_id_init(&request->call_id);
 	osip_call_id_set_host(request->call_id, strdup(local_ip));
@@ -344,12 +348,11 @@ osip_message_t * SIP::sip_invite( const char * dialed_number, short rtp_port, co
 	// CSEQ
 	osip_cseq_init(&request->cseq);
 	osip_cseq_set_method(request->cseq, strdup("INVITE"));
-	char temp_buf[10];
+	char temp_buf[14];
 	sprintf(temp_buf,"%i",cseq);
 	osip_cseq_set_number(request->cseq, strdup(temp_buf));	
 
 	// CONTACT
-	char * contact_str;
 	osip_contact_t * con;
 	osip_to_init(&con);
 
@@ -360,9 +363,8 @@ osip_message_t * SIP::sip_invite( const char * dialed_number, short rtp_port, co
 	osip_uri_set_username(con->url, strdup(sip_username));
 	osip_contact_param_add(con, strdup("expires"), strdup("3600") );
 
-	osip_contact_to_str(con, &contact_str);
-	osip_message_set_contact(request, contact_str);
-
+	// add contact
+	osip_list_add(&request->contacts, con, -1);
 
 	sdp_message_t * sdp;
 	sdp_message_init(&sdp);
@@ -374,29 +376,38 @@ osip_message_t * SIP::sip_invite( const char * dialed_number, short rtp_port, co
 	sdp_message_t_time_descr_add(sdp, strdup("0"), strdup("0") );
 
 	sprintf(temp_buf,"%i",rtp_port);
-	sdp_message_m_media_add(sdp, "audio", 
-		strdup(temp_buf), NULL, "RTP/AVP");
+	sdp_message_m_media_add(sdp, strdup("audio"), 
+		strdup(temp_buf), NULL, strdup("RTP/AVP"));
 	sdp_message_c_connection_add
-        (sdp, 0, "IN", "IP4", strdup(local_ip),NULL, NULL);
+        (sdp, 0, strdup("IN"), strdup("IP4"), strdup(local_ip),NULL, NULL);
 
-	sdp_message_m_payload_add(sdp,0,"0");
+	// FIXME -- This should also be inside the switch?
+	sdp_message_m_payload_add(sdp,0,strdup("3"));
 	switch (codec) {
 		case RTPuLaw:
-			sdp_message_a_attribute_add(sdp,0,"rtpmap","0 PCMU/8000");
+			sdp_message_a_attribute_add(sdp,0,strdup("rtpmap"),strdup("0 PCMU/8000"));
 			break;
 		case RTPGSM610:
-			sdp_message_a_attribute_add(sdp,0,"rtpmap","3 GSM/8000");
+			sdp_message_a_attribute_add(sdp,0,strdup("rtpmap"),strdup("3 GSM/8000"));
 			break;
 		default: assert(0);
 	};
 
+	/*
+	 * We construct a sdp_message_t, turn it into a string, and then treat it
+	 * like an osip_body_t.  This works, and perhaps is how it is supposed to
+	 * be done, but in any case we're going to have to do the extra processing
+	 * to turn it into a string first.
+	 */
 	char * sdp_str;
 	sdp_message_to_str(sdp, &sdp_str);
 	osip_message_set_body(request, sdp_str, strlen(sdp_str));
+	osip_free(sdp_str);
 	osip_message_set_content_type(request, strdup("application/sdp"));
 
 	return request;	
 }
+
 
 // Take the authorization produced by an earlier invite message.
 
@@ -407,6 +418,8 @@ osip_message_t * SIP::sip_ack(const char * req_uri, const char * dialed_number, 
 
 	osip_message_t * ack;
 	osip_message_init(&ack);
+	// FIXME -- Should use the "force_update" function.
+	ack->message_property = 2;
 	ack->sip_method = strdup("ACK");
 	osip_message_set_version(ack, strdup("SIP/2.0"));	
 
@@ -432,11 +445,12 @@ osip_message_t * SIP::sip_ack(const char * req_uri, const char * dialed_number, 
 
 	// VIA BRANCH
 	osip_via_set_branch(via, strdup(via_branch));
+
 	// MAX FORWARDS
 	osip_message_set_max_forwards(ack, strdup("70"));
-	char * via_str;
-	osip_via_to_str(via, &via_str);
-	osip_message_set_via(ack, via_str);
+
+	// add via
+	osip_list_add(&ack->vias, via, -1);
 
 	osip_from_init(&ack->from);
 	osip_from_set_displayname(ack->from, strdup(sip_username));
@@ -454,11 +468,7 @@ osip_message_t * SIP::sip_ack(const char * req_uri, const char * dialed_number, 
 	osip_uri_set_username(ack->to->url, strdup(dialed_number));
 
 	// To Tag	
-	if( to_tag != NULL ) { 
-		//char tmp[100];
-		//strcpy(tmp, to_tag);	
-		osip_from_set_tag(ack->to, strdup(to_tag));
-	}
+	if(to_tag) osip_from_set_tag(ack->to, strdup(to_tag));
 	osip_call_id_init(&ack->call_id);
 	osip_call_id_set_host(ack->call_id, strdup(local_ip));
 	osip_call_id_set_number(ack->call_id, strdup(call_id));
@@ -466,10 +476,9 @@ osip_message_t * SIP::sip_ack(const char * req_uri, const char * dialed_number, 
 	osip_cseq_init(&ack->cseq);
 	osip_cseq_set_method(ack->cseq, strdup("INVITE"));
 
-	char temp_buf[10];
+	char temp_buf[14];
 	sprintf(temp_buf, "%i", cseq);
 	osip_cseq_set_number(ack->cseq, strdup(temp_buf));	
-
 
 	return ack;
 }
@@ -477,14 +486,15 @@ osip_message_t * SIP::sip_ack(const char * req_uri, const char * dialed_number, 
 
 osip_message_t * SIP::sip_bye(const char * req_uri, const char * dialed_number, const char * sip_username, short wlocal_port, const char * local_ip, const char * proxy_ip, const char * from_tag, const char * to_tag, const char * via_branch, const char * call_id, int cseq) {
 
-	char local_port[100];
+	char local_port[10];
 	sprintf(local_port,"%i",wlocal_port);
 
 	osip_message_t * bye;
 	osip_message_init(&bye);
+	// FIXME -- Should use the "force_update" function.
+	bye->message_property = 2;
 	bye->sip_method = strdup("BYE");
 	osip_message_set_version(bye, strdup("SIP/2.0"));	
-
 
 	//char o_addr[30];
 	//get_owner_ip(okay, o_addr);
@@ -504,9 +514,8 @@ osip_message_t * SIP::sip_bye(const char * req_uri, const char * dialed_number, 
 	osip_via_set_branch(via, strdup(via_branch));
 	osip_message_set_max_forwards(bye, strdup("70"));
 
-	char * via_str;
-	osip_via_to_str(via, &via_str);
-	osip_message_set_via(bye, via_str);
+	// add via
+	osip_list_add(&bye->vias, via, -1);
 
 	// from header
 	osip_from_init(&bye->from);
@@ -534,7 +543,7 @@ osip_message_t * SIP::sip_bye(const char * req_uri, const char * dialed_number, 
 	// Cseq Number
 	osip_cseq_init(&bye->cseq);
 	osip_cseq_set_method(bye->cseq, strdup("BYE"));
-	char temp_buf[10];
+	char temp_buf[12];
 	sprintf(temp_buf,"%i",cseq);
 	osip_cseq_set_number(bye->cseq, strdup(temp_buf));	
 
@@ -547,55 +556,52 @@ osip_message_t * SIP::sip_bye(const char * req_uri, const char * dialed_number, 
 	osip_uri_set_username(contact->url, strdup(sip_username));
 	osip_uri_set_port(contact->url, strdup(local_port));
 
-	char * con_str;
-	osip_contact_to_str(contact, &con_str);
-	osip_message_set_contact(bye, con_str);
+	// add contact
+	osip_list_add(&bye->contacts, contact, -1);
 
 	return bye;
 }
 
 
 // 200 Okay is generated as a response to a INVITE from a remote client.
-// @todo, only use ULAW for now. need to add in GSM-FR and ALAW
 osip_message_t * SIP::sip_okay( osip_message_t * inv, const char * sip_username, const char * local_ip, short wlocal_port, const char * to_tag, short rtp_port, unsigned audio_codec)
 {
 
 	// Check for consistency.
 	if(inv==NULL){ return NULL;}
 
-	char local_port[20];
+	char local_port[10];
 	sprintf(local_port, "%i", wlocal_port);
 	// k used for error conditions on various osip operations.
 	
 	osip_message_t * okay;
 	osip_message_init(&okay);
+	// FIXME -- Should use the "force_update" function.
+	okay->message_property = 2;
 
 	// Set Header stuff.
 	okay->status_code = 200;	
-	okay->reason_phrase = strdup("OKAY");
+	okay->reason_phrase = strdup("OK");
 	osip_message_set_version(okay, strdup("SIP/2.0"));
 	osip_uri_init(&okay->req_uri);
 
 	// Get Record Route.
+	// FIXME -- Should use _clone() routines.
 	osip_record_route_t * rr;
 	char * rr_str;
 	osip_message_get_record_route(inv, 0, &rr);
 	osip_record_route_to_str(rr, &rr_str);
 	osip_message_set_record_route(okay, rr_str);
+	osip_free(rr_str);
 
 
-	// SIP Okay needs to repeat the Via tags from the
-	// INVITE Message.
-	osip_via_t * via[MAX_VIA];
-	char * via_str[MAX_VIA];
-	
-	osip_message_get_via(inv, 0, &via[0]);
-	osip_via_to_str(via[0], &via_str[0]);
-	osip_message_set_via(okay, via_str[0]);	
-	
-	osip_message_get_via(inv, 1, &via[1]);
-	osip_via_to_str(via[1], &via_str[1]);
-	osip_message_set_via(okay, via_str[1]);	
+	// SIP Okay needs to repeat the Via tags from the INVITE Message.
+	osip_via_t * via;
+	char * via_str;
+	osip_message_get_via(inv, 0, &via);
+	osip_via_to_str(via, &via_str);
+	osip_message_set_via(okay, via_str);
+	osip_free(via_str);
 
 	// Get From.
 	osip_from_t * from;
@@ -603,6 +609,7 @@ osip_message_t * SIP::sip_okay( osip_message_t * inv, const char * sip_username,
 	from = osip_message_get_from(inv);
 	osip_from_to_str(from, &from_str);
 	osip_message_set_from(okay, from_str);
+	osip_free(from_str);
 
 	// Get To.
 	osip_to_t * to;
@@ -610,14 +617,13 @@ osip_message_t * SIP::sip_okay( osip_message_t * inv, const char * sip_username,
 	to = osip_message_get_to(inv);
 	osip_from_to_str(inv->to, &to_str);
 	osip_message_set_to(okay, to_str);
+	osip_free(to_str);
 
 	// FIXME - use the make_tag  
-	if(to_tag!=NULL){
-		osip_to_set_tag(okay->to, strdup(to_tag));
-	}
+	if (to_tag) osip_to_set_tag(okay->to, strdup(to_tag));
+
 	// CONTACT URI
 	osip_contact_t * con;
-	char * contact_str;
 	osip_to_init(&con);
 	osip_uri_init(&con->url);
 	osip_uri_set_host(con->url, strdup(local_ip));
@@ -625,8 +631,8 @@ osip_message_t * SIP::sip_okay( osip_message_t * inv, const char * sip_username,
 	osip_uri_set_username(con->url, strdup(sip_username));
 	osip_contact_param_add(con, strdup("expires"), strdup("3600") );
 
-	osip_contact_to_str(con, &contact_str);
-	osip_message_set_contact(okay, contact_str);
+	// add contact
+	osip_list_add(&okay->contacts, con, -1);
 
 	// Get Call-ID.
 	osip_call_id_t * call_id;
@@ -634,6 +640,7 @@ osip_message_t * SIP::sip_okay( osip_message_t * inv, const char * sip_username,
 	call_id = osip_message_get_call_id(inv);	
 	osip_call_id_to_str(call_id, &call_id_str);
 	osip_message_set_call_id(okay, call_id_str);
+	osip_free(call_id_str);
 
 	// Get Cseq.
 	osip_cseq_t * cseq;
@@ -641,6 +648,7 @@ osip_message_t * SIP::sip_okay( osip_message_t * inv, const char * sip_username,
 	cseq = osip_message_get_cseq(inv);
 	osip_cseq_to_str(cseq ,&cseq_str);
 	osip_message_set_cseq(okay, cseq_str);	
+	osip_free(cseq_str);
 
 	// Session Description Protocol.	
 	sdp_message_t * sdp;
@@ -653,18 +661,19 @@ osip_message_t * SIP::sip_okay( osip_message_t * inv, const char * sip_username,
 	sdp_message_t_time_descr_add(sdp, strdup("0"), strdup("0") );
 	char temp_buf[10];
 	sprintf(temp_buf,"%i", rtp_port);
-	sdp_message_m_media_add(sdp, "audio", 
-		strdup(temp_buf), NULL, "RTP/AVP");
+	sdp_message_m_media_add(sdp, strdup("audio"), 
+		strdup(temp_buf), NULL, strdup("RTP/AVP"));
 	sdp_message_c_connection_add
-        (sdp, 0, "IN", "IP4", strdup(local_ip),NULL, NULL);
+        (sdp, 0, strdup("IN"), strdup("IP4"), strdup(local_ip),NULL, NULL);
 
-	sdp_message_m_payload_add(sdp,0,"0");
+	// FIXME -- This should also be inside the switch?
+	sdp_message_m_payload_add(sdp,0,strdup("3"));
 	switch (audio_codec) {
 		case RTPuLaw:
-			sdp_message_a_attribute_add(sdp,0,"rtpmap","0 PCMU/8000");
+			sdp_message_a_attribute_add(sdp,0,strdup("rtpmap"),strdup("0 PCMU/8000"));
 			break;
 		case RTPGSM610:
-			sdp_message_a_attribute_add(sdp,0,"rtpmap","3 GSM/8000");
+			sdp_message_a_attribute_add(sdp,0,strdup("rtpmap"),strdup("3 GSM/8000"));
 			break;
 		default: assert(0);
 	};
@@ -672,11 +681,12 @@ osip_message_t * SIP::sip_okay( osip_message_t * inv, const char * sip_username,
 	char * sdp_str;
 	sdp_message_to_str(sdp, &sdp_str);
 	osip_message_set_body(okay, sdp_str, strlen(sdp_str));
+	osip_free(sdp_str);
+
 	osip_message_set_content_type(okay, strdup("application/sdp"));
 
 	return okay;
 }
-
 
 
 osip_message_t * SIP::sip_b_okay( osip_message_t * bye  )
@@ -688,28 +698,30 @@ osip_message_t * SIP::sip_b_okay( osip_message_t * bye  )
 	
 	osip_message_t * okay;
 	osip_message_init(&okay);
+	// FIXME -- Should use the "force_update" function.
+	okay->message_property = 2;
 
 	// Set Header stuff.
 	okay->status_code = 200;	
-	okay->reason_phrase = strdup("OKAY");
+	okay->reason_phrase = strdup("OK");
 	osip_message_set_version(okay, strdup("SIP/2.0"));
 	osip_uri_init(&okay->req_uri);
 
-	// SIP Okay needs to repeat the Via tags from the
-	// INVITE Message.
+	// SIP Okay needs to repeat the Via tags from the INVITE Message.
 	osip_via_t * via;
 	char * via_str;
-	
 	osip_message_get_via(bye, 0, &via);
 	osip_via_to_str(via, &via_str);
 	osip_message_set_via(okay, via_str);	
-	
+	osip_free(via_str);
+
 	// Get From.
 	osip_from_t * from;
 	char * from_str;
 	from = osip_message_get_from(bye);
 	osip_from_to_str(from, &from_str);
 	osip_message_set_from(okay, from_str);
+	osip_free(from_str);
 
 	// Get To.
 	osip_to_t * to;
@@ -717,6 +729,7 @@ osip_message_t * SIP::sip_b_okay( osip_message_t * bye  )
 	to = osip_message_get_to(bye);
 	osip_from_to_str(bye->to, &to_str);
 	osip_message_set_to(okay, to_str);
+	osip_free(to_str);
 
 	// Get Call-ID.
 	osip_call_id_t * call_id;
@@ -724,6 +737,7 @@ osip_message_t * SIP::sip_b_okay( osip_message_t * bye  )
 	call_id = osip_message_get_call_id(bye);	
 	osip_call_id_to_str(call_id, &call_id_str);
 	osip_message_set_call_id(okay, call_id_str);
+	osip_free(call_id_str);
 
 	// Get Cseq.
 	osip_cseq_t * cseq;
@@ -731,6 +745,7 @@ osip_message_t * SIP::sip_b_okay( osip_message_t * bye  )
 	cseq = osip_message_get_cseq(bye);
 	osip_cseq_to_str(cseq ,&cseq_str);
 	osip_message_set_cseq(okay, cseq_str);	
+	osip_free(cseq_str);
 
 	return okay;
 }
@@ -740,20 +755,22 @@ osip_message_t * SIP::sip_trying( osip_message_t * invite, const char * sip_user
 {
 	osip_message_t * trying;
 	osip_message_init(&trying);
+	// FIXME -- Should use the "force_update" function.
+	trying->message_property = 2;
 
 	// Set Header stuff.
 	trying->status_code = 100;	
 	trying->reason_phrase = strdup("Trying");
 	osip_message_set_version(trying, strdup("SIP/2.0"));
-	osip_uri_init(&invite->req_uri);
+	osip_uri_init(&invite->req_uri);	// FIXME? -- Invite rather than trying?
 
 	// Get Record Route.
 	osip_via_t * via;
 	char * via_str;
-	
 	osip_message_get_via(invite, 0, &via);
 	osip_via_to_str(via, &via_str);
 	osip_message_set_via(trying, via_str);	
+	osip_free(via_str);
 	
 	// Get From.
 	osip_from_t * from;
@@ -761,6 +778,7 @@ osip_message_t * SIP::sip_trying( osip_message_t * invite, const char * sip_user
 	from = osip_message_get_from(invite);
 	osip_from_to_str(from, &from_str);
 	osip_message_set_from(trying, from_str);
+	osip_free(from_str);
 
 	// Get To.
 	osip_to_t * to;
@@ -768,6 +786,7 @@ osip_message_t * SIP::sip_trying( osip_message_t * invite, const char * sip_user
 	to = osip_message_get_to(invite);
 	osip_from_to_str(to, &to_str);
 	osip_message_set_to(trying, to_str);
+	osip_free(to_str);
 
 	// Get Call-ID.
 	osip_call_id_t * call_id;
@@ -775,6 +794,7 @@ osip_message_t * SIP::sip_trying( osip_message_t * invite, const char * sip_user
 	call_id = osip_message_get_call_id(invite);	
 	osip_call_id_to_str(call_id, &call_id_str);
 	osip_message_set_call_id(trying, call_id_str);
+	osip_free(call_id_str);
 
 	// Get Cseq.
 	osip_cseq_t * cseq;
@@ -782,18 +802,18 @@ osip_message_t * SIP::sip_trying( osip_message_t * invite, const char * sip_user
 	cseq = osip_message_get_cseq(invite);
 	osip_cseq_to_str(cseq ,&cseq_str);
 	osip_message_set_cseq(trying, cseq_str);	
+	osip_free(cseq_str);
 
 	// CONTACT URI
 	osip_contact_t * con;
-	char * contact_str;
 	osip_to_init(&con);
 	osip_uri_init(&con->url);
 	osip_uri_set_host(con->url, strdup(local_ip));
-	//osip_uri_set_port(con->url, strdup(local_port));
+	//osip_uri_set_port(con->url, strdup(local_port));	// FIXME ??
 	osip_uri_set_username(con->url, strdup(sip_username));
 
-	osip_contact_to_str(con, &contact_str);
-	osip_message_set_contact(trying, contact_str);
+	// add contact
+	osip_list_add(&trying->contacts, con, -1);
 
 	return trying;
 }
@@ -803,6 +823,8 @@ osip_message_t * SIP::sip_ringing( osip_message_t * invite, const char * sip_use
 {
 	osip_message_t * ringing;
 	osip_message_init(&ringing);
+	// FIXME -- Should use the "force_update" function.
+	ringing->message_property = 2;
 
 	// Set Header stuff.
 	ringing->status_code = 180;	
@@ -813,10 +835,10 @@ osip_message_t * SIP::sip_ringing( osip_message_t * invite, const char * sip_use
 	// Get Record Route.
 	osip_via_t * via;
 	char * via_str;
-	
 	osip_message_get_via(invite, 0, &via);
 	osip_via_to_str(via, &via_str);
 	osip_message_set_via(ringing, via_str);	
+	osip_free(via_str);
 	
 	// Get From.
 	osip_from_t * from;
@@ -824,6 +846,7 @@ osip_message_t * SIP::sip_ringing( osip_message_t * invite, const char * sip_use
 	from = osip_message_get_from(invite);
 	osip_from_to_str(from, &from_str);
 	osip_message_set_from(ringing, from_str);
+	osip_free(from_str);
 
 	// Get To.
 	osip_to_t * to;
@@ -831,6 +854,7 @@ osip_message_t * SIP::sip_ringing( osip_message_t * invite, const char * sip_use
 	to = osip_message_get_to(invite);
 	osip_from_to_str(to, &to_str);
 	osip_message_set_to(ringing, to_str);
+	osip_free(to_str);
 	osip_to_set_tag(ringing->to, strdup(to_tag));
 
 	// Get Call-ID.
@@ -839,6 +863,7 @@ osip_message_t * SIP::sip_ringing( osip_message_t * invite, const char * sip_use
 	call_id = osip_message_get_call_id(invite);	
 	osip_call_id_to_str(call_id, &call_id_str);
 	osip_message_set_call_id(ringing, call_id_str);
+	osip_free(call_id_str);
 
 	// Get Cseq.
 	osip_cseq_t * cseq;
@@ -846,22 +871,20 @@ osip_message_t * SIP::sip_ringing( osip_message_t * invite, const char * sip_use
 	cseq = osip_message_get_cseq(invite);
 	osip_cseq_to_str(cseq ,&cseq_str);
 	osip_message_set_cseq(ringing, cseq_str);	
+	osip_free(cseq_str);
 
 	// CONTACT URI
 	osip_contact_t * con;
-	char * contact_str;
 	osip_to_init(&con);
 	osip_uri_init(&con->url);
 	osip_uri_set_host(con->url, strdup(local_ip));
 	osip_uri_set_username(con->url, strdup(sip_username));
 
-	osip_contact_to_str(con, &contact_str);
-	osip_message_set_contact(ringing, contact_str);
+	// add contact
+	osip_list_add(&ringing->contacts, con, -1);
+
 	return ringing;
 }
-
-
-
 
 
 // 200 Okay is generated as a response to a MESSAGE from a remote client.
@@ -873,14 +896,17 @@ osip_message_t * SIP::sip_okay_SMS( osip_message_t * inv, const char * sip_usern
 
 	char local_port[20];
 	sprintf(local_port, "%i", wlocal_port);
-	// k used for error conditions on various osip operations.
-	
+
 	osip_message_t * okay;
 	osip_message_init(&okay);
+	// FIXME -- Should use the "force_update" function.
+	okay->message_property = 2;
+
+	// FIXME -- Do we really need all of this string conversion?
 
 	// Set Header stuff.
 	okay->status_code = 200;	
-	okay->reason_phrase = strdup("OKAY");
+	okay->reason_phrase = strdup("OK");
 	osip_message_set_version(okay, strdup("SIP/2.0"));
 	osip_uri_init(&okay->req_uri);
 
@@ -890,20 +916,16 @@ osip_message_t * SIP::sip_okay_SMS( osip_message_t * inv, const char * sip_usern
 	osip_message_get_record_route(inv, 0, &rr);
 	osip_record_route_to_str(rr, &rr_str);
 	osip_message_set_record_route(okay, rr_str);
+	osip_free(rr_str);
 
-
-	// SIP Okay needs to repeat the Via tags from the
-	// INVITE Message.
-	osip_via_t * via[MAX_VIA];
-	char * via_str[MAX_VIA];
-	
-	osip_message_get_via(inv, 0, &via[0]);
-	osip_via_to_str(via[0], &via_str[0]);
-	osip_message_set_via(okay, via_str[0]);	
-	
-	osip_message_get_via(inv, 1, &via[1]);
-	osip_via_to_str(via[1], &via_str[1]);
-	osip_message_set_via(okay, via_str[1]);	
+	// SIP Okay needs to repeat the Via tags from the INVITE Message.
+	// FIXME -- This is not working.
+	osip_via_t * via;
+	char * via_str;
+	osip_message_get_via(inv, 1, &via);
+	osip_via_to_str(via, &via_str);
+	osip_message_set_via(okay, via_str);	
+	osip_free(via_str);
 
 	// Get From.
 	osip_from_t * from;
@@ -911,6 +933,7 @@ osip_message_t * SIP::sip_okay_SMS( osip_message_t * inv, const char * sip_usern
 	from = osip_message_get_from(inv);
 	osip_from_to_str(from, &from_str);
 	osip_message_set_from(okay, from_str);
+	osip_free(from_str);
 
 	// Get To.
 	osip_to_t * to;
@@ -918,23 +941,10 @@ osip_message_t * SIP::sip_okay_SMS( osip_message_t * inv, const char * sip_usern
 	to = osip_message_get_to(inv);
 	osip_from_to_str(inv->to, &to_str);
 	osip_message_set_to(okay, to_str);
+	osip_free(to_str);
 
-	// FIXME - use the make_tag  
-	if(to_tag!=NULL){
-		osip_to_set_tag(okay->to, strdup(to_tag));
-	}
-	// CONTACT URI
-	osip_contact_t * con;
-	char * contact_str;
-	osip_to_init(&con);
-	osip_uri_init(&con->url);
-	osip_uri_set_host(con->url, strdup(local_ip));
-	osip_uri_set_port(con->url, strdup(local_port));
-	osip_uri_set_username(con->url, strdup(sip_username));
-	osip_contact_param_add(con, strdup("expires"), strdup("3600") );
-
-	osip_contact_to_str(con, &contact_str);
-	osip_message_set_contact(okay, contact_str);
+	// To tag - NO.  DO NOT USE.
+	//if (to_tag!=NULL) osip_to_set_tag(okay->to, strdup(to_tag));
 
 	// Get Call-ID.
 	osip_call_id_t * call_id;
@@ -942,6 +952,7 @@ osip_message_t * SIP::sip_okay_SMS( osip_message_t * inv, const char * sip_usern
 	call_id = osip_message_get_call_id(inv);	
 	osip_call_id_to_str(call_id, &call_id_str);
 	osip_message_set_call_id(okay, call_id_str);
+	osip_free(call_id_str);
 
 	// Get Cseq.
 	osip_cseq_t * cseq;
@@ -949,9 +960,11 @@ osip_message_t * SIP::sip_okay_SMS( osip_message_t * inv, const char * sip_usern
 	cseq = osip_message_get_cseq(inv);
 	osip_cseq_to_str(cseq ,&cseq_str);
 	osip_message_set_cseq(okay, cseq_str);	
+	osip_free(cseq_str);
 
 	return okay;
 }
+
 
 osip_message_t * SIP::sip_info(unsigned info, const char *dialed_number, short rtp_port, const char * sip_username, short wlocal_port, const char * local_ip, const char * proxy_ip, const char * from_tag, const char * via_branch, const char * call_id, int cseq) {
 
@@ -960,6 +973,8 @@ osip_message_t * SIP::sip_info(unsigned info, const char *dialed_number, short r
 
 	osip_message_t * request;
 	osip_message_init(&request);
+	// FIXME -- Should use the "force_update" function.
+	request->message_property = 2;
 	request->sip_method = strdup("INFO");
 	osip_message_set_version(request, strdup("SIP/2.0"));	
 	osip_uri_init(&request->req_uri);
@@ -977,9 +992,8 @@ osip_message_t * SIP::sip_info(unsigned info, const char *dialed_number, short r
 	// VIA BRANCH
 	osip_via_set_branch(via, strdup(via_branch));
 
-	char  * via_str;
-	osip_via_to_str(via, &via_str);
-	osip_message_set_via(request, via_str);
+	// add via
+	osip_list_add(&request->vias, via, -1);
 
 	// FROM
 	osip_from_init(&request->from);
@@ -1007,15 +1021,24 @@ osip_message_t * SIP::sip_info(unsigned info, const char *dialed_number, short r
 	// CSEQ
 	osip_cseq_init(&request->cseq);
 	osip_cseq_set_method(request->cseq, strdup("INFO"));
-	char temp_buf[20];
+	char temp_buf[21];
 	sprintf(temp_buf,"%i",cseq);
 	osip_cseq_set_number(request->cseq, strdup(temp_buf));	
 
 	osip_message_set_content_type(request, strdup("application/dtmf-relay"));
-	char message[20];
-	// FIXME -- This should probably come from a config file.
-	sprintf(message,"Signal=%i\nDuration=200",info);
-	sprintf(temp_buf,"%i",strlen(message));
+	char message[31];
+	// FIXME -- This duration should probably come from a config file.
+	switch (info) {
+		case 11:
+			snprintf(message,sizeof(message),"Signal=*\nDuration=200");
+			break;
+		case 12:
+			snprintf(message,sizeof(message),"Signal=#\nDuration=200");
+			break;
+		default:
+			snprintf(message,sizeof(message),"Signal=%i\nDuration=200",info);
+	}
+	sprintf(temp_buf,"%lu",strlen(message));
 	osip_message_set_content_length(request, strdup(temp_buf));
 
 	// Payload.

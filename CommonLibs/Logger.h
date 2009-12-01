@@ -31,13 +31,13 @@
 
 
 
-#define _LOG(level) Log(Log::LOG_##level).get() << pthread_self() << ' ' << __FILE__ << ':' << __LINE__  << ": "
+#define _LOG(level) Log(Log::LOG_##level).get() << pthread_self() << ' ' << __FILE__ << ':' << __LINE__  << ':' << __FUNCTION__ << ": "
 #define LOG(wLevel) \
 	if (Log::LOG_##wLevel > gGetLogLevel()) ; \
 	else _LOG(wLevel)
 #define OBJLOG(wLevel) \
 	if (Log::LOG_##wLevel > gGetLogLevel()) ; \
-	else _LOG(wLevel) << this << ' '
+	else _LOG(wLevel) << "obj:" << this << ' '
 
 
 

@@ -103,6 +103,8 @@ class ConfigurationTable {
 	void set(const std::string& key, const std::string& value)
 		{ mTable[key]=value; }
 
+	void set(const std::string& key, long value);
+
 	/** Dump the table to a stream. */
 	void dump(std::ostream&) const;
 

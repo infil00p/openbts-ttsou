@@ -30,12 +30,14 @@ SUBDIRS = \
 	SIP \
 	GSM \
 	SMS \
+	HLR \
 	Transceiver \
 	Transceiver52M \
 	TRXManager \
 	Control \
 	apps \
-	doc
+	doc \
+	smqueue
 
 EXTRA_DIST = \
 	INSTALLATION \

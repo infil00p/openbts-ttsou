@@ -49,7 +49,6 @@ template <class T> class InterthreadQueue {
 	PointerFIFO mQ;	
 	mutable Mutex mLock;
 	mutable Signal mWriteSignal;
-	mutable Signal mReadSignal;
 
 
 	public:
@@ -59,13 +58,108 @@ template <class T> class InterthreadQueue {
 	{
 		mLock.lock();
 		while (mQ.size()>0) delete (T*)mQ.get();
-		mReadSignal.signal();
 		mLock.unlock();
 	}
 
 
 
 	~InterthreadQueue()
+		{ clear(); }
+
+
+	size_t size() const
+	{
+		mLock.lock();
+		size_t retVal = mQ.size();
+		mLock.unlock();
+		return retVal;
+	}
+
+	/**
+		Blocking read.
+		@return Pointer to object (will not be NULL).
+	*/
+	T* read()
+	{
+		mLock.lock();
+		T* retVal = (T*)mQ.get();
+		while (retVal==NULL) {
+			mWriteSignal.wait(mLock);
+			retVal = (T*)mQ.get();
+		}
+		mLock.unlock();
+		return retVal;
+	}
+
+	/**
+		Blocking read with a timeout.
+		@param timeout The read timeout in ms.
+		@return Pointer to object or NULL on timeout.
+	*/
+	T* read(unsigned timeout)
+	{
+		if (timeout==0) return readNoBlock();
+		mLock.lock();
+		Timeval waitTime(timeout);
+		while ((mQ.size()==0) && (!waitTime.passed()))
+			mWriteSignal.wait(mLock,waitTime.remaining());
+		T* retVal = (T*)mQ.get();
+		mLock.unlock();
+		return retVal;
+	}
+
+	/**
+		Non-blocking read.
+		@return Pointer to object or NULL if FIFO is empty.
+	*/
+	T* readNoBlock()
+	{
+		mLock.lock();
+		T* retVal = (T*)mQ.get();
+		mLock.unlock();
+		return retVal;
+	}
+
+	/** Non-blocking write. */
+	void write(T* val)
+	{
+		mLock.lock();
+		mQ.put(val);
+		mWriteSignal.signal();
+		mLock.unlock();
+	}
+
+
+};
+
+
+
+/** Pointer FIFO for interthread operations.  */
+template <class T> class InterthreadQueueWithWait {
+
+	protected:
+
+	PointerFIFO mQ;	
+	mutable Mutex mLock;
+	mutable Signal mWriteSignal;
+	mutable Signal mReadSignal;
+
+	virtual void freeElement(T* element) const { delete element; };
+
+	public:
+
+	/** Delete contents. */
+	void clear()
+	{
+		mLock.lock();
+		while (mQ.size()>0) freeElement((T*)mQ.get());
+		mReadSignal.signal();
+		mLock.unlock();
+	}
+
+
+
+	~InterthreadQueueWithWait()
 		{ clear(); }
 
 
@@ -143,6 +237,7 @@ template <class T> class InterthreadQueue {
 	}
 
 };
+
 
 
 
@@ -392,6 +487,19 @@ template <class T, class C = std::vector<T*>, class Cmp = PointerCompare<T> > cl
 		return retVal;
 	}
 
+
+	/** Non-blocking read. */
+	T* readNoBlock()
+	{
+		T* retVal = NULL;
+		mLock.lock();
+		if (mQ.size()!=0) {
+			retVal = mQ.top();
+			mQ.pop();
+		}
+		mLock.unlock();
+		return retVal;
+	}
 
 	/** Blocking read. */
 	T* read()

@@ -22,6 +22,7 @@
 
 */
 
+#include <stdio.h>
 #include "Logger.h"
 #include "Timeval.h"
 #include <string.h>
@@ -86,7 +87,7 @@ void gSetLogFile(FILE *wFile)
 bool gSetLogFile(const char *name)
 {
 	assert(name);
-	LOG(INFO) << "setting log path to " << name;
+	LOG(FORCE) << "setting log path to " << name;
 	bool retVal = true;
 	gLogLock.lock();
 	FILE* newLoggingFile = fopen(name,"a+");
@@ -97,7 +98,7 @@ bool gSetLogFile(const char *name)
 		gLoggingFile = newLoggingFile;
 	}
 	gLogLock.unlock();
-	LOG(INFO) << "new log path " << name;
+	LOG(FORCE) << "new log path " << name;
 	return retVal;
 }
 

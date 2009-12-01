@@ -66,6 +66,7 @@ TransactionEntry::TransactionEntry()
 	mMessage[0]='\0';
 }
 
+// Form for MT transactions.
 TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber, 
 	const GSM::L3CMServiceType& wService,
 	const GSM::L3CallingPartyBCDNumber& wCalling)
@@ -83,6 +84,7 @@ TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	mMessage[0]='\0';
 }
 
+// Form for MO transactions.
 TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	const GSM::L3CMServiceType& wService,
 	unsigned wTIValue,
@@ -101,13 +103,14 @@ TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	mMessage[0]='\0';
 }
 
+// Form for MT transactions.
 TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	const GSM::L3CMServiceType& wService,
 	unsigned wTIValue,
 	const GSM::L3CallingPartyBCDNumber& wCalling)
 	:mID(gTransactionTable.newID()),
 	mSubscriber(wSubscriber),mService(wService),
-	mTIValue(wTIValue),mCalling(wCalling),
+	mTIFlag(1),mTIValue(wTIValue),mCalling(wCalling),
 	mQ931State(NullState),
 	mT301(T301ms), mT302(T302ms), mT303(T303ms),
 	mT304(T304ms), mT305(T305ms), mT308(T308ms),
@@ -124,39 +127,39 @@ bool TransactionEntry::timerExpired() const
 {
 	// FIXME -- If we were smart, this would be a table.
 	if (mT301.expired()) {
-		OBJLOG(DEBUG) << "TransactionEntry T301 expired";
+		OBJLOG(DEBUG) << "T301 expired";
 		return true;
 	}
 	if (mT302.expired()) {
-		OBJLOG(DEBUG) << "TransactionEntry T302 expired";
+		OBJLOG(DEBUG) << "T302 expired";
 		return true;
 	}
 	if (mT303.expired()) {
-		OBJLOG(DEBUG) << "TransactionEntry T303 expired";
+		OBJLOG(DEBUG) << "T303 expired";
 		return true;
 	}
 	if (mT304.expired()) {
-		OBJLOG(DEBUG) << "TransactionEntry T304 expired";
+		OBJLOG(DEBUG) << "T304 expired";
 		return true;
 	}
 	if (mT305.expired()) {
-		OBJLOG(DEBUG) << "TransactionEntry T305 expired";
+		OBJLOG(DEBUG) << "T305 expired";
 		return true;
 	}
 	if (mT308.expired()) {
-		OBJLOG(DEBUG) << "TransactionEntry T308 expired";
+		OBJLOG(DEBUG) << "T308 expired";
 		return true;
 	}
 	if (mT310.expired()) {
-		OBJLOG(DEBUG) << "TransactionEntry T310 expired";
+		OBJLOG(DEBUG) << "T310 expired";
 		return true;
 	}
 	if (mT313.expired()) {
-		OBJLOG(DEBUG) << "TransactionEntry T313 expired";
+		OBJLOG(DEBUG) << "T313 expired";
 		return true;
 	}
 	if (mTR1M.expired()) {
-		OBJLOG(DEBUG) << "Transaction Entry TR1M expired";
+		OBJLOG(DEBUG) << " TR1M expired";
 		return true;
 	}
 	return false;
@@ -209,9 +212,10 @@ ostream& Control::operator<<(ostream& os, TransactionEntry::Q931CallState state)
 
 ostream& Control::operator<<(ostream& os, const TransactionEntry& entry)
 {
-	os << "ID=" << entry.ID();
+	os << entry.ID();
 	os << " TI=(" << entry.TIFlag() << "," << entry.TIValue() << ") ";
 	os << entry.subscriber();
+	os << " " << entry.service();
 	if (entry.called().digits()[0]) os << " to=" << entry.called().digits();
 	if (entry.calling().digits()[0]) os << " from=" << entry.calling().digits();
 	os << " Q.931State=" << entry.Q931State();
@@ -232,6 +236,7 @@ unsigned TransactionTable::newID()
 
 void TransactionTable::add(const TransactionEntry& value)
 {
+	LOG(INFO) << "new transaction " << value;
 	mLock.lock();
 	mTable[value.ID()]=value;
 	mLock.unlock();
@@ -296,7 +301,7 @@ void TransactionTable::clearDeadEntries()
 	while (itr!=mTable.end()) {
 		if (!itr->second.dead()) ++itr;
 		else {
-			LOG(DEBUG) << "TransactionTable::clearDeadEntries erasing " << itr->first;
+			LOG(DEBUG) << "erasing " << itr->first;
 			TransactionMap::iterator old = itr;
 			itr++;
 			mTable.erase(old);
@@ -339,7 +344,7 @@ bool TransactionTable::find(const L3MobileIdentity& mobileID, TransactionEntry& 
 void Control::clearTransactionHistory( TransactionEntry& transaction )
 {
 	SIP::SIPEngine& engine = transaction.SIP();
-	LOG(DEBUG) << "clearTransactions "<<engine.callID()<<" "<< transaction.ID();
+	LOG(DEBUG) << engine.callID()<<" "<< transaction.ID();
 	gSIPInterface.removeCall(engine.callID());
 	gTransactionTable.remove(transaction.ID());
 }
@@ -425,7 +430,7 @@ bool Control::waitForPrimitive(LogicalChannel *LCH, Primitive primitive, unsigne
 	while (waiting) {
 		L3Frame *req = LCH->recv(timeout_ms);
 		if (req==NULL) {
-			LOG(NOTICE) << "(ControlLayer) waitForPrimitive timed out at uptime " << gBTS.uptime() << " frame " << gBTS.time();
+			LOG(NOTICE) << "timeout at uptime " << gBTS.uptime() << " frame " << gBTS.time();
 			return false;
 		}
 		waiting = (req->primitive()!=primitive);
@@ -458,20 +463,20 @@ L3Message* Control::getMessage(LogicalChannel *LCH, unsigned SAPI)
 	unsigned timeout_ms = LCH->N200() * T200ms;
 	L3Frame *rcv = LCH->recv(timeout_ms,SAPI);
 	if (rcv==NULL) {
-		LOG(NOTICE) << "getMessage timed out";
+		LOG(NOTICE) << "timeout";
 		throw ChannelReadTimeout();
 	}
-	LOG(DEBUG) << "getMessage got " << *rcv;
+	LOG(DEBUG) << "received " << *rcv;
 	Primitive primitive = rcv->primitive();
 	if (primitive!=DATA) {
-		LOG(NOTICE) << "getMessage got unexpected primitive " << primitive;
+		LOG(NOTICE) << "unexpected primitive " << primitive;
 		delete rcv;
 		throw UnexpectedPrimitive();
 	}
 	L3Message *msg = parseL3(*rcv);
 	delete rcv;
 	if (msg==NULL) {
-		LOG(NOTICE) << "getMessage got unparsed message";
+		LOG(NOTICE) << "unparsed message";
 		throw UnsupportedMessage();
 	}
 	return msg;

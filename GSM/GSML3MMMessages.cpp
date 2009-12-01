@@ -56,14 +56,18 @@ ostream& GSM::operator<<(ostream& os, L3MMMessage::MessageType val)
 			os << "CM Service Abort"; break;
 		case L3MMMessage::CMReestablishmentRequest:
 			os << "CM Re-establishment Request"; break;
+		case L3MMMessage::IdentityResponse: 
+			os << "Identity Response"; break;
+		case L3MMMessage::IdentityRequest: 
+			os << "Identity Request"; break;
+		case L3MMMessage::MMInformation: 
+			os << "MM Information"; break;
 		case L3MMMessage::LocationUpdatingAccept: 
 			os << "Location Updating Accept"; break;
 		case L3MMMessage::LocationUpdatingReject: 
 			os << "Location Updating Reject"; break;
 		case L3MMMessage::LocationUpdatingRequest: 
 			os << "Location Updating Request"; break;
-		case L3MMMessage::IdentityResponse: 
-			os << "Identity Response"; break;
 		case L3MMMessage::MMStatus: 
 			os << "MM Status"; break;
 		default: os << hex << "0x" << (int)val << dec;
@@ -269,6 +273,7 @@ void L3MMInformation::writeBody(L3Frame &dest, size_t &wp) const
 
 void L3MMInformation::text(ostream& os) const
 {
+	L3MMMessage::text(os);
 	os << "short name=(" << mShortName << ")";
 }
 
@@ -282,6 +287,7 @@ void L3IdentityRequest::writeBody(L3Frame& dest, size_t &wp) const
 
 void L3IdentityRequest::text(ostream& os) const
 {
+	L3MMMessage::text(os);
 	os << "type=" << mType;
 }
 
@@ -294,6 +300,7 @@ void L3IdentityResponse::parseBody(const L3Frame& src, size_t& rp)
 
 void L3IdentityResponse::text(ostream& os) const
 {
+	L3MMMessage::text(os);
 	os << "mobile id=" << mMobileID;
 }
 

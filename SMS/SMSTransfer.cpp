@@ -57,15 +57,19 @@ ostream& SMS::operator<<(ostream& os, SMSPrimitive prim)
 
 ostream& SMS::operator<<(ostream& os, const RLFrame& msg)
 {
-	os<<" primitive="<<msg.primitive();
-	os<<" data=("<<(const BitVector&)msg<<")";
+	os<<"primitive="<<msg.primitive();
+	os<<" data=(";
+	msg.hex(os);
+	os<< ")";
 	return os;
 }
 
 ostream& SMS::operator<<(ostream& os, const TLFrame& msg)
 {
-	os<<" primitive="<<msg.primitive();
-	os<<" data=("<<(const BitVector&)msg<<")";
+	os<<"primitive="<<msg.primitive();
+	os<<" data=(";
+	msg.hex(os);
+	os<< ")";
 	return os;
 }
 
