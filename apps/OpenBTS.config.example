@@ -44,7 +44,7 @@ TRX.Path ../Transceiver/transceiver
 
 # TRX logging.
 # Logging level.
-TRX.LogLevel DEBUG
+TRX.LogLevel NOTICE
 # Logging file.  If not defined, logs to stdout.
 TRX.LogFileName test.TRX.out
 
@@ -167,17 +167,17 @@ GSM.BCC 0
 # US is 310
 # MCC MUST BE 3 DIGITS.  Prefix with 0s if needed.
 # Test code is 001.
-GSM.MCC 310
+GSM.MCC 001
 # Mobile Network Code, 2 or 3 digits.
 # Test code is 01.
-GSM.MNC 410
+GSM.MNC 01
 # Location Area Code, 0-65535
 GSM.LAC 666
 # Cell ID, 0-65535
 GSM.CI 10
 # Network "short name" to display on the handset.
 # SHORT NAME MUST BE LESS THAN 8 CHARACTERS.
-GSM.ShortName NotAT&T
+GSM.ShortName OpenBTS
 
 # Assignment type for call setup.
 # This is defined in an enum AssignmentType in GSMCommon.h.
@@ -187,18 +187,18 @@ GSM.AssignmentType 1
 # Band and Frequency
 
 # Valid band values are 850, 900, 1800, 1900.
-#GSM.Band 900
-GSM.Band 850
+GSM.Band 900
+#GSM.Band 850
 
 # Valid ARFCN range depends on the band.
-#GSM.ARFCN 29
+GSM.ARFCN 29
 # ARCN 975 is inside the US ISM-900 band and also in the GSM900 band.
 #GSM.ARFCN 975
 # ARFCN 207 was what we ran at BM2008, I think, in the GSM850 band.
-GSM.ARFCN 207
+#GSM.ARFCN 207
 
 # Neightbor list
-GSM.Neighbors 207
+GSM.Neighbors 29
 
 # Downlink tx power level, dB wrt full power
 GSM.PowerAttenDB 0

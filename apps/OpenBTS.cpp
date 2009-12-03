@@ -107,15 +107,12 @@ int main(int argc, char *argv[])
 	// Tuning.
 	// Make sure its off for tuning.
 	radio->powerOff();
+	// Set TSC same as BSC everywhere.
+	radio->setTSC(gBTS.BCC());
 	// Tune.
       	radio->tune(gConfig.getNum("GSM.ARFCN"));
 	// C-V on C0T0
 	radio->setSlot(0,5);
-
-	// Channel combinations.
-	// C-I on C0T1-C0T7
-	for (unsigned i=1; i<8; i++) radio->setSlot(i,1);
-       	radio->setTSC(gBTS.BCC());
 
 	// Turn on and power up.
 	radio->powerOn();
@@ -175,6 +172,7 @@ int main(int argc, char *argv[])
 
 	// Create C-VII slots on C0Tn
 	for (unsigned i=0; i<gConfig.getNum("GSM.NumC7s"); i++) {
+		radio->setSlot(sCount,7);
 		for (unsigned sub=0; sub<8; sub++) {
 			SDCCHLogicalChannel* chan = new SDCCHLogicalChannel(sCount,gSDCCH8[sub]);
 			chan->downstream(radio);
@@ -189,6 +187,7 @@ int main(int argc, char *argv[])
 
 	// Create C-I slots on C0Tn
 	for (unsigned i=0; i<gConfig.getNum("GSM.NumC1s"); i++) {
+		radio->setSlot(sCount,1);
 		TCHFACCHLogicalChannel* chan = new TCHFACCHLogicalChannel(sCount,gTCHF_T[sCount]);
 		chan->downstream(radio);
 		Thread* thread = new Thread;
