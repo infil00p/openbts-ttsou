@@ -159,7 +159,7 @@ private:
   double powerScaling;
 
   /** format samples to USRP */ 
-  short *USRPifyVector(signalVector &wVector, short *shortVector);
+  short *USRPifyVector(signalVector &wVector, short *shortVector, double scale);
 
   /** format samples from USRP */
   void unUSRPifyVector(short *shortVector, signalVector &wVector);

@@ -70,7 +70,6 @@ class Parser {
 	/** Parse and execute a command string. */
 	int execute(char* line, std::ostream& os, std::istream& is) const;
 
-
 };
 
 

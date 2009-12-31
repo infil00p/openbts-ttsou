@@ -21,6 +21,7 @@
 include $(top_srcdir)/Makefile.common
 
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
+AM_CXXFLAGS = -Wall -O3
 
 EXTRA_DIST = README.Control
 
@@ -32,7 +33,13 @@ libcontrol_la_SOURCES = \
 	ControlCommon.cpp \
 	MobilityManagement.cpp \
 	RadioResource.cpp \
-	DCCHDispatch.cpp
+	DCCHDispatch.cpp \
+	CollectMSInfo.cpp \
+    RRLPQueryController.cpp
+
+# TODO - move CollectMSInfo.cpp and RRLPQueryController.cpp to RRLP directory.
 
 noinst_HEADERS = \
-	ControlCommon.h
+	ControlCommon.h \
+	CollectMSInfo.h \
+	RRLPQueryController.h

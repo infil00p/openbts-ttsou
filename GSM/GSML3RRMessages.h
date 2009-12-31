@@ -107,7 +107,11 @@ class L3RRMessage : public L3Message {
 		///@name special cases -- assigned >8-bit codes to avoid conflicts
 		//@{
 		SynchronizationChannelInformation=0x100,
-		ChannelRequest=0x101
+		ChannelRequest=0x101,
+		//@}
+		///@name application information - used for RRLP
+		//@{
+		ApplicationInformation=0x38,
 		//@}
 	};
 
@@ -670,8 +674,6 @@ class L3AssignmentFailure : public L3RRMessage {
 };
 
 
-
-
 /** GSM 04.08 9.1.29 */
 class L3RRStatus : public L3RRMessage {
 
@@ -749,10 +751,65 @@ class L3ChannelModeModifyAcknowledge : public L3RRMessage {
 };
 
 
+/** GSM 04.08 9.1.21 */
+class L3MeasurementReport : public L3RRMessage {
+
+	private:
+	// This is a placeholder. We don't really parse anything yet.
+	L3MeasurementResults mResults;
+
+	public:
+
+	int MTI() const { return (int) MeasurementReport; }
+	size_t bodyLength() const { return mResults.lengthV(); }
+
+	void writeBody(L3Frame&, size_t&) const { assert(0); }
+	void parseBody(const L3Frame&, size_t&);
+	void text(std::ostream&) const;
+
+	const L3MeasurementResults results() const { return mResults; }
+
+};
+
+
+/** GSM 04.08 9.1.53 */
+class L3ApplicationInformation : public L3RRMessage {
+
+	private:
+
+	L3APDUID mID;
+	L3APDUFlags mFlags;
+	L3APDUData mData;
+
+	public:
+
+	~L3ApplicationInformation();
+
+	L3ApplicationInformation();
+	// data is the first argument to allow the rest to default, since that is the common case,
+	// sending a single (cr=0, first=0, last=0) RRLP (id=0) APDU wrapped in a ApplicationInformation L3 packet.
+	L3ApplicationInformation(BitVector& data, unsigned protocolIdentifier=0,
+	                         unsigned cr=0, unsigned firstSegment=0, unsigned lastSegment=0);
+
+	///@name Accessors.
+	//@{
+	const L3APDUID& id() const { return mID; }
+	const L3APDUFlags& flags() const { return mFlags; }
+	const L3APDUData& data() const { return mData; }
+	//@}
+
+	int MTI() const { return (int) ApplicationInformation; }
+
+	size_t bodyLength() const;
+	void writeBody( L3Frame&, size_t&) const;
+	void parseBody( const L3Frame &src, size_t &rp );
+	void text(std::ostream&) const;
+
+};
+
+
 /** GSM 04.08 9.1.13b */
 class L3GPRSSuspensionRequest : public L3RRMessage {
-
-	// This is a placeholder. We don't really parse anything yet.
 
 	public:
 

@@ -66,7 +66,7 @@ using namespace SIP;
 */
 unsigned allocateRTPPorts()
 {
-	// FIXME -- We need a real port allocator (bug #82).
+	// FIXME -- We need a real port allocator.
 	const unsigned base = gConfig.getNum("RTP.Start");
 	const unsigned range = gConfig.getNum("RTP.Range");
 	const unsigned top = base+range;
@@ -172,25 +172,24 @@ TCHFACCHLogicalChannel *allocateTCH(SDCCHLogicalChannel *SDCCH)
 bool assignTCHF(TransactionEntry& transaction, SDCCHLogicalChannel *SDCCH, TCHFACCHLogicalChannel *TCH)
 {
 	TCH->open();
-	// Try twice to send the assignment.
-	// (The spec says just try once...)
-	for (int i=0; i<2; i++) {
-		LOG(INFO) << "sending AssignmentCommand for " << TCH << " on " << SDCCH;
-		SDCCH->send(L3AssignmentCommand(TCH->channelDescription(),L3ChannelMode(L3ChannelMode::SpeechV1)));
-	
-		// This read is SUPPOSED to time out if the assignment was successful.
-		// Pad the timeout just in case there's a large latency somewhere.
-		L3Frame *result = SDCCH->recv(T3107ms+2000);
-		if (result==NULL) {
-			LOG(INFO) << "completing normally";
-			SDCCH->send(HARDRELEASE);
-			return true;
-		}
-		LOG(NOTICE) << "received " << *result;
-		delete result;
+	TCH->setPhy(*SDCCH);
+
+	// Send the assignment.
+	LOG(INFO) << "assignTCHF sending AssignmentCommand for " << TCH << " on " << SDCCH;
+	SDCCH->send(L3AssignmentCommand(TCH->channelDescription(),L3ChannelMode(L3ChannelMode::SpeechV1)));
+
+	// This read is SUPPOSED to time out if the assignment was successful.
+	// Pad the timeout just in case there's a large latency somewhere.
+	L3Frame *result = SDCCH->recv(T3107ms+2000);
+	if (result==NULL) {
+		LOG(INFO) << "assignmentTCHF exiting normally";
+		SDCCH->send(RELEASE);
+		return true;
 	}
 
 	// If we got here, the assignment failed.
+	LOG(NOTICE) << "assignTCHF received " << *result;
+	delete result;
 
 	// Turn off the TCH.
 	TCH->send(RELEASE);
@@ -502,6 +501,7 @@ bool pollInCall(TransactionEntry &transaction, TCHFACCHLogicalChannel *TCH)
 {
 	// See if the radio link disappeared.
 	if (TCH->radioFailure()) {
+		LOG(NOTICE) << "radio link failure, dropped call";
 		forceSIPClearing(transaction);
 		clearTransactionHistory(transaction);
 		return true;
@@ -1172,10 +1172,10 @@ void Control::TestCall(TransactionEntry& transaction, LogicalChannel *LCH)
 
 
 
-void Control::initiateMTTransaction(const TransactionEntry& transaction, GSM::ChannelType chanType, unsigned pageTime)
+void Control::initiateMTTransaction(TransactionEntry& transaction, GSM::ChannelType chanType, unsigned pageTime)
 {
 	gTransactionTable.add(transaction);
-	gBTS.pager().addID(transaction.subscriber(),chanType,transaction.ID(),pageTime);
+	gBTS.pager().addID(transaction.subscriber(),chanType,transaction,pageTime);
 }
 
 

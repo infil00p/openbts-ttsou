@@ -24,6 +24,7 @@
 
 
 
+#include <stdio.h>
 #include "Transceiver.h"
 #include <Logger.h>
 

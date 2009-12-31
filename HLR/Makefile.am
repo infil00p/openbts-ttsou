@@ -29,14 +29,15 @@ EXTRA_DIST = \
 
 noinst_LTLIBRARIES = libHLR.la
 
-noinst_PROGRAMS = \
-	HLRTest
-
 libHLR_la_SOURCES = \
 	HLR.cpp
+
+noinst_PROGRAMS = \
+	HLRTest
 
 noinst_HEADERS = \
 	HLR.h
 
-HLRTest_SOURCES = HLRTest.cpp
 HLRTest_LDADD = $(COMMON_LA) $(HLR_LA)
+HLRTest_SOURCES = HLRTest.cpp
+

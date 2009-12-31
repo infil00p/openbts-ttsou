@@ -98,16 +98,25 @@ RadioInterface::~RadioInterface(void) {
   //mReceiveFIFO.clear();
 }
 
-short *RadioInterface::USRPifyVector(signalVector &wVector, short *retVector) 
+short *RadioInterface::USRPifyVector(signalVector &wVector, short *retVector, double scale) 
 {
 
 
   signalVector::iterator itr = wVector.begin();
   short *shortItr = retVector;
-  while (itr < wVector.end()) {
-    *shortItr++ = (short) host_to_usrp_short(itr->real());
-    *shortItr++ = (short) host_to_usrp_short(itr->imag());
-    itr++;
+  if (scale != 1.0) { 
+    while (itr < wVector.end()) {
+      *shortItr++ = (short) host_to_usrp_short(itr->real()*scale);
+      *shortItr++ = (short) host_to_usrp_short(itr->imag()*scale);
+      itr++;
+    }
+  }
+  else {
+    while (itr < wVector.end()) {
+      *shortItr++ = (short) host_to_usrp_short(itr->real());
+      *shortItr++ = (short) host_to_usrp_short(itr->imag());
+      itr++;
+    }
   }
 
   return retVector;
@@ -144,7 +153,7 @@ void RadioInterface::pushBuffer(void) {
   if (sendCursor < 2*INCHUNK) return;
 
   // start the USRP when we actually have data to send to the USRP.
-  if (!started) {
+/*  if (!started) {
     started = true; 
     LOG(INFO) << "Starting USRP";
     usrp->start(); 
@@ -152,7 +161,7 @@ void RadioInterface::pushBuffer(void) {
     usrp->updateAlignment(10000); 
     usrp->updateAlignment(10000);
   }
-
+*/
   // send resampleVector
   int samplesWritten = usrp->writeSamples(sendBuffer,
 					  INCHUNK,
@@ -196,13 +205,11 @@ void RadioInterface::pullBuffer(void)
 
 bool RadioInterface::tuneTx(double freq)
 {
-  if (mOn) return false;
   return usrp->setTxFreq(freq);
 }
 
 bool RadioInterface::tuneRx(double freq)
 {
-  if (mOn) return false;
   return usrp->setRxFreq(freq);
 }
 
@@ -215,6 +222,10 @@ void RadioInterface::start()
   mOn = true;
   writeTimestamp = 20000;
   readTimestamp = 20000;
+  usrp->start(); 
+  LOG(DEBUG) << "USRP started";
+  usrp->updateAlignment(10000); 
+  usrp->updateAlignment(10000);
   LOG(DEBUG) << "radio interface started!";
 }
 
@@ -236,9 +247,7 @@ void RadioInterface::driveTransmitRadio(signalVector &radioBurst) {
 
   if (!mOn) return;
 
-  if (powerScaling != 1.0) scaleVector(radioBurst, powerScaling);
-
-  USRPifyVector(radioBurst, sendBuffer+sendCursor);
+  USRPifyVector(radioBurst, sendBuffer+sendCursor, powerScaling);
 
   sendCursor += (radioBurst.size()*2);
 

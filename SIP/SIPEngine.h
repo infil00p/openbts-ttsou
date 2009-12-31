@@ -127,7 +127,7 @@ public:
 		const char* wAsteriskIP = gConfig.getStr("Asterisk.IP");
 		assert(strlen(wAsteriskIP)<256);
 		strcpy(mAsteriskIP,wAsteriskIP);
-		const char* wMessengerIP = gConfig.getStr("Messenger.IP");
+		const char* wMessengerIP = gConfig.getStr("Smqueue.IP");
 		assert(strlen(wMessengerIP)<256);
 		strcpy(mMessengerIP,wMessengerIP);
 	}

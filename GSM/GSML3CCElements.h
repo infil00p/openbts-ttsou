@@ -50,7 +50,7 @@ public:
 	size_t lengthV() const { return 2; }
 	void writeV( L3Frame& dest, size_t &wp ) const;
 	void parseV( const L3Frame& src, size_t &rp, size_t expectedLength );	
-	void parseV(const L3Frame&, size_t&) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -62,7 +62,8 @@ class L3BCDDigits {
 
 	private:
 
-	char mDigits[16];					///< ITU-T E.164 limits address to 15 digits
+	static const unsigned maxDigits = 20;
+	char mDigits[maxDigits+1];					///< ITU-T E.164 limits address to 15 digits
 
 	public:
 
@@ -127,7 +128,7 @@ public:
 	size_t lengthV() const;
 	void writeV( L3Frame& dest, size_t &wp  ) const;
 	void parseV( const L3Frame& src, size_t &rp, size_t expectedLength);	
-	void parseV(const L3Frame&, size_t&) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
 	void text(std::ostream&) const;
 };
 
@@ -165,7 +166,7 @@ public:
 	size_t lengthV() const ; 
 	void writeV( L3Frame& dest, size_t &wp  ) const;
 	void parseV( const L3Frame& src, size_t &rp, size_t expectedLength );	
-	void parseV(const L3Frame&, size_t&) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
 	void text(std::ostream&) const;
 };
 
@@ -217,7 +218,7 @@ public:
 
 	void writeV( L3Frame& dest, size_t &wp) const;
 	void parseV( const L3Frame& src, size_t &rp , size_t expectedLength );
-	void parseV(const L3Frame&, size_t&) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
 	void text(std::ostream&) const;
 };
 
@@ -240,7 +241,7 @@ public:
 	size_t lengthV()const { return 1;}
 	void writeV( L3Frame& dest, size_t &wp) const;
 	void parseV( const L3Frame& src, size_t &rp );
-	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&, size_t) { assert(0); }
 	void text(std::ostream&) const;
 	
 };
@@ -288,8 +289,8 @@ class L3ProgressIndicator : public L3ProtocolElement {
 
 	size_t lengthV() const { return 2; }
    	void writeV(L3Frame& dest, size_t &wp ) const;
-	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
-	void parseV(const L3Frame&, size_t&) { abort(); }
+	void parseV(const L3Frame&, size_t&, size_t) { assert(0); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
 	void text(std::ostream&) const;
 };
 
@@ -311,7 +312,7 @@ class L3KeypadFacility : public L3ProtocolElement {
 
 	size_t lengthV() const { return 1; }
    	void writeV(L3Frame&, size_t&) const;
-	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&, size_t) { assert(0); }
 	void parseV(const L3Frame& src, size_t& rp);
 	void text(std::ostream&) const;
 };

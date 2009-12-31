@@ -1,7 +1,7 @@
 /**@file Logical Channel.  */
 
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -173,7 +173,8 @@ SACCHLogicalChannel::SACCHLogicalChannel(
 		const MappingPair& wMapping)
 		: mRunning(false)
 {
-	mL1 = new SACCHL1FEC(wTN,wMapping);
+	mSACCHL1 = new SACCHL1FEC(wTN,wMapping);
+	mL1 = mSACCHL1;
 	// SAP0 is RR, SAP3 is SMS
 	// SAP1 and SAP2 are not used.
 	mL2[0] = new SACCHL2(1,0);
@@ -194,20 +195,49 @@ void SACCHLogicalChannel::open()
 
 
 
-void SACCHLogicalChannel::serviceLoop() 
+void SACCHLogicalChannel::serviceLoop()
 {
 	// run the loop
 	// For now, just send SI5 and SI6 over and over.
 	// Later, we can add an incoming FIFO from L2.
+	unsigned count = 0;
 	while (mRunning) {
-		if (active()) {
-			OBJLOG(DEEPDEBUG) << "SACCHLogicalChannel::serviceLoop() sending SI5";
-			LogicalChannel::send(gBTS.SI5Frame());
-			OBJLOG(DEEPDEBUG) << "SACCHLogicalChannel::serviceLoop() sending SI6";
-			LogicalChannel::send(gBTS.SI6Frame());
-		} else {
+
+		// Throttle back if not active.
+		if (!active()) {
 			sleepFrames(51);
+			continue;
 		}
+
+		// Send alternating SI5/SI6.
+		if (count%2) LogicalChannel::send(gBTS.SI5Frame());
+		else LogicalChannel::send(gBTS.SI6Frame());
+		count++;
+
+		// Receive and save measrement reports.
+		L3Frame *report = LogicalChannel::recv(100);
+		if (!report) continue;
+		if (report->PD() == 0x1) {
+			// FIXME - getting L1 data in L3Frame.
+			// FIXME -- Why, again, do we need to do this?
+			L3Frame* realframe = new L3Frame(report->segment(24, report->size()-24));
+			delete report;
+			report = realframe;
+		}
+		L3Message* message = parseL3(*report);
+		delete report;
+		if (!message) {
+			LOG(NOTICE) << "SACCH sent unanticipated unparsable L3 frame " << *report;
+			continue;
+		}
+		L3MeasurementReport* measurement = dynamic_cast<L3MeasurementReport*>(message);
+		if (!measurement) {
+			LOG(NOTICE) << "SACCH sent unaticipated message " << message;
+			continue;
+		}
+		mMeasurementResults = measurement->results();
+		LOG(DEBUG) << "SACCH measurement report " << this->measurementResults();
+
 	}
 }
 
@@ -232,6 +262,67 @@ TCHFACCHLogicalChannel::TCHFACCHLogicalChannel(
 	mL2[3] = new FACCHL2(1,3);
 	mSACCH = new SACCHLogicalChannel(wTN,wMapping.SACCH());
 	connect();
+}
+
+
+
+void LogicalChannel::setPhy(const LogicalChannel& other)
+{
+	assert(other.mL1);
+	float RSSI = other.mL1->RSSI();
+	float timingError = other.mL1->timingError();
+	mL1->setPhy(RSSI,timingError);
+	if (mSACCH) mSACCH->setPhy(*other.SACCH());
+}
+
+void SACCHLogicalChannel::setPhy(const SACCHLogicalChannel& other)
+{
+	mSACCHL1->setPhy(*other.mSACCHL1);
+}
+	
+
+void LogicalChannel::setPhy(float wRSSI, float wTimingError)
+{
+	assert(mL1);
+	mL1->setPhy(wRSSI,wTimingError);
+	if (mSACCH) mSACCH->setPhy(wRSSI,wTimingError);
+}
+
+void SACCHLogicalChannel::setPhy(float wRSSI, float wTimingError)
+{
+	mL1->setPhy(wRSSI,wTimingError);
+}
+
+
+float LogicalChannel::RSSI() const
+{
+	if (mSACCH) return mSACCH->RSSI();
+	assert(mL1);
+	return mL1->RSSI();
+}
+
+
+float LogicalChannel::timingError() const
+{
+	if (mSACCH) return mSACCH->timingError();
+	assert(mL1);
+	return mL1->timingError();
+}
+
+
+int LogicalChannel::actualMSPower() const
+{
+	assert(mSACCH);
+	// The SACCHLogicalChannel overrides this to prevent a loop.
+	return mSACCH->actualMSPower();
+}
+
+
+int LogicalChannel::actualMSTiming() const
+{
+	assert(mSACCH);
+	// The SACCHLogicalChannel overrides this to prevent a loop.
+	return mSACCH->actualMSTiming();
 }
 
 

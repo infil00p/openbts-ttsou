@@ -26,7 +26,7 @@
 #ifndef F16_H
 #define F16_H
 
-
+#include <stdint.h>
 #include <ostream>
 
 
@@ -75,6 +75,7 @@ class F16 {
 	F16 operator=(int i)
 	{
 		mV = i<<16;
+		return *this;
 	}
 
 	F16 operator=(const F16& other)

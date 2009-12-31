@@ -71,9 +71,9 @@ class L3CMServiceType : public L3ProtocolElement {
 		{ return mType == other.mType; }
 	
 	size_t lengthV() const { return 0; }	
-	void writeV(L3Frame&, size_t&) const { abort(); }
+	void writeV(L3Frame&, size_t&) const { assert(0); }
 	void parseV(const L3Frame &src, size_t &rp);
-	void parseV(const L3Frame&, size_t&, size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&, size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -97,8 +97,8 @@ public:
 
 	size_t lengthV() const { return 1; }	
 	void writeV( L3Frame& dest, size_t &wp ) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 };
 
@@ -136,8 +136,8 @@ public:
 			return 1+(strlen(mName)*7+7)/8;
 	}
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 };
 
@@ -165,7 +165,7 @@ public:
 	size_t lengthV() const { return 7; }
 	void writeV(L3Frame&, size_t&) const;
 	void parseV(const L3Frame& src, size_t &rp);
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 };
 

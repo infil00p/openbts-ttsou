@@ -60,7 +60,7 @@ static const unsigned gSlotLen = 148;	///< number of symbols per slot, not count
 		- L2-L3: DL, MDL
 	We don't provide the full req-conf-ind-ack handshake because we
 	don't always need it in such a tighly integrated system, so
-	out primitive set is simple.
+	our primitive set is simple.
 */
 enum Primitive {
 	ESTABLISH,		///< channel establihsment

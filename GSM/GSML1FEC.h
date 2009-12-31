@@ -296,6 +296,9 @@ class L1Decoder {
 	/** RSSI of most recent received burst, in dB wrt full scale. */
 	float RSSI() const { mPhyNew=false; return mRSSI; }
 
+	/** Set pyshical parameters for initialization. */
+	void setPhy(float wRSSI, float wTimingError);
+
 	/** Return true if the physical parameters are fresh. */
 	bool phyNew() const { return mPhyNew; }
 
@@ -394,6 +397,12 @@ class L1FEC {
 	float FER() const
 		{ assert(mDecoder); return mDecoder->FER(); }
 
+	float timingError() const
+		{ assert(mDecoder); return mDecoder->timingError(); }
+
+	float RSSI() const
+		{ assert(mDecoder); return mDecoder->RSSI(); }
+
 	bool recyclable() const
 		{ assert(mDecoder); return mDecoder->recyclable(); }
 
@@ -404,6 +413,10 @@ class L1FEC {
 
 	const TDMAMapping& rcvMapping() const
 		{ assert(mEncoder); return mDecoder->mapping(); }
+
+	void setPhy(float RSSI, float timingError)
+		{ assert(mDecoder); return mDecoder->setPhy(RSSI,timingError); }
+
 	//@}
 
 
@@ -583,6 +596,11 @@ class SACCHL1Decoder : public XCCHL1Decoder {
 	int actualMSPower() const { return mActualMSPower; }
 	int actualMSTiming() const { return mActualMSTiming; }
 
+	/** Override open() to set physical parameters with reasonable defaults. */
+	void open();
+
+	void setPhy(const SACCHL1Decoder& other);
+
 	protected:
 
 	SACCHL1FEC *SACCHParent() { return mSACCHParent; }
@@ -592,7 +610,7 @@ class SACCHL1Decoder : public XCCHL1Decoder {
 	/**
 		This is a wrapper on handleGoodFrame that processes the physical header.
 	*/
-	//void handleGoodFrame();
+	void handleGoodFrame();
 
 	unsigned headerOffset() const { return 16; }
 
@@ -789,7 +807,7 @@ class TCHFACCHL1Decoder : public XCCHL1Decoder {
 	unsigned queueSize() const { return mSpeechQ.size(); }
 
 	/** Return true if the uplink is dead. */
-	bool uplinkLost() const { return mT3109.expired(); }
+	bool uplinkLost() const;
 };
 
 
@@ -949,7 +967,7 @@ class SACCHL1Encoder : public XCCHL1Encoder {
 	/**@name Physical header, GSM 04.04 6, 7.1, 7.2 */
 	//@{
 	volatile int mOrderedMSPower;		///< ordered MS tx power level, dBm
-	volatile int mOrderedMSTiming;		///< ordered MS timing advance in 1/256 symbols
+	volatile float mOrderedMSTiming;		///< ordered MS timing advance in symbols
 	//@}
 
 	public:
@@ -1088,6 +1106,13 @@ class SACCHL1FEC : public L1FEC {
 
 	SACCHL1Decoder *decoder() { return mSACCHDecoder; }
 	SACCHL1Encoder *encoder() { return mSACCHEncoder; }
+
+	/**@name Physical parameter access. */
+	//@{
+	int actualMSPower() const { assert(mSACCHDecoder); return mSACCHDecoder->actualMSPower(); }
+	int actualMSTiming() const { assert(mSACCHDecoder); return mSACCHDecoder->actualMSTiming(); }
+	void setPhy(const SACCHL1FEC&);
+	//@}
 };
 
 

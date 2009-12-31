@@ -35,3 +35,8 @@ Debug.print_as_we_validate n
 #SIP.global_relay 81.201.82.50:5060
 SIP.global_relay 
 
+
+# messages
+BounceMessage.IMSILookupFailed "Cannot determine return address; bouncing message."
+#BounceMessage.IMSILookupFailed "You're on the BM free cellular net; text your phone number to 101 first"
+BounceMessage.NotRegistered "Phone not registered here."

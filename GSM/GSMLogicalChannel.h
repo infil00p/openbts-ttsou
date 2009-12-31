@@ -1,7 +1,7 @@
 /**@file Logical Channel.  */
 
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -78,7 +78,6 @@ protected:
 	/** The transaction ID associated with this channel. */
 	uint32_t mTransactionID;
 
-
 public:
 
 	/**
@@ -100,6 +99,7 @@ public:
 	/**@name Accessors. */
 	//@{
 	SACCHLogicalChannel* SACCH() { return mSACCH; }
+	const SACCHLogicalChannel* SACCH() const { return mSACCH; }
 	L3ChannelDescription channelDescription() const;
 	void transactionID(uint32_t wTransactionID) { mTransactionID=wTransactionID; }
 	uint32_t transactionID() const { return mTransactionID; }
@@ -108,6 +108,12 @@ public:
 
 	/**@name Pass-throughs. */
 	//@{
+
+	/** Set L1 physical parameters from a RACH or pre-exsting channel. */
+	virtual void setPhy(float wRSSI, float wTimingError);
+
+	/* Set L1 physical parameters from an existing logical channel. */
+	virtual void setPhy(const LogicalChannel&);
 
 	/**@name L3 interfaces */
 	//@{
@@ -159,28 +165,38 @@ public:
 	//@{
 
 	/** Write a received radio burst into the "low" side of the channel. */
-	virtual void writeLowSide(const RxBurst& burst) { mL1->writeLowSide(burst); }
+	virtual void writeLowSide(const RxBurst& burst) { assert(mL1); mL1->writeLowSide(burst); }
 
 	/** Return true if the channel is safely abandoned (closed or orphaned). */
-	bool recyclable() const { return mL1->recyclable(); }
+	bool recyclable() const { assert(mL1); return mL1->recyclable(); }
 
 	/** Return true if the channel is active. */
-	bool active() const { return mL1->active(); }
+	bool active() const { assert(mL1); return mL1->active(); }
 
 	/** The TDMA parameters for the transmit side. */
-	const TDMAMapping& txMapping() const { return mL1->txMapping(); }
+	const TDMAMapping& txMapping() const { assert(mL1); return mL1->txMapping(); }
 
 	/** The TDMAParameters for the receive side. */
-	const TDMAMapping& rcvMapping() const { return mL1->rcvMapping(); }
+	const TDMAMapping& rcvMapping() const { assert(mL1); return mL1->rcvMapping(); }
 
 	/** GSM 04.08 10.5.2.5 type and offset code. */
-	TypeAndOffset typeAndOffset() const { return mL1->typeAndOffset(); }
+	TypeAndOffset typeAndOffset() const { assert(mL1); return mL1->typeAndOffset(); }
 
+	/**@name Channel stats from the physical layer */
+	//@{
 	/** Slot number. */
 	unsigned TN() const { return mL1->TN(); }
-
 	/** Receive FER. */
-	float FER() const { return mL1->FER(); }
+	float FER() const { assert(mL1); return mL1->FER(); }
+	/** RSSI wrt full scale. */
+	float RSSI() const;
+	/** Uplink timing error. */
+	float timingError() const;
+	/** Actual MS uplink power. */
+	virtual int actualMSPower() const;
+	/** Actual MS uplink timing advance. */
+	virtual int actualMSTiming() const;
+	//@}
 
 	//@} // L1
 
@@ -248,7 +264,6 @@ class SDCCHLogicalChannel : public LogicalChannel {
 /**
 	Logical channel for NDCCHs that use Bbis format and a pseudolength.
 	This is a virtual base class this is extended for CCCH & BCCH.
-	For now, we will also use it for the SACCH.
 	See GSM 04.06 4.1.1, 4.1.3.
 */
 class NDCCHLogicalChannel : public LogicalChannel {
@@ -289,8 +304,13 @@ class SACCHLogicalChannel : public LogicalChannel {
 
 	protected:
 
+	SACCHL1FEC *mSACCHL1;
 	Thread mServiceThread;	///< a thread for the service loop
 	bool mRunning;			///< a flag to indication that the service loop is running
+
+	/** MeasurementResults from the MS. They are caught in serviceLoop, accessed
+	 for recording along with GPS and other data in MobilityManagement.cpp */
+	L3MeasurementResults mMeasurementResults;
 
 	public:
 
@@ -299,13 +319,36 @@ class SACCHLogicalChannel : public LogicalChannel {
 		const MappingPair& wMapping);
 
 	ChannelType type() const { return SACCHType; }
-	
-	/** This is a loop in its own thread that sends SI5 and SI6. */
-	void serviceLoop();
 
 	void open();
 
+	/* Set L1 physical parameters from an existing logical channel. */
+	void setPhy(const SACCHLogicalChannel&);
+
+	void setPhy(float wRSSI, float wTimingError);
+
+
 	friend void *SACCHLogicalChannelServiceLoopAdapter(SACCHLogicalChannel*);
+
+	/**@name Pass-through accoessors to L1. */
+	//@{
+	int actualMSPower() const { assert(mSACCHL1); return mSACCHL1->actualMSPower(); }
+	int actualMSTiming() const { assert(mSACCHL1); return mSACCHL1->actualMSTiming(); }
+	//@}
+
+	/**@name Channel and neighbour cells stats as reported from MS */
+	//@{
+	const L3MeasurementResults& measurementResults() const { return mMeasurementResults; }
+	//@}
+
+	protected:
+
+	/** Read and process a measurement report, called from the service loop. */
+	void getReport();
+
+	/** This is a loop in its own thread that sends SI5 and SI6. */
+	void serviceLoop();
+
 };
 
 /** A C interface for the SACCHLogicalChannel embedded loop. */

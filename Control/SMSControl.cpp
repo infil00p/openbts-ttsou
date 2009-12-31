@@ -61,6 +61,7 @@ using namespace SMS;
 #include "SIPEngine.h"
 using namespace SIP;
 
+#include "CollectMSInfo.h"
 
 /**
 	Read an L3Frame from SAP3.
@@ -404,6 +405,15 @@ void Control::MOSMSController(const L3CMServiceRequest *req,
 	ack.parse(*CM);
 	LOG(INFO) << "CPAck " << ack;
 
+	// RRLP Here if enabled
+	if (gConfig.defines("GSM.RRLP") && gConfig.getNum("GSM.RRLP") == 1 &&
+		gConfig.defines("RRLP.LocationUpdate") && gConfig.getNum("RRLP.LocationUpdate") == 1 /* RRLP? */)
+	{
+		Timeval start;
+		RRLP::collectMSInfo(mobileIdentity, LCH, true /* DO RRLP */);
+		LOG(INFO) << "submitSMS with RRLP took " << start.elapsed() << " for IMSI " << mobileIdentity;
+	}
+
 	// Done.
 	LOG(INFO) << "closing";
 	LCH->send(L3ChannelRelease());
@@ -438,7 +448,7 @@ bool Control::deliverSMSToMS(const char *callingPartyDigits, const char* message
 		RPData(reference,
 			RPAddress(gConfig.getStr("SMS.FakeSrcSMSC")),
 			TLDeliver(callingPartyDigits,message,TLPID)));
-	LOG(DEBUG) << "MTSMS: sending " << deliver;
+	LOG(INFO) << "sending " << deliver;
 	LCH->send(deliver,3);
 
 	// Step 2
@@ -499,11 +509,51 @@ bool Control::deliverSMSToMS(const char *callingPartyDigits, const char* message
 
 
 
+// Some utils for the RRLP hack below
+int hexchr2int(char c)
+{
+	if (c >= '0' && c <= '9')
+		return c - '0';
+	if (c >= 'a' && c <= 'z')
+		return c - 'a' + 10;
+	if (c >= 'A' && c <= 'Z')
+		return c - 'A' + 10;
+	return -10000;
+}
+
+BitVector hex2bitvector(const char* s)
+{
+	BitVector ret(strlen(s)*4);
+	size_t write_pos = 0;
+	for (;*s != 0 && *(s+1) != 0; s+= 2) {
+		ret.writeField(write_pos, hexchr2int(*s), 4);
+		ret.writeField(write_pos, hexchr2int(*(s+1)), 4);
+	}
+	return ret;
+}
+
 
 void Control::MTSMSController(TransactionEntry& transaction, 
 						LogicalChannel *LCH)
 {
 	assert(LCH);
+
+	// HACK: At this point if the message starts with "RRLP" then we don't do SMS at all,
+	// but instead to an RRLP transaction over the already allocated LogicalChannel.
+	const char* m = transaction.message(); // NOTE - not very nice, my way of checking.
+	if ((strlen(m) > 4) && (std::string("RRLP") == std::string(m, m+4))) {
+		BitVector rrlp_position_request = hex2bitvector(transaction.message() + 4);
+		LOG(INFO) << "MTSMS: Sending RRLP";
+        // TODO - how to get mobID here?
+        L3MobileIdentity mobID = L3MobileIdentity("000000000000000");
+		RRLP::PositionResult pr = GSM::RRLP::doRRLPQuery(mobID, LCH, rrlp_position_request);
+		if (pr.mValid) // in this case we only want to log the results which contain lat/lon
+			logMSInfo(LCH, pr, mobID);
+		LOG(INFO) << "MTSMS: Closing channel after RRLP";
+		LCH->send(L3ChannelRelease());
+		clearTransactionHistory(transaction);
+		return;
+	}
 
 	// See GSM 04.11 Arrow Diagram A5 for the transaction
 	// Step 1	Network->MS	CP-DATA containing RP-DATA

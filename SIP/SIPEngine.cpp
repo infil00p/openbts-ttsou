@@ -145,7 +145,7 @@ void SIPEngine::User( const char * wCallID, const char * IMSI, const char *origI
 
 bool SIPEngine::Register( Method wMethod )
 {
-	LOG(INFO) << "SIPEngine::Register mState=" << mState << " " << wMethod << " callID " << mCallID;
+	LOG(INFO) << "Register mState=" << mState << " " << wMethod << " callID " << mCallID;
 
 	// Before start, need to add mCallID
 	gSIPInterface.addCall(mCallID);
@@ -194,12 +194,18 @@ bool SIPEngine::Register( Method wMethod )
 		assert(msg);
 		while (msg->status_code!=200) {
 			// Looking for 200 OK.
-			// But will keep waiting is we get 200 Trying.
-			LOG(DEBUG) << "received status " << msg->status_code;
-			if (msg->status_code!=100) {
-				LOG(DEBUG) << "unexpected message";
-				gSIPInterface.removeCall(mCallID);	
+			// But will keep waiting if we get 1xx status mesasges, e.g. 100 Trying.
+			LOG(DEBUG) << "received status " << msg->status_code << " " << msg->reason_phrase;
+			if (msg->status_code>=300) {
+				gSIPInterface.removeCall(mCallID);
 				osip_message_free(msg);
+				if (msg->status_code==404) {
+					LOG(DEBUG) << "user not found";
+				} else if (msg->status_code>=300 && msg->status_code<400) {
+					LOG(DEBUG) << "redirection is not implemented yet";
+				} else {
+					LOG(DEBUG) << "unexpected message";
+				}
 				return false;
 			}
 			osip_message_free(msg);
@@ -207,7 +213,7 @@ bool SIPEngine::Register( Method wMethod )
 			assert(msg);
 		}
 		LOG(DEBUG) << "success";
-		gSIPInterface.removeCall(mCallID);	
+		gSIPInterface.removeCall(mCallID);
 		osip_message_free(msg);
 		return true;
 	}
@@ -427,7 +433,7 @@ SIPState SIPEngine::MTDCheckBYE()
 	// Size of -1 means the FIFO does not exist.
 	// Treat the call as cleared.
 	if (fifoSize==-1) {
-		LOG(NOTICE) << "attempt to check BYE on non-existant SIP FIFO";
+		LOG(NOTICE) << "MTDCheckBYE attempt to check BYE on non-existant SIP FIFO";
 		mState=Cleared;
 		return mState;
 	}
@@ -708,8 +714,13 @@ SIPState SIPEngine::MOSMSWaitForSubmit()
 SIPState SIPEngine::MTSMSSendOK()
 {
 	LOG(DEBUG) << "mState=" << mState;
+	// If this operation was initiated from the CLI, there was no INVITE.
+	if (!mINVITE) {
+		LOG(INFO) << "clearing CLI-generated transaction";
+		mState=Cleared;
+		return mState;
+	}
 	LOG(INFO) << "SIP send INVITE-OK " << mSIPUsername;
-	assert(mINVITE);
 	// Form ack from invite and new parameters.
 	osip_message_t * okay = sip_okay_SMS(mINVITE, mSIPUsername.c_str(),
 		gConfig.getStr("SIP.IP"), mSIPPort, mToTag.c_str());

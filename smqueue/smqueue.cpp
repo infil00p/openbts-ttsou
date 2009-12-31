@@ -38,6 +38,11 @@
 using namespace std;
 using namespace SMqueue;
 
+/* The global config table. */
+// DAB
+ConfigurationTable gConfig("smqueue.config");
+
+
 /* We try to centralize most of the timeout values into this table.
    Occasionally the code might do something different where it knows
    better, but most state transitions just use this table to set the
@@ -1458,8 +1463,8 @@ SMq::lookup_from_address (short_msg_pending *qmsg)
 		     << "> to phonenum failed." << endl;
 		// cerr << qmsg->text << endl;
 		return bounce_message (qmsg,
-    "You're on the BM free cellular net; text your phone number to 101 first");
-//  "First, register your phone by texting your phone number to 101");
+			gConfig.getStr("BounceMessage.IMSILookupFailed")
+		);
 		// return NO_STATE;	// Put it into limbo for debug.
 	}
 
@@ -1538,7 +1543,7 @@ SMq::lookup_uri_imsi (short_msg_pending *qmsg)
 			|| !my_hlr.useGateway(username)) {
 			// There's no global relay -- or the HLR says not to
 			// use the global relay for it -- so send a bounce.
-			return bounce_message (qmsg, "Phone not registered here");
+			return bounce_message (qmsg, gConfig.getStr("BounceMessage.NotRegistered"));
 		    } else {
 			// Send the message to our global relay.
 			// We leave the username as a phone number, and
@@ -2168,11 +2173,6 @@ read_short_msg_pending_from_file(char *fname)
 	return smp;
 }
 
-
-
-/* The global config table. */
-// DAB
-ConfigurationTable gConfig("smqueue.config");
 
 
 /* Really simple first try */

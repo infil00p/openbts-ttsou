@@ -163,6 +163,8 @@ bool USRPDevice::make(bool wSkipRx)
 {
   skipRx = wSkipRx;
 
+  writeLock.unlock();
+
   LOG(INFO) << "making USRP device..";
 #ifndef SWLOOPBACK 
   string rbf = "std_inband.rbf";
@@ -466,6 +468,8 @@ int USRPDevice::writeSamples(short *buf, int len, bool *underrun,
 			     unsigned long long timestamp,
 			     bool isControl) 
 {
+  writeLock.lock();
+
 #ifndef SWLOOPBACK 
   if (!m_uTx) return 0;
  
@@ -498,6 +502,8 @@ int USRPDevice::writeSamples(short *buf, int len, bool *underrun,
   m_uTx->write((const void*) outPkt,sizeof(uint32_t)*128*numPkts,NULL);
 
   samplesWritten += len/2/sizeof(short);
+  writeLock.unlock();
+
   return len/2/sizeof(short);
 #else
   int retVal = len;

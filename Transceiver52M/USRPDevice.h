@@ -65,7 +65,7 @@ private:
   bool started;			///< flag indicates USRP has started
   bool skipRx;			///< set if USRP is transmit-only.
 
-  static const unsigned int currDataSize_log2 = 18;
+  static const unsigned int currDataSize_log2 = 21;
   static const unsigned long currDataSize = (1 << currDataSize_log2);
   short *data;
   unsigned long dataStart;
@@ -73,6 +73,8 @@ private:
   TIMESTAMP timeStart;
   TIMESTAMP timeEnd;
   bool isAligned;
+
+  Mutex writeLock;
 
   short *currData;		///< internal data buffer when reading from USRP
   TIMESTAMP currTimestamp;	///< timestamp of internal data buffer

@@ -62,7 +62,7 @@ class OSIPMessageFIFO : public _OSIPMessageFIFO {
 		memcpy(&mReturnAddress,wReturnAddress,sizeof(mReturnAddress));
 	}
 
-	~OSIPMessageFIFO()
+	virtual ~OSIPMessageFIFO()
 	{
 		// We must call clear() here, because if it is called from InterthreadQueue
 		// destructor, then clear() will call InterthreadQueue's freeElement() which

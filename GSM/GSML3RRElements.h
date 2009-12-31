@@ -61,8 +61,8 @@ class L3CellOptionsBCCH : public L3ProtocolElement {
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 };
 
@@ -93,8 +93,8 @@ class L3CellOptionsSACCH : public L3ProtocolElement {
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 	
 };
@@ -122,8 +122,8 @@ class L3CellSelectionParameters : public L3ProtocolElement {
 	{
 		// Values dictated by the current implementation are hard-coded.
 		mACS=0;
-		mNECI=0;
 		// Configurable values.
+		mNECI=gConfig.getNum("GSM.CS.NECI");
 		mMS_TXPWR_MAX_CCH=gConfig.getNum("GSM.CS.MS_TXPWR_MAX_CCH");
 		mRXLEV_ACCESS_MIN=gConfig.getNum("GSM.CS.RXLEV_ACCESS_MIN");
 		mCELL_RESELECT_HYSTERESIS=gConfig.getNum("GSM.CS.CELL_RESELECT_HYSTERESIS");
@@ -131,8 +131,8 @@ class L3CellSelectionParameters : public L3ProtocolElement {
 
 	size_t lengthV() const { return 2; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -167,8 +167,8 @@ class L3ControlChannelDescription : public L3ProtocolElement {
 
 	size_t lengthV() const { return 3; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -202,8 +202,8 @@ class L3FrequencyList : public L3ProtocolElement {
 
 	size_t lengthV() const { return 16; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 	private:
@@ -263,8 +263,8 @@ class L3NeighborCellsDescription : public L3FrequencyList {
 	{}
 
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 
 	void text(std::ostream&) const;
 
@@ -291,8 +291,8 @@ class L3NCCPermitted : public L3ProtocolElement {
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -328,8 +328,8 @@ class L3RACHControlParameters : public L3ProtocolElement {
 
 	size_t lengthV() const { return 3; }
 	void writeV(L3Frame& dest, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -356,7 +356,7 @@ public:
 	size_t lengthV() const { return 1; }
 	void writeV( L3Frame& dest, size_t &wp ) const;
 	void parseV( const L3Frame &src, size_t &rp );
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -380,8 +380,8 @@ public:
 
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame &dest, size_t &wp ) const;
-	void parseV( const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV( const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -434,7 +434,7 @@ public:
 	size_t lengthV() const  { return 3; }
 	void writeV( L3Frame &dest, size_t &wp ) const;
 	void parseV(const L3Frame& src, size_t &rp);
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -475,8 +475,8 @@ public:
 
 	size_t lengthV() const { return 3; }
 	void writeV(L3Frame &, size_t &wp ) const;
-	void parseV( const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV( const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -501,8 +501,8 @@ public:
 	
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame&, size_t &wp) const;
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -526,7 +526,7 @@ class L3RRCause : public L3ProtocolElement
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame&, size_t&) const;
 	void parseV(const L3Frame&, size_t&);
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -549,8 +549,8 @@ public:
 
 	size_t lengthV() const { return 1; }
 	void writeV( L3Frame &dest, size_t &wp ) const;
-	void parseV( const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV( const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -587,7 +587,7 @@ public:
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame&, size_t&) const;
 	void parseV(const L3Frame&, size_t&);
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream&) const;
 
 };
@@ -614,14 +614,147 @@ class L3WaitIndication : public L3ProtocolElement {
 	size_t lengthV() const { return 1; }
 	void writeV(L3Frame& dest, size_t &wp) const
 		{ dest.writeField(wp,mValue,8); }
-	void parseV(const L3Frame&, size_t&) { abort(); }
-	void parseV(const L3Frame&, size_t& , size_t) { abort(); }
+	void parseV(const L3Frame&, size_t&) { assert(0); }
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
 	void text(std::ostream& os) const { os << mValue; }
+
+};
+
+/**
+ Application Information Information Elements (encapsulates the RRLP message)
+ */
+
+/** GSM 04.08 10.5.2.48 */
+class L3APDUID : public L3ProtocolElement {
+
+	private:
+
+	unsigned mProtocolIdentifier;
+
+	public:
+
+	/** Default Protocol Identifier is RRLP=0, the only one defined so far (rest are reserved). */
+	L3APDUID(unsigned protocolIdentifier=0)
+		:L3ProtocolElement(),
+		mProtocolIdentifier(protocolIdentifier)
+	{}
+
+	size_t lengthV() const { return 1; }
+	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame&, size_t&);
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
+	void text(std::ostream& os) const;
+
+};
+
+
+/** GSM 04.08 10.5.2.49 */
+class L3APDUFlags : public L3ProtocolElement {
+
+	private:
+
+    // TODO - use bool for flags?
+	unsigned mCR;
+	unsigned mFirstSegment;
+	unsigned mLastSegment;
+    // TODO - put enums for CR, FirstSegment, LastSegment
+
+	public:
+
+	/** Default is the flags for a single segment APDU - one that fits in a single
+        Application Information message **/
+	L3APDUFlags(unsigned cr=0, unsigned firstSegment=0, unsigned lastSegment=0)
+		:L3ProtocolElement(),
+		mCR(cr), mFirstSegment(firstSegment), mLastSegment(lastSegment)
+	{}
+
+	size_t lengthV() const { return 1; }
+	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV(const L3Frame&, size_t&);
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
+	void text(std::ostream& os) const;
+
+};
+
+
+/** GSM 04.08 10.5.2.50 */
+class L3APDUData : public L3ProtocolElement {
+
+	private:
+
+    BitVector mData; // will contain a RRLP message
+
+	public:
+
+    virtual ~L3APDUData();
+
+	/** Default is a zero length APDUData IE */
+	L3APDUData();
+    L3APDUData(BitVector data);
+
+	size_t lengthV() const { return mData.size(); };
+	void writeV(L3Frame& dest, size_t &wp) const;
+	void parseV( const L3Frame& src, size_t &rp, size_t expectedLength );
+	void parseV(const L3Frame&, size_t&) { abort(); }
+	void text(std::ostream& os) const;
 
 };
 
 
 
+
+/** GSM 04.08 10.5.2.20 */
+class L3MeasurementResults : public L3ProtocolElement {
+
+	private:
+
+	bool mBA_USED;
+	bool mDTX_USED;
+	bool mMEAS_VALID;
+	int mRXLEV_FULL_SERVING_CELL;
+	int mRXLEV_SUB_SERVING_CELL;
+	int mRXQUAL_FULL_SERVING_CELL;
+	int mRXQUAL_SUB_SERVING_CELL;
+
+	unsigned mNO_NCELL;
+	int mRXLEV_NCELL[6];
+	int mBCCH_FREQ_NCELL[6];
+	int mBSIC_NCELL[6];
+
+	public:
+
+	L3MeasurementResults()
+		:mMEAS_VALID(false),
+		mNO_NCELL(0)
+	{ }
+
+	size_t lengthV() const { return 16; }
+	void writeV(L3Frame&, size_t&) const { assert(0); }
+	void parseV(const L3Frame&, size_t&);
+	void parseV(const L3Frame&, size_t& , size_t) { assert(0); }
+	void text(std::ostream& os) const;
+	
+	/**@name Accessors. */
+	//@{
+
+	bool BA_USED() const { return mBA_USED; }
+	bool DTX_USED() const { return mDTX_USED; }
+	bool MEAS_VALID() const { return mMEAS_VALID; }
+	int RXLEV_FULL_SERVING_CELL() const { return mRXLEV_FULL_SERVING_CELL; }
+	int RXLEV_SUB_SERVING_CELL() const { return mRXLEV_SUB_SERVING_CELL; }
+	int RXQUAL_FULL_SERVING_CELL() const { return mRXQUAL_FULL_SERVING_CELL; }
+	int RXQUAL_SUB_SERVING_CELL() const { return mRXQUAL_SUB_SERVING_CELL; }
+
+	unsigned NO_NCELL() const { return mNO_NCELL; }
+	int RXLEV_NCELL(unsigned i) const { assert(i<mNO_NCELL); return mRXLEV_NCELL[i]; }
+	int RXLEV_NCELL(int *) const;
+	int BCCH_FREQ_NCELL(unsigned i) const { assert(i<mNO_NCELL); return mBCCH_FREQ_NCELL[i]; }
+	int BCCH_FREQ_NCELL(int *) const;
+	int BSIC_NCELL(unsigned i) const { assert(i<mNO_NCELL); return mBSIC_NCELL[i]; }
+	int BSIC_NCELL(int *) const;
+	//@}
+
+};
 
 } // GSM
 

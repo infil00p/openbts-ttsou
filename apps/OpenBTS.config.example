@@ -4,12 +4,14 @@
 # Everything between the first space and the end of the line becomes the value.
 # Comments must start with "#" at the beginning of the line.
 # Blank lines are OK.
+# The "$static" directive indicates that a configuration value cannot
+# be changed after initialization.
 
 # As a gerenal rule, non-valid configuration values will crash OpenBTS.
 
 
 #
-# Logging parameters
+# Logging and reporting parameters
 #
 
 # The initial global logging level: ERROR, WARNING, NOTICE, INFO, DEBUG, DEEPDEBUG
@@ -17,11 +19,24 @@ LogLevel INFO
 
 # The log file path.  If not set, logging goes to stdout.
 LogFileName test.out
+$static LogFileName
+
+# LOG(ALARM) is printed and also sent as udp to this address.
+Alarm.TargetIP 192.168.10.200
+Alarm.TargetPort 10101
 
 # Wireshark support
 # The standard IANA for GSMTAP is 4729
-# If if this is not defined, we do not generate the GSMTAP dumps.
-Wireshark.Port 4729
+# OpenBTS writes L2 GSMTAP messages to this port.
+GSMTAP.TargetIP 127.0.0.1
+GSMTAP.TargetPort 4729
+
+# Indications port
+# Some interal operations produce status reports sent to this port.
+# This can be the same as the Alarm target.
+Indications.TargetIP 127.0.0.1
+Indications.TargetPort 10202
+
 
 # Port number for test calls.
 # This is where an external program can interact with a handset via UDP.
@@ -35,18 +50,29 @@ TestCall.Port 28670
 # Transceiver interface
 # This TRX.IP is not really adjustable.  Just leave it as 127.0.0.1.
 TRX.IP 127.0.0.1
+$static TRX.IP
 # This value is hard-coded in the transcevier.  Just leave it alone.
 TRX.Port 5700
+$static TRX.Port
 
 # Path to transceiver binary
+# If this is not defined, you will need to start the transceiver by hand.
 # YOU MUST HAVE A MATCHING libusrp AS WELL!!
 TRX.Path ../Transceiver/transceiver
+$static TRX.Path
 
 # TRX logging.
 # Logging level.
+# IF TRX.Path IS DEFINED, THIS MUST ALSO BE DEFINED.
 TRX.LogLevel NOTICE
+$static TRX.LogLevel
 # Logging file.  If not defined, logs to stdout.
 TRX.LogFileName test.TRX.out
+$static TRX.LogFileName
+
+# TRX hang-up time-out, in seconds.
+# Restart the TRX if it there is no activity within this time.
+TRX.HangupTimeout 7200
 
 
 
@@ -56,27 +82,24 @@ TRX.LogFileName test.TRX.out
 #
 
 # Asterisk PBX
-#Asterisk.IP 192.168.0.15
 Asterisk.IP 127.0.0.1
 Asterisk.Port 5060
 
 # Messaging server
-Messenger.IP 127.0.0.1
-Messenger.Port 5063
+Smqueue.IP 127.0.0.1
+Smqueue.Port 5063
 
 # Local SIP/RTP ports
+# OpenBTS binds to these ports.
 SIP.Port 5062
 RTP.Start 16484
 RTP.Range 98
 
 # If Asterisk is 127.0.0.1, this is also 127.0.0.1.
 # Otherwise, this should be the local IP address of the interface used to contact asterisk.
+# In other words, this is the IP address at which Asterisk will see OpenBTS.
 SIP.IP 127.0.0.1
-# This is broken; use localhost. SIP.IP 192.168.0.16
 
-
-# Local SMS port for short code delivery.
-SMSLoopback.Port 5064
 
 
 #
@@ -93,7 +116,7 @@ PBX.Emergency 2101
 
 # SIP registration period in seconds.
 # Ideally, this should be slightly longer than GSM.T3212.
-SIP.RegistrationPeriod 3600
+SIP.RegistrationPeriod 3620
 
 #
 # SIP Internal Timers.  All timer values are given in millseconds.
@@ -101,6 +124,7 @@ SIP.RegistrationPeriod 3600
 #
 
 # SIP Timer A, the INVITE retry period, RFC-3261 Section 17.1.1.2
+# in milliseconds
 SIP.Timer.A 1000
 
 
@@ -119,7 +143,7 @@ SMS.DefaultDestSMSC 0000
 #SMS.HTTP.Gateway api.clickatell.com
 
 # IF SMS.HTTP.Gateway IS DEFINED, SMS.HTTP.AccessString MUST ALSO BE DEFINED.
-SMS.HTTP.AccessString sendmsg?user=xxxx&password=xxxx&api_id=xxxx
+#SMS.HTTP.AccessString sendmsg?user=xxxx&password=xxxx&api_id=xxxx
 
 
 
@@ -147,8 +171,8 @@ Control.NormalRegistrationWelcomeShortCode 0000
 Control.OpenRegistrationWelcomeShortCode 23
 
 # Then message send to failed registrations.
-#Control.FailedRegistrationWelcomeMessage It's been fun.  See you next year.
-#Control.FailedRegistrationWelcomeShortCode 666
+#Control.FailedRegistrationWelcomeMessage You're doing it wrong! Go away!
+Control.FailedRegistrationWelcomeShortCode 666
 
 
 
@@ -160,11 +184,11 @@ Control.OpenRegistrationWelcomeShortCode 23
 # Network and cell identity.
 
 # Network Color Code, 0-7
+# Also set GSM.NCCsPermitted later in this file.
 GSM.NCC 0
 # Basesation Color Code, 0-7
-GSM.BCC 0
+GSM.BCC 2
 # Mobile Country Code, 3 digits.
-# US is 310
 # MCC MUST BE 3 DIGITS.  Prefix with 0s if needed.
 # Test code is 001.
 GSM.MCC 001
@@ -188,27 +212,56 @@ GSM.AssignmentType 1
 
 # Valid band values are 850, 900, 1800, 1900.
 GSM.Band 900
-#GSM.Band 850
+$static GSM.Band
 
 # Valid ARFCN range depends on the band.
-GSM.ARFCN 29
+GSM.ARFCN 39
 # ARCN 975 is inside the US ISM-900 band and also in the GSM900 band.
 #GSM.ARFCN 975
 # ARFCN 207 was what we ran at BM2008, I think, in the GSM850 band.
 #GSM.ARFCN 207
 
-# Neightbor list
-GSM.Neighbors 29
+# Neighbor list
+# Should probably include our own ARFCN
+GSM.Neighbors 39
 
-# Downlink tx power level, dB wrt full power
-GSM.PowerAttenDB 0
+
+# Maximum range of delay spread, in kilometers
+# should not be more than 5
+GSM.MaxExpectedDelaySpread 1
+
+
+# Downlink adaptive power management.
+# Manages power to prevent congestion.
+
+# Downlink tx power level bounds, dB wrt full power
+# Maximum attenuation (sets MINIMUM power level).
+GSM.PowerManager.MaxAttenDB 40
+# Minimum attenuation (sets MAXIMUM power level).
+GSM.PowerManager.MinAttenDB 10
+# Target T3122 for Power Manager.
+# Under heavy load, the power manager will adjust downlink power
+# so that T3122 meets this taret.
+# THE TARGET T3122 MUST BE BETWEEN THE MIN AND MAX VALUES.
+# THOSE ARE SET SOMEWHERE ELSE IN THIS FILE, GSM.T3122Max, GSM.T3122Min.
+GSM.PowerManager.TargetT3122 5000
+# T3122 sampling period, in milliseconds.
+# PowerMananger.SamplePeriod should be <= PowerMananger.Period.
+GSM.PowerManager.SamplePeriod 2000
+# Sample history for averaging T3122, MUST BE <100;
+GSM.PowerManager.NumSamples 10
+# Power manager adaptation step period, in milliseconds
+# Should be >= PowerMananger.SamplePeriod
+GSM.PowerManager.Period 6000
 
 
 # Channel configuration
 # Number of C-VII slots (8xSDCCH)
 GSM.NumC7s 1
+$static GSM.NumC7s
 # Number of C-I slots (1xTCH/F)
 GSM.NumC1s 5
+$static GSM.NumC1s
 
 
 
@@ -239,7 +292,7 @@ GSM.CCD.CCCH_CONF 1
 # Maximum RACH retransmission attempts
 # This is the RAW parameter sent on the BCCH.
 # See GSM 04.08 10.5.2.29 for encoding.
-GSM.RACH.MaxRetrans 3
+GSM.RACH.MaxRetrans 1
 
 # Parameter to spread RACH busts over time.
 # This is the RAW parameter sent on the BCCH.
@@ -251,7 +304,6 @@ GSM.RACH.TxInteger 14
 # See GSM 04.08 10.5.2.29 for encoding.
 # Set to 0 to allow full access.
 GSM.RACH.AC 0
-
 GSM.RACH.CellBarAccess 0
 
 # NCCs Permitted.
@@ -261,14 +313,18 @@ GSM.RACH.CellBarAccess 0
 GSM.NCCsPermitted 1
 
 # Cell Selection Parameters (CS)
-
 GSM.CS.MS_TXPWR_MAX_CCH 0
 GSM.CS.RXLEV_ACCESS_MIN 0
 
 # Cell Reselection Hysteresis
 # See GSM 04.08 10.5.2.4, Table 10.5.23 for encoding.
 # Encoding is 2N dB, value values of N are 0..7 for 0..14 dB.
-GSM.CS.CELL_RESELECT_HYSTERESIS 7
+GSM.CS.CELL_RESELECT_HYSTERESIS 3
+
+# NECI, New Establishment Causes
+# This should be set to "1" to support very early assignment.
+# See GSM 04.08 10.5.2.4, Table 10.5.23 and 04.08 9.1.8, Table 9.9.
+GSM.CS.NECI 1
 
 
 # Reject cause for location updating failures
@@ -279,6 +335,7 @@ GSM.LURejectCause 0x04
 # Maximum TA for accepted bursts.
 # Can be used to control the range of the BTS.
 # The unit is GSM symbols of round trips delay, about 550 meters per symbol.
+# FIXME -- This needs to be unified with GSM.MaxRange
 GSM.MaxRACHDelay 20
 
 
@@ -295,14 +352,53 @@ GSM.MaxRACHDelay 20
 # Any value below 6 minutes disables periodic registration, which is probably a bad idea.
 # Valid range is 6..1530.
 # Ideally, this should be slightly less than the SIP.RegistrationPeriod.
-GSM.T3212 6
+GSM.T3212 54
 
 # T3122, RACH holdoff timer.
 # This value can vary internally between the min and max ends of the range.
 # When congestion occurs, T3122 grows exponentially.
 GSM.T3122Min 2000
-# T3211Max MUST BE NO MORE THAN 255 ms.
+# T3211Max MUST BE NO MORE THAN 255 s.
 GSM.T3122Max 255000
 
+# T3113, the paging timer
+# This is the time allowed for a handset to respond to a paging request.
+GSM.T3113 10000
 
+
+# RRLP
+
+# RRLP query conditions
+# These just have to be defined.  The actual values don't matter.
+GSM.RRLP.LUR
+GSM.RRLP.MOC
+GSM.RRLP.MTC
+GSM.RRLP.MOSMS
+GSM.RRLP.MTSMS
+
+# Accuracy requested from MS - 60 is about 400m (scale is approx. logarithmic)
+GSM.RRLP.Accuracy 60
+# Number of requests done per RRLPQueryController::doTransaction
+GSM.RRLP.Retries 1
+# RRLP query timeout, ms
+GSM.RRLP.Timeout 4000
+
+# The maximum AGCH queue length.
+GSM.AGCHMaxQueue 5
+
+# The uplink RSSI target for closed loop power control.
+GSM.RSSITarget -15
+
+# Number of channels reserved for paging responses.
+GSM.PagingReservations 8
+
+# turn on for continuous logging
+Main.Select 1
+
+# Number of seconds to do logging on (a minimum)
+# If Main.Select is off, it's ok, logging will
+# just happen on enter if more then this value
+# milliseconds have passed.
+# Make this a multiple of 1000 (current limitation, easily fixed in apps/OpenBTS.cpp)
+Main.SelectTimeout 2000
 

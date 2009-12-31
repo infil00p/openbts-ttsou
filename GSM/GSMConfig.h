@@ -29,7 +29,8 @@
 
 #include <vector>
 
-#include "ControlCommon.h"
+#include <ControlCommon.h>
+#include <PowerManager.h>
 
 #include "GSML3RRElements.h"
 #include "GSML3CommonElements.h"
@@ -58,6 +59,8 @@ class GSMConfig {
 
 	/** The paging mechanism is built-in. */
 	Control::Pager mPager;
+
+	PowerManager mPowerManager;
 
 	mutable Mutex mLock;						///< multithread access control
 
@@ -97,10 +100,13 @@ class GSMConfig {
 	L3Frame mSI6Frame;
 	//@}
 
+	int mT3122;
+
 	time_t mStartTime;
 
 	L3LocationAreaIdentity mLAI;
 	char mShortName[94]; // GSM 03.38 6.1.2.2.1
+
 
 	public:
 	
@@ -108,6 +114,9 @@ class GSMConfig {
 
 	/** All parameters come from gConfig. */
 	GSMConfig();
+
+	/** Start the internal control loops. */
+	void start();
 	
 	/**@name Get references to L2 frames for BCCH SI messages. */
 	//@{
@@ -139,9 +148,6 @@ class GSMConfig {
 	/** Return the BSIC, NCC:BCC. */
 	unsigned BSIC() const { return (mNCC<<3) | mBCC; }
 
-	/** RSSI target for closed loop power control. */
-	int RSSITarget() const { return -10; }
-
 	/**
 		Re-encode the L2Frames for system information messages.
 		Called whenever a beacon parameter is changed.
@@ -153,7 +159,13 @@ class GSMConfig {
 	/** Find a minimum-load CCCH from a list. */
 	CCCHLogicalChannel* minimumLoad(CCCHList &chanList);
 
+	/** Return the total load of a CCCH list. */
+	size_t totalLoad(const CCCHList &chanList) const;
+
 	public:
+
+	size_t AGCHLoad() { return totalLoad(mAGCHPool); }
+	size_t PCHLoad() { return totalLoad(mPCHPool); }
 
 	/**@name Manage CCCH subchannels. */
 	//@{
@@ -166,6 +178,12 @@ class GSMConfig {
 	CCCHLogicalChannel* getAGCH() { return minimumLoad(mAGCHPool); }
 	/** Return a minimum-load PCH. */
 	CCCHLogicalChannel* getPCH() { return minimumLoad(mPCHPool); }
+	/** Return a specific PCH. */
+	CCCHLogicalChannel* getPCH(size_t index)
+	{
+		assert(index<mPCHPool.size());
+		return mPCHPool[index];
+	}
 
 	//@}
 
@@ -177,7 +195,7 @@ class GSMConfig {
 	/** Return a pointer to a usable channel. */
 	SDCCHLogicalChannel *getSDCCH();
 	/** Return true if an SDCCH is available, but do not allocate it. */
-	bool SDCCHAvailable() const;
+	size_t SDCCHAvailable() const;
 	/** Return number of total SDCCH. */
 	unsigned SDCCHTotal() const { return mSDCCHPool.size(); }
 	/** Return number of active SDCCH. */
@@ -193,7 +211,7 @@ class GSMConfig {
 	/** Return a pointer to a usable channel. */
 	TCHFACCHLogicalChannel *getTCH();
 	/** Return true if an TCH is available, but do not allocate it. */
-	bool TCHAvailable() const;
+	size_t TCHAvailable() const;
 	/** Return number of total TCH. */
 	unsigned TCHTotal() const { return mTCHPool.size(); }
 	/** Return number of active TCH. */
@@ -202,9 +220,18 @@ class GSMConfig {
 	const TCHList& TCHPool() const { return mTCHPool; }
 	//@}
 
+	/**@name T3122 management */
+	//@{
+	unsigned T3122() const;
+	unsigned growT3122();
+	unsigned shrinkT3122();
+	//@}
 
 	/** Return number of seconds since starting. */
 	time_t uptime() const { return ::time(NULL)-mStartTime; }
+
+	/** Get a handle to the power manager. */
+	PowerManager& powerManager() { return mPowerManager; }
 };
 
 

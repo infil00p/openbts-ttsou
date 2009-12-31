@@ -27,6 +27,8 @@
 #define LOGGER_H
 
 #include <sstream>
+#include <list>
+#include <string>
 #include "Threads.h"
 
 
@@ -69,7 +71,6 @@ class Log {
 
 	static FILE *sFile;
 
-
 	public:
 
 	Log(Level wReportLevel = LOG_WARN)
@@ -84,6 +85,10 @@ class Log {
 std::ostringstream& operator<<(std::ostringstream& os, Log::Level);
 
 
+
+std::list<std::string> gGetLoggerAlarms();		///< Get a copy of the recent alarm list.
+
+
 /**@ Global logging level control. */
 //@{
 void gSetLogLevel(Log::Level);
@@ -96,6 +101,12 @@ const char* gGetLogLevelName();
 //@{
 void gSetLogFile(FILE*);
 bool gSetLogFile(const char*);
+//@}
+
+/**@name Global logging alarm target host control. */
+//@{
+void gSetAlarmTargetPort(unsigned int);
+void gSetAlarmTargetIP(const char*);
 //@}
 
 

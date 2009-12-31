@@ -24,6 +24,9 @@
 
 
 
+#include <unistd.h>
+#include <fcntl.h>
+#include <cstdio>
 
 #include "Threads.h"
 #include "Sockets.h"
@@ -65,6 +68,10 @@ void DatagramSocket::nonblocking()
 	fcntl(mSocketFD,F_SETFL,O_NONBLOCK);
 }
 
+void DatagramSocket::blocking()
+{
+	fcntl(mSocketFD,F_SETFL,0);
+}
 
 void DatagramSocket::close()
 {

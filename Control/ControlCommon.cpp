@@ -60,16 +60,17 @@ TransactionEntry::TransactionEntry()
 	mT301(T301ms), mT302(T302ms), mT303(T303ms),
 	mT304(T304ms), mT305(T305ms), mT308(T308ms),
 	mT310(T310ms), mT313(T313ms),
-	mT3113(GSM::T3113ms),
-	mTR1M(GSM::TR1Mms)
+	mT3113(gConfig.getNum("GSM.T3113")),
+	mTR1M(TR1Mms)
 {
 	mMessage[0]='\0';
 }
 
 // Form for MT transactions.
-TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber, 
-	const GSM::L3CMServiceType& wService,
-	const GSM::L3CallingPartyBCDNumber& wCalling)
+TransactionEntry::TransactionEntry(const L3MobileIdentity& wSubscriber, 
+	const L3CMServiceType& wService,
+	const L3CallingPartyBCDNumber& wCalling,
+	const char *wMessage)
 	:mID(gTransactionTable.newID()),
 	mSubscriber(wSubscriber),mService(wService),
 	mTIFlag(1), mTIValue(0),
@@ -78,17 +79,18 @@ TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	mT301(T301ms), mT302(T302ms), mT303(T303ms),
 	mT304(T304ms), mT305(T305ms), mT308(T308ms),
 	mT310(T310ms), mT313(T313ms),
-	mT3113(GSM::T3113ms),
-	mTR1M(GSM::TR1Mms)
+	mT3113(gConfig.getNum("GSM.T3113")),
+	mTR1M(TR1Mms)
 {
-	mMessage[0]='\0';
+	if (wMessage) strncpy(mMessage,wMessage,160);
+	else mMessage[0]='\0';
 }
 
 // Form for MO transactions.
-TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
-	const GSM::L3CMServiceType& wService,
+TransactionEntry::TransactionEntry(const L3MobileIdentity& wSubscriber,
+	const L3CMServiceType& wService,
 	unsigned wTIValue,
-	const GSM::L3CalledPartyBCDNumber& wCalled)
+	const L3CalledPartyBCDNumber& wCalled)
 	:mID(gTransactionTable.newID()),
 	mSubscriber(wSubscriber),mService(wService),
 	mTIFlag(0), mTIValue(wTIValue),
@@ -97,17 +99,17 @@ TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	mT301(T301ms), mT302(T302ms), mT303(T303ms),
 	mT304(T304ms), mT305(T305ms), mT308(T308ms),
 	mT310(T310ms), mT313(T313ms),
-	mT3113(GSM::T3113ms),
-	mTR1M(GSM::TR1Mms)
+	mT3113(gConfig.getNum("GSM.T3113")),
+	mTR1M(TR1Mms)
 {
 	mMessage[0]='\0';
 }
 
 // Form for MT transactions.
-TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
-	const GSM::L3CMServiceType& wService,
+TransactionEntry::TransactionEntry(const L3MobileIdentity& wSubscriber,
+	const L3CMServiceType& wService,
 	unsigned wTIValue,
-	const GSM::L3CallingPartyBCDNumber& wCalling)
+	const L3CallingPartyBCDNumber& wCalling)
 	:mID(gTransactionTable.newID()),
 	mSubscriber(wSubscriber),mService(wService),
 	mTIFlag(1),mTIValue(wTIValue),mCalling(wCalling),
@@ -115,8 +117,8 @@ TransactionEntry::TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
 	mT301(T301ms), mT302(T302ms), mT303(T303ms),
 	mT304(T304ms), mT305(T305ms), mT308(T308ms),
 	mT310(T310ms), mT313(T313ms),
-	mT3113(GSM::T3113ms),
-	mTR1M(GSM::TR1Mms)
+	mT3113(gConfig.getNum("GSM.T3113")),
+	mTR1M(TR1Mms)
 {
 	mMessage[0]='\0';
 }
@@ -184,7 +186,7 @@ void TransactionEntry::resetTimers()
 bool TransactionEntry::dead() const
 {
 	if (mQ931State==NullState) return true;
-	if ((mQ931State==Paging)&&mT3113.expired()) return true;
+	if ((mQ931State==Paging) && mT3113.expired()) return true;
 	return false;
 }
 
@@ -193,7 +195,7 @@ ostream& Control::operator<<(ostream& os, TransactionEntry::Q931CallState state)
 {
 	switch (state) {
 		case TransactionEntry::NullState: os << "null"; break;
-		case TransactionEntry::Paging: os << "MTC paging"; break;
+		case TransactionEntry::Paging: os << "paging"; break;
 		case TransactionEntry::MOCInitiated: os << "MOC initiated"; break;
 		case TransactionEntry::MOCProceeding: os << "MOC proceeding"; break;
 		case TransactionEntry::MTCConfirmed: os << "MTC confirmed"; break;
@@ -220,6 +222,7 @@ ostream& Control::operator<<(ostream& os, const TransactionEntry& entry)
 	if (entry.calling().digits()[0]) os << " from=" << entry.calling().digits();
 	os << " Q.931State=" << entry.Q931State();
 	os << " SIPState=" << entry.SIP().state();
+	os << " (" << (entry.stateAge()+500)/1000 << " sec)";
 	if (entry.message()[0]) os << " message=\"" << entry.message() << "\"";
 	return os;
 }
@@ -338,7 +341,10 @@ bool TransactionTable::find(const L3MobileIdentity& mobileID, TransactionEntry& 
 	return foundIt;
 }
 
-
+size_t TransactionTable::size()
+{
+	return mTable.size();
+}
 
 
 void Control::clearTransactionHistory( TransactionEntry& transaction )
@@ -354,7 +360,11 @@ void Control::clearTransactionHistory(unsigned transactionID)
 {
 	if (transactionID==0) return;
 	TransactionEntry transaction;
-	if (gTransactionTable.find(transactionID,transaction)) clearTransactionHistory(transaction);
+	if (gTransactionTable.find(transactionID,transaction)) {
+		clearTransactionHistory(transaction);
+	} else {
+		LOG(INFO) << "clearTransactionHistory didn't find " << transactionID << "(size = " << gTransactionTable.size() << ")";
+	}
 }
 
 

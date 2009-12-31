@@ -35,7 +35,7 @@ bool ConfigurationTable::readFile(const char* filename)
 {
 	ifstream configFile(filename);
 	if (!configFile) {
-		LOG(WARN) << "cannot open configuration file " << filename;
+		cerr << "cannot open configuration file " << filename << endl;
 		return false;
 	}
 	while (configFile) {
@@ -49,13 +49,19 @@ bool ConfigurationTable::readFile(const char* filename)
 		if (thisLine[i]=='#') continue;
 		// Skip blank lines
 		if (thisLine[i]=='\0') continue;
-		// Tokenize and put in the table.
-		string::size_type pos = thisLine.find_first_of(" ",i);
-		if (pos==string::npos) {
-			mTable[thisLine]="";
+		// Catch directives
+		if (thisLine[i]=='$') {
+			processDirective(thisLine);
 			continue;
 		}
-		string key = thisLine.substr(0,pos);
+		// Tokenize and put in the table.
+		string::size_type pos = thisLine.find_first_of(" ",i);
+		string key = thisLine.substr(i,pos);
+		if (pos==string::npos) {
+			mTable[key]="";
+			LOG(DEBUG) << "configuring " << key << " with empty string";
+			continue;
+		}
 		string value = thisLine.substr(pos+1);
 		mTable[key]=value;
 		LOG(DEBUG) << "configuring " << key << " = " << value;
@@ -65,11 +71,34 @@ bool ConfigurationTable::readFile(const char* filename)
 }
 
 
+void ConfigurationTable::processDirective(const string& thisLine)
+{
+	string::size_type pos = thisLine.find_first_of(" ");
+	string directive = thisLine.substr(1,pos-1);
+	if (directive=="static") {
+		string key = thisLine.substr(pos+1);
+		mStatic[key] = true;
+		LOG(DEBUG) << "configuring " << key << " as static";
+		return;
+	}
+	cerr << "invalid configuration directive: " << thisLine << endl;
+}
+
+
 
 bool ConfigurationTable::defines(const string& key) const
 {
 	StringMap::const_iterator where = mTable.find(key);
 	return (where!=mTable.end());
+}
+
+
+
+bool ConfigurationTable::isStatic(const string& key) const
+{
+	StringBoolMap::const_iterator where = mStatic.find(key);
+	if (where==mStatic.end()) return false;
+	return where->second;
 }
 
 
@@ -108,11 +137,18 @@ void ConfigurationTable::dump(ostream& os) const
 	}
 }
 
-void ConfigurationTable::set(const string& key, long value)
+bool ConfigurationTable::set(const string& key, const string& value)
+{
+	if (isStatic(key)) return false;
+	mTable[key]=value;
+	return true;
+}
+
+bool ConfigurationTable::set(const string& key, long value)
 {
 	char buffer[30];
 	sprintf(buffer,"%ld",value);
-	set(key,buffer);
+	return set(key,buffer);
 }
 
 

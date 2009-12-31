@@ -22,8 +22,18 @@
 
 */
 
+#include <iostream>
+#include <iterator>
+
 #include "Logger.h"
 
+void printAlarms()
+{
+    std::ostream_iterator<std::string> output( std::cout, "\n" );
+    std::list<std::string> alarms = gGetLoggerAlarms();
+    std::cout << "#alarms = " << alarms.size() << std::endl;
+    std::copy( alarms.begin(), alarms.end(), output );
+}
 
 int main(int argc, char *argv[])
 {
@@ -34,6 +44,17 @@ int main(int argc, char *argv[])
 	LOG(INFO) << " testing the logger.";
 	LOG(DEBUG) << " testing the logger.";
 	LOG(DEEPDEBUG) << " testing the logger.";
+    std::cout << "\n\n\n";
+    std::cout << "testing Alarms - you should run apps/showalarms.py to check udp\n";
+	LOG(ALARM) << " testing the logger alarm.";
+    std::cout << "you should see one line:" << std::endl;
+    printAlarms();
+    std::cout << "----------- generating 20 alarms ----------" << std::endl;
+    for (int i = 0 ; i < 20 ; ++i) {
+        LOG(ALARM) << i;
+    }
+    std::cout << "you should see ten line with the numbers 10..19:" << std::endl;
+    printAlarms();
 }
 
 

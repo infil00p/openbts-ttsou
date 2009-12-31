@@ -46,6 +46,6 @@ int main(int argc, char *argv[])
 
 	std::vector<unsigned> vect = config.getVector("key5");
 	cout << "vect length " << vect.size() << ": ";
-	for (int i=0; i<vect.size(); i++) cout << " " << vect[i];
+	for (unsigned i=0; i<vect.size(); i++) cout << " " << vect[i];
 	cout << endl;
 }

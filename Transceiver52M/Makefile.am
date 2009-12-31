@@ -43,7 +43,8 @@ libtransceiver_la_SOURCES = \
 
 noinst_PROGRAMS = \
 	USRPping \
-	transceiver
+	transceiver \
+	sigProcLibTest 
 
 noinst_HEADERS = \
 	Complex.h \
@@ -62,6 +63,13 @@ USRPping_LDADD = \
 
 transceiver_SOURCES = runTransceiver.cpp
 transceiver_LDADD = \
+	libtransceiver.la \
+	$(GSM_LA) \
+	$(COMMON_LA) \
+	$(USRP_LIBS)
+
+sigProcLibTest_SOURCES = sigProcLibTest.cpp
+sigProcLibTest_LDADD = \
 	libtransceiver.la \
 	$(GSM_LA) \
 	$(COMMON_LA) \

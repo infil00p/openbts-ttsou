@@ -216,7 +216,7 @@ MAKE_TDMA_MAPPING(SACCH_C8_3D,SDCCH_8_3,true,false,0xFF,true,102);
 const unsigned SACCH_C8_3UFrames[] = {59,60,61,62};
 MAKE_TDMA_MAPPING(SACCH_C8_3U,SDCCH_8_3,false,true,0xFF,true,102);
 
-const unsigned SACCH_C8_4DFrames[] = {82,84,85,86};
+const unsigned SACCH_C8_4DFrames[] = {83,84,85,86};
 MAKE_TDMA_MAPPING(SACCH_C8_4D,SDCCH_8_4,true,false,0xFF,true,102);
 
 const unsigned SACCH_C8_4UFrames[] = {98,99,100,101};

@@ -68,7 +68,7 @@ ostream& GSM::operator<<(ostream& os, L2LAPDm::LAPDState state)
 
 void CCCHL2::writeHighSide(const GSM::L3Frame& l3)
 {
-	OBJLOG(DEBUG) <<"CCCHL2::writeHighSide " << l3;
+	OBJLOG(DEEPDEBUG) <<"CCCHL2::writeHighSide " << l3;
 	assert(mDownstream);
 	assert(l3.primitive()==UNIT_DATA);
 	L2Header header(L2Length(l3.length()));
@@ -100,7 +100,7 @@ L2LAPDm::L2LAPDm(unsigned wC, unsigned wSAPI)
 
 void L2LAPDm::writeL1(const L2Frame& frame)
 {
-	OBJLOG(DEBUG) <<"L2LAPDm::writeL1 " << frame;
+	OBJLOG(DEEPDEBUG) <<"L2LAPDm::writeL1 " << frame;
 	//assert(mDownstream);
 	if (!mDownstream) return;
 	mL1Lock.lock();
@@ -112,7 +112,7 @@ void L2LAPDm::writeL1(const L2Frame& frame)
 void L2LAPDm::writeL1NoAck(const L2Frame& frame)
 {
 	// Caller need not hold mLock.
-	OBJLOG(DEBUG) <<"L2LAPDm::writeL1NoAck " << frame;
+	OBJLOG(DEEPDEBUG) <<"L2LAPDm::writeL1NoAck " << frame;
 	writeL1(frame);
 }
 
@@ -121,7 +121,7 @@ void L2LAPDm::writeL1Ack(const L2Frame& frame)
 {
 	// Caller should hold mLock.
 	// GSM 04.06 5.4.4.2
-	OBJLOG(DEBUG) <<"L2LAPDm::writeL1Ack " << frame;
+	OBJLOG(DEEPDEBUG) <<"L2LAPDm::writeL1Ack " << frame;
 	frame.copyTo(mSentFrame);
 	mSentFrame.primitive(frame.primitive());
 	writeL1(frame);
@@ -918,6 +918,7 @@ void L2LAPDm::sendMultiframeData(const L3Frame& l3)
 	// in SACCH L3 during release.
 	if (mState==LinkReleased) {
 		OBJLOG(ERROR) << "attempt to send DATA on released LAPm channel";
+		abnormalRelease();
 		sleepFrames(51);
 		return;
 	}

@@ -114,6 +114,9 @@ public:
 	/** Make the socket non-blocking. */
 	void nonblocking();
 
+	/** Make the socket blocking (the default). */
+	void blocking();
+
 	/** Close the socket. */
 	void close();
 

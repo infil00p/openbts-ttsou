@@ -232,10 +232,7 @@ Transceiver::CorrType Transceiver::expectedCorrType(GSM::Time currTime)
     break;
   case IV:
   case VI:
-    if ((burstFN % 51) % 10 < 2)
-      return RACH;
-    else
-      return OFF;
+    return RACH;
     break;
   case V: {
     int mod51 = burstFN % 51;
@@ -483,7 +480,7 @@ void Transceiver::driveControl()
     if (!mOn)
       sprintf(response,"RSP SETMAXDELAY 1 %d",maxDelay);
     else {
-      mMaxExpectedDelay = maxDelay;
+      mMaxExpectedDelay = maxDelay; // 1 GSM symbol is approx. 1 km
       sprintf(response,"RSP SETMAXDELAY 0 %d",maxDelay);
     }
   }
@@ -515,34 +512,26 @@ void Transceiver::driveControl()
     // tune receiver
     int freqKhz;
     sscanf(buffer,"%3s %s %d",cmdcheck,command,&freqKhz);
-    if (mOn)
-      sprintf(response,"RSP RXTUNE 1 %d",freqKhz);
-    else {
-      mRxFreq = freqKhz*1.0e3+FREQOFFSET;
-      if (!mRadioInterface->tuneRx(mRxFreq)) {
-         LOG(ALARM) << "RX failed to tune";
-         sprintf(response,"RSP RXTUNE 1 %d",freqKhz);
-      }
-      else
-         sprintf(response,"RSP RXTUNE 0 %d",freqKhz);
+    mRxFreq = freqKhz*1.0e3+FREQOFFSET;
+    if (!mRadioInterface->tuneRx(mRxFreq)) {
+       LOG(ALARM) << "RX failed to tune";
+       sprintf(response,"RSP RXTUNE 1 %d",freqKhz);
     }
+    else
+       sprintf(response,"RSP RXTUNE 0 %d",freqKhz);
   }
   else if (strcmp(command,"TXTUNE")==0) {
     // tune txmtr
     int freqKhz;
     sscanf(buffer,"%3s %s %d",cmdcheck,command,&freqKhz);
-    if (mOn)
-      sprintf(response,"RSP TXTUNE 1 %d",freqKhz);
-    else {
-      //freqKhz = 890e3;
-      mTxFreq = freqKhz*1.0e3+FREQOFFSET;
-      if (!mRadioInterface->tuneTx(mTxFreq)) {
-         LOG(ALARM) << "TX failed to tune";
-         sprintf(response,"RSP TXTUNE 1 %d",freqKhz);
-      }
-      else
-         sprintf(response,"RSP TXTUNE 0 %d",freqKhz);
+    //freqKhz = 890e3;
+    mTxFreq = freqKhz*1.0e3+FREQOFFSET;
+    if (!mRadioInterface->tuneTx(mTxFreq)) {
+       LOG(ALARM) << "TX failed to tune";
+       sprintf(response,"RSP TXTUNE 1 %d",freqKhz);
     }
+    else
+       sprintf(response,"RSP TXTUNE 0 %d",freqKhz);
   }
   else if (strcmp(command,"SETTSC")==0) {
     // set TSC

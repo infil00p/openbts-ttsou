@@ -55,6 +55,7 @@ class ConfigurationTableKeyNotFound : public ConfigurationTableError {
 
 
 typedef std::map<std::string,std::string> StringMap;
+typedef std::map<std::string,bool> StringBoolMap;
 
 
 /**
@@ -68,7 +69,10 @@ class ConfigurationTable {
 
 	private:
 
-	StringMap mTable;
+	StringMap mTable;			///< The configuration table
+	StringBoolMap mStatic;		///< Flags to indicate static config values.
+
+	// Static config values cannot be modified after initial file read.
 
 	public:
 
@@ -81,6 +85,9 @@ class ConfigurationTable {
 		Return true if the key is used in the table.
 	*/
 	bool defines(const std::string& key) const;
+
+	/** Return true if this key is identified as static. */
+	bool isStatic(const std::string& key) const;
 
 	/**
 		Get a string parameter from the table.
@@ -100,13 +107,23 @@ class ConfigurationTable {
 	std::vector<unsigned> getVector(const std::string& key) const;
 
 	/** Set or change a value in the table.  */
-	void set(const std::string& key, const std::string& value)
-		{ mTable[key]=value; }
+	bool set(const std::string& key, const std::string& value);
 
-	void set(const std::string& key, long value);
+	bool set(const std::string& key, long value);
 
 	/** Dump the table to a stream. */
 	void dump(std::ostream&) const;
+
+	/** Raw iterator. */
+	StringMap::const_iterator begin() const { return mTable.begin(); }
+
+	/** End check. */
+	StringMap::const_iterator end() const { return mTable.end(); }
+
+
+	private:
+
+	void processDirective(const std::string& line);
 
 };
 

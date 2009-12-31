@@ -22,11 +22,14 @@
 
 */
 
-#include <stdio.h>
+#include <string.h>
+#include <cstdio>
+#include <fstream>
+
+#include "Configuration.h"
+#include "Sockets.h"
 #include "Logger.h"
 #include "Timeval.h"
-#include <string.h>
-
 
 
 using namespace std;
@@ -38,6 +41,19 @@ static const char* levelNames[] =
 
 /** The global logging lock. */
 static Mutex gLogLock;
+
+/**@ The global alarms table. */
+//@{
+const unsigned  gMaxAlarms = 10;
+Mutex           gAlarmsLock;
+list<string>    gAlarmsList;
+void            gAddAlarm(const string&);
+const unsigned int DEFAULT_ALARM_TARGET_PORT = 10101;
+const char*     DEFAULT_ALARM_TARGET_IP = "127.0.0.1";
+unsigned int    gAlarmTargetPort = DEFAULT_ALARM_TARGET_PORT;
+std::string     gAlarmTargetIP = DEFAULT_ALARM_TARGET_IP;
+//@}
+
 
 /** The current global logging level. */
 static Log::Level gLoggingLevel = Log::LOG_WARN;
@@ -102,8 +118,30 @@ bool gSetLogFile(const char *name)
 	return retVal;
 }
 
+void gSetAlarmTargetPort(unsigned int port)
+{
+	LOG(INFO) << "setting ALARM target port to " << port;
+    gAlarmTargetPort = port;
+}
 
+void gSetAlarmTargetIP(const char* ip)
+{
+	LOG(INFO) << "setting ALARM target IP to " << ip;
+    gAlarmTargetIP = ip;
+}
 
+// copies the alarm list and returns it. list supposed to be small.
+std::list<std::string> gGetLoggerAlarms()
+{
+    gAlarmsLock.lock();
+    std::list<std::string> ret;
+    // excuse the "complexity", but to use std::copy with a list you need
+    // an insert_iterator - copy technically overwrites, doesn't insert.
+    std::insert_iterator< std::list<std::string> > ii(ret, ret.begin());
+    std::copy(gAlarmsList.begin(), gAlarmsList.end(), ii);
+    gAlarmsLock.unlock();
+    return ret;
+}
 
 ostream& operator<<(ostream& os, Log::Level level)
 {
@@ -112,11 +150,30 @@ ostream& operator<<(ostream& os, Log::Level level)
 }
 
 
+// Add an alarm to the alarm list, and send it out via udp
+//
+// On the first call we read the ip and port from the configuration
+// TODO - is there any global setup function where this should be done? -- Alon
+void gAddAlarm(const string& s)
+{
+    gAlarmsLock.lock();
+	// Socket open and close on every alarm - wise?
+	// Probably.  That way we are sure to pick up changes in the target address.
+	// Alarms should not happen often.
+	UDPSocket alarmsocket(0, gAlarmTargetIP.c_str(), gAlarmTargetPort);
+	alarmsocket.write(s.c_str());
+    // append to list and reduce list to gMaxAlarms
+    gAlarmsList.push_back(s);
+    while (gAlarmsList.size() > gMaxAlarms) gAlarmsList.pop_front();
+    gAlarmsLock.unlock();
+}
 
 
 Log::~Log()
 {
 	gLogLock.lock();
+	// XXX always handle alarms, even if the logging level is too low
+	if (mReportLevel == LOG_ALARM) gAddAlarm(mStream.str().c_str());
 	if (mReportLevel>gLoggingLevel) return;
 	mStream << std::endl;
 	fprintf(gLoggingFile, "%s", mStream.str().c_str());

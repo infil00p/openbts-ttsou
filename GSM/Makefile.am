@@ -42,7 +42,9 @@ libGSM_la_SOURCES = \
 	GSMLogicalChannel.cpp \
 	GSMSAPMux.cpp \
 	GSMTDMA.cpp \
-	GSMTransfer.cpp
+	GSMTransfer.cpp \
+	GSMTAPDump.cpp \
+	PowerManager.cpp
 
 noinst_HEADERS = \
  	GSM610Tables.h \
@@ -61,4 +63,8 @@ noinst_HEADERS = \
 	GSMLogicalChannel.h \
 	GSMSAPMux.h \
 	GSMTDMA.h \
-	GSMTransfer.h
+	GSMTransfer.h \
+	PowerManager.h \
+	GSMTAPDump.h \
+	gsmtap.h
+

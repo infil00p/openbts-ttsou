@@ -22,20 +22,23 @@
 
 */
 
+#include <iostream>
+#include <fstream>
+#include <iterator>
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
 
 #include <config.h>
 #include "CLI.h"
 #include <Logger.h>
 #include <Globals.h>
-#include <string.h>
-
-#include <iostream>
-#include <fstream>
 
 #include <GSMConfig.h>
 #include <GSMLogicalChannel.h>
 #include <ControlCommon.h>
-
+#include <TRXManager.h>
+#include <PowerManager.h>
 
 using namespace std;
 using namespace CommandLine;
@@ -46,6 +49,8 @@ using namespace CommandLine;
 #define NOT_FOUND 3
 #define TOO_MANY_ARGS 4
 #define FAILURE 5
+
+extern TransceiverManager gTRX;
 
 /** Standard responses in the CLI, much mach erorrCode enum. */
 static const char* standardResponses[] = {
@@ -180,6 +185,7 @@ int getHelp(int argc, char** argv, ostream& os, istream& is)
 	}
 	if (argc!=1) return BAD_NUM_ARGS;
 	ParseTable::const_iterator cp = gParser.begin();
+	os << "Type \"help\" followed by the command name for help on that command." << endl;
 	int c=0;
 	while (cp != gParser.end()) {
 		os << cp->first << '\t';
@@ -220,41 +226,89 @@ int printTMSIs(int argc, char** argv, ostream& os, istream& is)
 		os << tp->second << " 0x" << std::hex << tp->first << std::dec << endl;
 		++tp;
 	}
+	os << endl << gTMSITable.size() << " TMSIs in table";
 	return SUCCESS;
 }
 
+int findIMSI(int argc, char** argv, ostream& os, istream& is)
+{
+	if (argc!=2) {
+		os << "usage: findimsi <imsiprefix>\n";
+		return BAD_VALUE;
+	}
+	Control::TMSIMap::const_iterator tp = gTMSITable.begin();
+	char buf[50]; // max size in decimal digits plus 1 plus RandomPositive
+	while (tp != gTMSITable.end()) {
+		std::string target;
+		sprintf(buf, "%d", tp->first);
+		std::string imsi = buf;
+		target.assign(imsi, 0, strlen(argv[1]));
+		if (target == argv[1])
+			os << tp->second << " 0x" << std::hex << tp->first << std::dec << endl;
+		++tp;
+	}
+	return SUCCESS;
+}
 
-
+int dumpTMSIs(int argc, char** argv, ostream& os, istream& is)
+{
+	if (argc != 2) {
+		os << "usage: dumptmsis <filename>\n";
+		return BAD_VALUE;
+	}
+	char* subargv[] = {"tmsis", NULL};
+	int subargc = 1;
+	ofstream fileout;
+	fileout.open(argv[1], ios::out); // erases existing!
+	printTMSIs(subargc, subargv, fileout, is);
+	return SUCCESS;
+}
 
 /** Submit an SMS for delivery to an IMSI. */
 int sendSMS(int argc, char** argv, ostream& os, istream& is)
 {
-	// FIXME -- Replace this with initiateMTTransaction.
-
 	if (argc!=3) return BAD_NUM_ARGS;
-
-	char *IMSI = argv[1];
-	char *srcAddr = argv[2];
-
-	UDPSocket sock(0,"127.0.0.1",gConfig.getNum("SIP.Port"));
-	unsigned port = sock.port();
-	unsigned callID = random();
-	//unsigned port = gConfig.getNum("SMSLoopback.Port");
-
-	// Just fake out a SIP message.
-	const char form[] = "MESSAGE sip:IMSI%s@127.0.0.1 SIP/2.0\nVia: SIP/2.0/UDP 127.0.0.1;branch=z9hG4bK776sgdkse\nMax-Forwards: 2\nFrom: %s <sip:%s@127.0.0.1>:%d;tag=49583\nTo: sip:IMSI%s@127.0.0.1\nCall-ID: %d@127.0.0.1:5063\nCSeq: 1 MESSAGE\nContent-Type: text/plain\nContent-Length: %d\n\n%s\n";
 
 	os << "enter text to send: ";
 	char txtBuf[161];
 	cin.getline(txtBuf,160,'\n');
+	char *IMSI = argv[1];
+	char *srcAddr = argv[2];
+
+	Control::TransactionEntry transaction(
+		GSM::L3MobileIdentity(IMSI),
+		GSM::L3CMServiceType::MobileTerminatedShortMessage,
+		GSM::L3CallingPartyBCDNumber(srcAddr),
+		txtBuf);
+	transaction.Q931State(Control::TransactionEntry::Paging);
+	Control::initiateMTTransaction(transaction,GSM::SDCCHType,30000);
+	os << "message submitted for delivery" << endl;
+	return SUCCESS;
+}
+
+/** DEBUGGING: Sends a special sms that triggers a RRLP message to an IMSI. */
+int sendRRLP(int argc, char** argv, ostream& os, istream& is)
+{
+	if (argc!=3) return BAD_NUM_ARGS;
+
+	char *IMSI = argv[1];
+
+	UDPSocket sock(0,"127.0.0.1",gConfig.getNum("SIP.Port"));
+	unsigned port = sock.port();
+	unsigned callID = random();
+
+	// Just fake out a SIP message.
+	const char form[] = "MESSAGE sip:IMSI%s@localhost SIP/2.0\nVia: SIP/2.0/TCP localhost;branch=z9hG4bK776sgdkse\nMax-Forwards: 2\nFrom: RRLP@localhost:%d;tag=49583\nTo: sip:IMSI%s@localhost\nCall-ID: %d@127.0.0.1:5063\nCSeq: 1 MESSAGE\nContent-Type: text/plain\nContent-Length: %lu\n\n%s\n";
+
+	char txtBuf[161];
+	sprintf(txtBuf,"RRLP%s",argv[2]);
 	char outbuf[2048];
-	sprintf(outbuf,form,IMSI,srcAddr,srcAddr,port,IMSI,callID,strlen(txtBuf),txtBuf);
-	//UDPSocket sock(port,"127.0.0.1",gConfig.getNum("SIP.Port"));
+	sprintf(outbuf,form,IMSI,port,IMSI,callID,strlen(txtBuf),txtBuf);
 	sock.write(outbuf);
 	sleep(2);
 	sock.write(outbuf);
 	sock.close();
-	os << "message submitted for delivery" << endl;
+	os << "RRLP Triggering message submitted for delivery" << endl;
 
 	return SUCCESS;
 }
@@ -266,6 +320,12 @@ int printStats(int argc, char** argv, ostream& os, istream& is)
 {
 	os << "SDCCH load: " << gBTS.SDCCHActive() << '/' << gBTS.SDCCHTotal() << endl;
 	os << "TCH/F load: " << gBTS.TCHActive() << '/' << gBTS.TCHTotal() << endl;
+	os << "AGCH/PCH load: " << gBTS.AGCHLoad() << '/' << gBTS.PCHLoad() << endl;
+	// paging table size
+	os << "Paging table size: " << gBTS.pager().pagingEntryListSize() << endl;
+	os << "Transactions/TMSIs: " << gTransactionTable.size() << "/" << gTMSITable.size() << endl;
+	// 3122 timer current value (the number of seconds an MS should hold off the next RACH)
+	os << "T3122: " << gBTS.T3122() << " ms" << endl;
 	return SUCCESS;
 }
 
@@ -343,17 +403,40 @@ int printTransactions(int argc, char** argv, ostream& os, istream& is)
 		++trans;
 		count++;
 	}
-	os << count << " transactions in table" << endl;
+	os << endl << count << " transactions in table" << endl;
 	return SUCCESS;
 }
 
 
 
 /** Print current configuration table. */
-int printConfig(int argc, char** argv, ostream& os, istream& is)
+int config(int argc, char** argv, ostream& os, istream& is)
 {
-	if (argc!=1) return BAD_NUM_ARGS;
-	gConfig.dump(os);
+	// no args, just print
+	if (argc==1) {
+		gConfig.dump(os);
+		return SUCCESS;
+	}
+
+	// one arg, pattern match
+	if (argc==2) {
+		StringMap::const_iterator p = gConfig.begin();
+		while (p != gConfig.end()) {
+			if (strstr(p->first.c_str(),argv[1]))
+				os << p->first << ": " << p->second << endl;
+			++p;
+		}
+		return SUCCESS;
+	}
+
+	// >1 args: set new value
+	string val;
+	for (int i=2; i<argc; i++) val.append(argv[i]);
+	if (!gConfig.set(argv[1],val)) {
+		os << argv[1] << " is static and connot be altered after initialization" << endl;
+		return BAD_VALUE;
+	}
+	gBTS.regenerateBeacon();
 	return SUCCESS;
 }
 
@@ -427,6 +510,16 @@ int shortName(int argc, char** argv, ostream& os, istream& is)
 	return SUCCESS;
 }
 
+/** Print the list of alarms kept by the logger, i.e. the last LOG(ALARM) << <text> */
+int printAlarms(int argc, char** argv, ostream& os, istream& is)
+{
+	std::ostream_iterator<std::string> output( os, "\n" );
+	std::list<std::string> alarms = gGetLoggerAlarms();
+	std::copy( alarms.begin(), alarms.end(), output );
+	return SUCCESS;
+}
+
+
 /** Version string. */
 int version(int argc, char **argv, ostream& os, istream& is)
 {
@@ -435,18 +528,23 @@ int version(int argc, char **argv, ostream& os, istream& is)
 	return SUCCESS;
 }
 
-
 int page(int argc, char **argv, ostream& os, istream& is)
 {
+	if (argc==1) {
+		gBTS.pager().dump(os);
+		return SUCCESS;
+	}
 	if (argc!=3) return BAD_NUM_ARGS;
 	char *IMSI = argv[1];
-	if (strlen(IMSI)!=15) {
+	if (strlen(IMSI)>15) {
 		os << IMSI << " is not a valid IMSI" << endl;
 		return BAD_VALUE;
 	}
-	gBTS.pager().addID(GSM::L3MobileIdentity(IMSI),GSM::SDCCHType,0,1000*atoi(argv[2]));
+	Control::TransactionEntry dummy;
+	gBTS.pager().addID(GSM::L3MobileIdentity(IMSI),GSM::SDCCHType,dummy,1000*atoi(argv[2]));
 	return SUCCESS;
 }
+
 
 
 int testcall(int argc, char **argv, ostream& os, istream& is)
@@ -500,16 +598,34 @@ int rolllac(int argc, char **argv, ostream& os, istream& is)
 
 
 
+void printChanInfo(const GSM::LogicalChannel* chan, ostream& os)
+{
+		os << chan->TN() << " " << chan->typeAndOffset() << " ";
+		os << (int)round(chan->FER()*100) << " ";
+		os << (int)round(chan->RSSI()) << " ";
+		os << chan->actualMSPower() << " " << chan->actualMSTiming() << " ";
+		const GSM::L3MeasurementResults& meas = chan->SACCH()->measurementResults();
+		if (meas.MEAS_VALID()) {
+			os << meas.RXLEV_FULL_SERVING_CELL() << " ";
+			os << meas.RXQUAL_FULL_SERVING_CELL() << " ";
+		}
+		os << endl;
+}
 
-int fer(int argc, char **argv, ostream& os, istream& is)
+
+
+int chans(int argc, char **argv, ostream& os, istream& is)
 {
 	if (argc!=1) return BAD_NUM_ARGS;
+
+	os << "TN chan FER RSSI TXPWR TXTA RXLEV RXQUAL" << endl;
+	os << "TN type \%   dB   dBm   sym " << endl;
 
 	// TCHs
 	GSM::TCHList::const_iterator tChanItr = gBTS.TCHPool().begin();
 	while (tChanItr != gBTS.TCHPool().end()) {
 		const GSM::TCHFACCHLogicalChannel* tChan = *tChanItr;
-		if (tChan->active()) os << tChan->TN() << " " << tChan->typeAndOffset() << " " << tChan->FER() << endl;
+		if (tChan->active()) printChanInfo(tChan,os);
 		++tChanItr;
 	}
 
@@ -517,13 +633,45 @@ int fer(int argc, char **argv, ostream& os, istream& is)
 	GSM::SDCCHList::const_iterator sChanItr = gBTS.SDCCHPool().begin();
 	while (sChanItr != gBTS.SDCCHPool().end()) {
 		const GSM::SDCCHLogicalChannel* sChan = *sChanItr;
-		if (sChan->active()) os << sChan->TN() << " " << sChan->typeAndOffset() << " " << sChan->FER() << endl;
+		if (sChan->active()) printChanInfo(sChan,os);
 		++sChanItr;
 	}
 
 
 	return SUCCESS;
 }
+
+
+
+
+int power(int argc, char **argv, ostream& os, istream& is)
+{
+	os << "current downlink power " << gBTS.powerManager().power() << " dB wrt full scale" << endl;
+	os << "current attenuation bounds "
+		<< gConfig.getNum("GSM.PowerManager.MinAttenDB")
+		<< " to "
+		<< gConfig.getNum("GSM.PowerManager.MaxAttenDB")
+		<< " dB" << endl;
+
+	if (argc==1) return SUCCESS;
+	if (argc!=3) return BAD_NUM_ARGS;
+
+	int min = atoi(argv[1]);
+	int max = atoi(argv[2]);
+	if (min>max) return BAD_VALUE;
+
+	gConfig.set("GSM.PowerManager.MinAttenDB",argv[1]);
+	gConfig.set("GSM.PowerManager.MaxAttenDB",argv[2]);
+
+	os << "new attenuation bounds "
+		<< gConfig.getNum("GSM.PowerManager.MinAttenDB")
+		<< " to "
+		<< gConfig.getNum("GSM.PowerManager.MaxAttenDB")
+		<< " dB" << endl;
+
+	return SUCCESS;
+}
+
 
 
 
@@ -540,21 +688,26 @@ Parser::Parser()
 	addCommand("help", getHelp, "[command] -- list available commands or gets help on a specific command.");
 	addCommand("exit", dummy, "-- exit the application.");
 	addCommand("tmsis", printTMSIs, "[\"clear\"] -- print/clear the TMSI table.");
+	addCommand("findimsi", findIMSI, "-- [IMSIPrefix] - prints all imsi's that are prefixed by IMSIPrefix");
+	addCommand("dumptmsis", dumpTMSIs, "-- dump TMSI table to ");
 	addCommand("sendsms", sendSMS, "<IMSI> <src> -- send SMS to <IMSI>, addressed from <src>, after prompting.");
+	addCommand("sendrrlp", sendRRLP, "<IMSI> <hexstring> -- send RRLP message <hexstring> to <IMSI>.");
 	addCommand("load", printStats, "-- print the current activity loads.");
 	addCommand("cellid", cellID, "[MCC MNC LAC CI] -- get/set location area identity (MCC, MNC, LAC) and cell ID (CI)");
 	addCommand("assignment", assignmentType, "[type] -- get/set assignment type (early, veryearly)");
 	addCommand("calls", printTransactions, "-- print the transaction table");
-	addCommand("config", printConfig, "-- print the current configuration");
+	addCommand("config", config, "[] OR [patt] OR [key val(s)] -- print the current configuration, print configuration values matching a pattern, or set/change a configuration value");
 	addCommand("configsave", dumpConfig, "<path> -- write the current configuration to a file");
 	addCommand("regperiod", configRegistration, "[GSM] [SIP] -- get/set the registration period (GSM T3212), in MINUTES");
 	addCommand("shortname", shortName, "[name] -- get/set the network short name");
+	addCommand("alarms", printAlarms, "-- show latest alarms");
 	addCommand("version", version,"-- print the version string");
 	addCommand("page", page, "IMSI time -- page the given IMSI for the given period");
 	addCommand("testcall", testcall, "IMSI time -- initiate a test call to a given IMSI with a given paging time");
 	addCommand("endcall", endcall,"trans# -- terminate the given transaction");
 	addCommand("rolllac", rolllac, "[LAC] -- increment the LAC or set a net value");
-	addCommand("fer", fer, "-- report FER for active channels");
+	addCommand("chans", chans, "-- report PHY status for active channels");
+	addCommand("power", power, "[minAtten maxAtten] -- report current attentuation or set min/max bounds");
 
 	// TODO -- Commands to add: FER, CI.
 }

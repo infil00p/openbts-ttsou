@@ -116,9 +116,8 @@ const unsigned T200ms = 900;		///< LAPDm ACK timeout, set for typical turnaround
 //@{
 const unsigned T3101ms = 4000;		///< L1 timeout for SDCCH assignment
 const unsigned T3107ms = 3000;		///< L1 timeout for TCH/FACCH assignment
-const unsigned T3109ms = 10000;		///< L1 timeout for an existing channel
+const unsigned T3109ms = 30000;		///< L1 timeout for an existing channel
 const unsigned T3111ms = 2*T200ms;	///< L1 timeout for reassignment of a channel
-const unsigned T3113ms = 10000;		///< timeout for paging response
 //@}
 /**@name GSM timeouts for mobility management, GSM 04.08 11.2. */
 //@{
@@ -557,6 +556,9 @@ class Z100Timer {
 
 	/** Start or restart the timer. */
 	void set();
+
+	/** Start or restart the timer, possibly specifying a new limit. */
+	void set(long wLimitTime);
 
 	/** Stop the timer. */
 	void reset() { mActive = false; }

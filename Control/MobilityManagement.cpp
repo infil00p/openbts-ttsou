@@ -24,9 +24,7 @@
 */
 
 
-
-
-
+#include "Timeval.h"
 
 #include "ControlCommon.h"
 #include "GSMLogicalChannel.h"
@@ -34,6 +32,8 @@
 #include "GSML3MMMessages.h"
 #include "GSML3CCMessages.h"
 #include "GSMConfig.h"
+
+#include "CollectMSInfo.h"
 
 using namespace std;
 
@@ -46,9 +46,6 @@ using namespace SIP;
 
 using namespace GSM;
 using namespace Control;
-
-
-
 
 
 /** Controller for CM Service requests, dispatches out to multiple possible transaction controllers. */
@@ -126,7 +123,6 @@ bool sendWelcomeMessage(const char* messageName, const char* shortCodeName, SDCC
 }
 
 
-
 /**
 	Controller for the Location Updating transaction, GSM 04.08 4.4.4.
 	@param lur The location updating request.
@@ -163,6 +159,8 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 		LOG(ALARM) "SIP registration timed out.  Is Asterisk running?";
 		// Reject with a "network failure" cause code, 0x11.
 		SDCCH->send(L3LocationUpdatingReject(0x11));
+		// HACK -- wait long enough for a response
+		sleep(4);
 		// Release the channel and return.
 		SDCCH->send(L3ChannelRelease());
 		return;
@@ -178,8 +176,18 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 	if (!success && !openRegistration) {
 		LOG(INFO) << "registration FAILED: " << mobID;
 		SDCCH->send(L3LocationUpdatingReject(gConfig.getNum("GSM.LURejectCause")));
+		// Get position information anyhow. Slightly Evil.
+		bool withRRLP = gConfig.defines("GSM.RRLP") &&
+			(gConfig.getNum("GSM.RRLP") == 1) &&
+			gConfig.defines("RRLP.LocationUpdate") &&
+			(gConfig.getNum("RRLP.LocationUpdate") == 1);
+		LOG(INFO) << "Collecting MS Info withRRLP = " << withRRLP;
+		GSM::RRLP::collectMSInfo(mobID, SDCCH, withRRLP);
 		sendWelcomeMessage( "Control.FailedRegistrationWelcomeMessage",
 			"Control.FailedRegistrationWelcomeShortCode", SDCCH);
+		// Release the channel and return.
+		SDCCH->send(L3ChannelRelease());
+		return;
 	}
 
 	// If success is true, we had a normal registration.
@@ -194,8 +202,19 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 	// TODO -- Set the handset clock in this message, too.
 	SDCCH->send(L3MMInformation(gBTS.shortName()));
 	// Accept. Make a TMSI assignment, too, if needed.
-	if (assignedTMSI) SDCCH->send(L3LocationUpdatingAccept(gBTS.LAI()));
-	else SDCCH->send(L3LocationUpdatingAccept(gBTS.LAI(),gTMSITable.assign(mobID.digits())));
+	if (assignedTMSI) {
+		SDCCH->send(L3LocationUpdatingAccept(gBTS.LAI()));
+	} else {
+		SDCCH->send(L3LocationUpdatingAccept(gBTS.LAI(),gTMSITable.assign(mobID.digits())));
+		L3Frame* resp = SDCCH->recv(1000); // wait for the MM TMSI REALLOCATION COMPLETE message
+		if (!resp) {
+			LOG(INFO) << "LocationUpdatingController no response to TMSI assignment";
+		} else {
+			LOG(INFO) << "LocationUpdatingController got back a " << *resp;
+		}
+		delete resp;
+	}
+
 	// If this is an IMSI attach, send a welcome message.
 	if (IMSIAttach) {
 		if (success) {
@@ -207,11 +226,15 @@ void Control::LocationUpdatingController(const L3LocationUpdatingRequest* lur, S
 		}
 	}
 
+	GSM::RRLP::collectMSInfo(mobID, SDCCH, false/* no RRLP */);
+
+	// HACK -- wait long enough for a response
+	sleep(4);
+
 	// Release the channel and return.
 	SDCCH->send(L3ChannelRelease());
 	return;
 }
-
 
 
 

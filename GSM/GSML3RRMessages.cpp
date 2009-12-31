@@ -109,6 +109,8 @@ ostream& GSM::operator<<(ostream& os, L3RRMessage::MessageType val)
 			os << "Classmark Change"; break;
 		case L3RRMessage::RRStatus:
 			os << "RR Status"; break;
+		case L3RRMessage::ApplicationInformation:
+			os << "Application Information"; break;
 		default: os << hex << "0x" << (int)val << dec;
 	}
 	return os;
@@ -130,7 +132,10 @@ L3RRMessage* GSM::L3RRFactory(L3RRMessage::MessageType MTI)
 		case L3RRMessage::RRStatus: return new L3RRStatus();
 		case L3RRMessage::PagingResponse: return new L3PagingResponse();
 		case L3RRMessage::ChannelModeModifyAcknowledge: return new L3ChannelModeModifyAcknowledge();
-		case L3RRMessage::GPRSSuspensionRequest: return new L3GPRSSuspensionRequest();
+		case L3RRMessage::MeasurementReport: return new L3MeasurementReport();
+		case L3RRMessage::ApplicationInformation: return new L3ApplicationInformation();
+        // Partial support just to get along with some phones.
+        case L3RRMessage::GPRSSuspensionRequest: return new L3GPRSSuspensionRequest();
 		default:
 			LOG(WARN) << "no L3 RR factory support for " << MTI;
 			return NULL;
@@ -563,6 +568,76 @@ void L3ChannelModeModifyAcknowledge::text(ostream& os) const
 	L3RRMessage::text(os);
 	os << "description=(" << mDescription << ")";
 	os << " mode=(" << mMode << ")";
+}
+
+void L3MeasurementReport::parseBody(const L3Frame& frame, size_t &rp)
+{
+	mResults.parseV(frame,rp);
+}
+
+void L3MeasurementReport::text(ostream& os) const
+{
+	L3RRMessage::text(os);
+	os << mResults;
+}
+
+
+// L3ApplicationInformation
+
+L3ApplicationInformation::~L3ApplicationInformation()
+{
+}
+
+L3ApplicationInformation::L3ApplicationInformation()
+{
+}
+
+L3ApplicationInformation::
+    L3ApplicationInformation(BitVector& data, unsigned protocolIdentifier,
+                             unsigned cr, unsigned firstSegment, unsigned lastSegment)
+        : L3RRMessage(), mID(protocolIdentifier)
+        , mFlags(cr, firstSegment, lastSegment)
+        , mData(data)
+{
+}
+
+void L3ApplicationInformation::writeBody( L3Frame &dest, size_t &wp ) const
+{
+/*
+- APDU ID 10.5.2.48 M V 1/2
+- APDU Flags 10.5.2.49 M V 1/2
+- APDU Data 10.5.2.50 M LV N
+*/
+	// reverse order of 1/2-octet fields
+	static size_t start = wp;
+	LOG(DEBUG) << "L3ApplicationInformation: written " << wp - start << " bits";
+	mFlags.writeV(dest, wp);
+	LOG(DEBUG) << "L3ApplicationInformation: written " << wp - start << " bits";
+	mID.writeV(dest, wp);
+	LOG(DEBUG) << "L3ApplicationInformation: written " << wp - start << " bits";
+	mData.writeLV(dest, wp);
+	LOG(DEBUG) << "L3ApplicationInformation: written " << wp - start << " bits";
+}
+
+
+void L3ApplicationInformation::text(ostream& os) const
+{
+	os << "ID=("<<mID<<")";
+	os << " Flags=("<<mFlags<<")";
+	os << " Data=("<<mData<<")";
+}
+
+void L3ApplicationInformation::parseBody(const L3Frame& src, size_t &rp)
+{
+	// reverse order of 1/2-octet fields
+	mFlags.parseV(src, rp);
+	mID.parseV(src, rp);
+	mData.parseLV(src, rp);
+}
+
+size_t L3ApplicationInformation::bodyLength() const
+{
+	return 1 + mData.lengthLV();
 }
 
 

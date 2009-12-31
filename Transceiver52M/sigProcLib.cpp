@@ -980,7 +980,7 @@ bool analyzeTrafficBurst(signalVector &rxBurst,
   assert(TOA);
   assert(gMidambles[TSC]);
 
-  if (maxTOA < 2*samplesPerSymbol) maxTOA = 2*samplesPerSymbol;
+  if (maxTOA < 3*samplesPerSymbol) maxTOA = 3*samplesPerSymbol;
   unsigned spanTOA = maxTOA;
   if (spanTOA < 5*samplesPerSymbol) spanTOA = 5*samplesPerSymbol;
 
@@ -989,7 +989,7 @@ bool analyzeTrafficBurst(signalVector &rxBurst,
   unsigned windowLen = endIx - startIx;
   unsigned corrLen = 2*maxTOA+1;
 
-  unsigned expectedTOAPeak = gMidambles[TSC]->TOA + (gMidambles[TSC]->sequenceReversedConjugated->size()-1)/2;
+  unsigned expectedTOAPeak = (unsigned) round(gMidambles[TSC]->TOA + (gMidambles[TSC]->sequenceReversedConjugated->size()-1)/2);
 
   signalVector burstSegment(rxBurst.begin(),startIx,windowLen);
 
@@ -1037,14 +1037,14 @@ bool analyzeTrafficBurst(signalVector &rxBurst,
   //       needs to be accounted for.
   
   *amplitude = (*amplitude)/gMidambles[TSC]->gain;
-  *TOA = (*TOA) - maxTOA; 
+  *TOA = (*TOA) - (maxTOA); 
 
   LOG(DEBUG) << "TCH peakAmpl=" << amplitude->abs() << " RMS=" << RMS << " peakToMean=" << peakToMean << " TOA=" << *TOA;
 
   LOG(DEBUG) << "autocorr: " << correlatedBurst;
   
   if (requestChannel && (peakToMean > detectThreshold)) {
-    float TOAoffset = gMidambles[TSC]->TOA+(66*samplesPerSymbol-startIx);
+    float TOAoffset = maxTOA; //gMidambles[TSC]->TOA+(66*samplesPerSymbol-startIx);
     delayVector(correlatedBurst,-(*TOA));
     // midamble only allows estimation of a 6-tap channel
     signalVector channelVector(6*samplesPerSymbol);
@@ -1099,8 +1099,6 @@ SoftVector *demodulateBurst(signalVector &rxBurst,
 			 float TOA) 
 
 {
-
-
   scaleVector(rxBurst,((complex) 1.0)/channel);
   delayVector(rxBurst,-TOA);
 

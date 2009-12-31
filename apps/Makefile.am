@@ -21,15 +21,16 @@
 include $(top_srcdir)/Makefile.common
 
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
+AM_CXXFLAGS = -Wall -g -pthread
 
 noinst_PROGRAMS = \
-	OpenBTS \
-	sendSimple 
+	OpenBTS 
 
 OpenBTS_SOURCES = OpenBTS.cpp
 OpenBTS_LDADD = \
 	$(GLOBALS_LA) \
 	$(COMMON_LA) \
+	$(HLR_LA) \
 	$(SIP_LA) \
 	$(GSM_LA) \
 	$(TRX_LA) \
@@ -37,11 +38,9 @@ OpenBTS_LDADD = \
 	$(SMS_LA) \
 	$(CLI_LA) \
 	$(OSIP_LIBS) \
-	$(ORTP_LIBS)
+	$(ORTP_LIBS) \
+	$(READLINE_LIB)
 
-sendSimple_SOURCES = sendSimple.cpp
-sendSimple_LDADD = \
-	$(COMMON_LA) 
 
 EXTRA_DIST = \
 	OpenBTS.config.example

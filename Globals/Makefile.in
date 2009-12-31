@@ -240,6 +240,7 @@ SMS_INCLUDEDIR = $(top_srcdir)/SMS
 TRX_INCLUDEDIR = $(top_srcdir)/TRXManager
 GLOBALS_INCLUDEDIR = $(top_srcdir)/Globals
 CLI_INCLUDEDIR = $(top_srcdir)/CLI
+#SQL_INCLUDEDIR = $(top_srcdir)/SQL
 HLR_INCLUDEDIR = $(top_srcdir)/HLR
 STD_DEFINES_AND_INCLUDES = \
 	-I$(COMMON_INCLUDEDIR) \
@@ -252,6 +253,7 @@ STD_DEFINES_AND_INCLUDES = \
 	-I$(CLI_INCLUDEDIR) \
 	-I$(HLR_INCLUDEDIR)
 
+#	-I$(SQL_INCLUDEDIR)
 COMMON_LA = $(top_builddir)/CommonLibs/libcommon.la
 GSM_LA = $(top_builddir)/GSM/libGSM.la
 SIP_LA = $(top_builddir)/SIP/libSIP.la
@@ -261,8 +263,10 @@ CONTROL_LA = $(top_builddir)/Control/libcontrol.la
 GLOBALS_LA = $(top_builddir)/Globals/libglobals.la
 CLI_LA = $(top_builddir)/CLI/libcli.la
 HLR_LA = $(top_builddir)/HLR/libHLR.la
+#SQL_LA = $(top_builddir)/SQL/libSQL.la
 MOSTLYCLEANFILES = *~
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
+AM_CXXFLAGS = -Wall
 noinst_LTLIBRARIES = libglobals.la
 libglobals_la_SOURCES = Globals.cpp
 noinst_HEADERS = Globals.h

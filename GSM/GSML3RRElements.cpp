@@ -26,6 +26,7 @@
 
 */
 
+#include <iterator> // for L3APDUData::text
 
 #include "GSML3RRElements.h"
 
@@ -172,17 +173,13 @@ void L3FrequencyList::writeV(L3Frame& dest, size_t &wp) const
 	// the variable length bitmap.
 	dest.writeField(wp,0x47,7);
 
-	// For some formats, some of the first 7 bits are not spare.
-	// For those formats, the caller will need to write those
-	// bits after calling this method.
-
 	// base ARFCN
 	unsigned baseARFCN = base();
 	dest.writeField(wp,baseARFCN,10);
 	// bit map
 	unsigned delta = spread();
 	unsigned numBits = 8*lengthV() - 17;
-	if (numBits<delta) LOG(ALARM) << "L3FrequencyList cannot encode full ARFCN set";
+	if (numBits<delta) { LOG(ALARM) << "L3FrequencyList cannot encode full ARFCN set"; }
 	for (unsigned i=0; i<numBits; i++) {
 		unsigned thisARFCN = baseARFCN + 1 + i;
 		if (contains(thisARFCN)) dest.writeField(wp,1,1);
@@ -205,6 +202,7 @@ void L3FrequencyList::text(ostream& os) const
 
 void L3CellChannelDescription::writeV(L3Frame& dest, size_t& wp) const
 {
+	dest.fillField(wp,0,3);
 	L3FrequencyList::writeV(dest,wp);
 }
 
@@ -212,9 +210,8 @@ void L3CellChannelDescription::writeV(L3Frame& dest, size_t& wp) const
 
 void L3NeighborCellsDescription::writeV(L3Frame& dest, size_t& wp) const
 {
+	dest.fillField(wp,0,3);
 	L3FrequencyList::writeV(dest,wp);
-	// EXT-IND and BA-IND bits.
-	dest.fillField(2,0,3);
 }
 
 
@@ -459,6 +456,165 @@ void L3ChannelMode::text(ostream& os) const
 {
 	os << mMode;
 }
+
+// Application Information IEs
+
+// APDU ID
+
+void L3APDUID::writeV( L3Frame& dest, size_t &wp) const
+{
+	// APDU ID is 1/2 octet. Protocol Identifier [3:0]
+    dest.writeField(wp,mProtocolIdentifier,4);
+}
+
+void L3APDUID::parseV( const L3Frame &src, size_t &rp)
+{
+	// Read out Protocol Identifier.
+	mProtocolIdentifier = src.readField(rp, 4);
+}
+
+void L3APDUID::text(ostream& os) const
+{
+	os << mProtocolIdentifier;
+}
+
+// APDU Flags
+
+void L3APDUFlags::writeV( L3Frame& dest, size_t &wp) const
+{
+	// APDU Flags is 1/2 octet. Protocol Identifier [3:0]
+    dest.writeField(wp,0,1); // spare
+    dest.writeField(wp,mCR,1); // C/R
+    dest.writeField(wp,mFirstSegment,1);
+    dest.writeField(wp,mLastSegment,1);
+}
+
+void L3APDUFlags::parseV( const L3Frame &src, size_t &rp)
+{
+	// Read out Protocol Identifier.
+    rp += 1; // skip spare
+	mCR = src.readField(rp, 1);
+	mFirstSegment = src.readField(rp, 1);
+	mLastSegment = src.readField(rp, 1);
+}
+
+void L3APDUFlags::text(ostream& os) const
+{
+	os << mCR << "," << mFirstSegment << "," << mLastSegment;
+}
+
+// APDU Data
+
+L3APDUData::~L3APDUData()
+{
+}
+
+L3APDUData::L3APDUData()
+    :L3ProtocolElement()
+{
+}
+
+L3APDUData::L3APDUData(BitVector data)
+    :L3ProtocolElement()
+    ,mData(data)
+{
+}
+
+
+
+void L3APDUData::writeV( L3Frame& dest, size_t &wp) const
+{
+    // we only need to write the data part
+    // TODO - single line please. copy / memcpy, anything better then a for loop
+    LOG(DEBUG) << "L3APDUData: writeV " << mData.size() << " bits";
+    mData.copyToSegment(dest, wp);
+    wp += mData.size() / 8;
+}
+
+void L3APDUData::parseV( const L3Frame& src, size_t &rp, size_t expectedLength )
+{
+    LOG(DEBUG) << "L3APDUData: parseV " << expectedLength << " bytes";
+    mData.resize(expectedLength*8);
+    src.copyToSegment(mData, rp, expectedLength*8); // expectedLength is bytes, not bits
+    //for ( size_t i = 0 ; i < expectedLength ; ++i)
+    //    mData[i] = src.readField(rp, 8);
+}
+
+void L3APDUData::text(ostream& os) const
+{
+    // TODO - use the following two lines (get rid of the "char / char*" error)
+    //std::ostream_iterator<std::string> output( os, "" );
+    //std::copy( mData.begin(), mData.end(), output );
+    for (size_t i = 0 ; i < mData.size() ; ++i)
+        os << mData[i];
+}
+
+
+void L3MeasurementResults::parseV(const L3Frame& frame, size_t &rp)
+{
+	mBA_USED = frame.readField(rp,1);
+	mDTX_USED = frame.readField(rp,1);
+	mRXLEV_FULL_SERVING_CELL = frame.readField(rp,6);
+	rp++;	// spare
+	mMEAS_VALID = frame.readField(rp,1);
+	mRXLEV_SUB_SERVING_CELL = frame.readField(rp,6);
+	rp++;	// spare
+	mRXQUAL_FULL_SERVING_CELL = frame.readField(rp,3);
+	mRXQUAL_SUB_SERVING_CELL = frame.readField(rp,3);
+	mNO_NCELL = frame.readField(rp,3);
+	for (unsigned i=0; i<6; i++) {
+		mRXLEV_NCELL[i] = frame.readField(rp,6);
+		mBCCH_FREQ_NCELL[i] = frame.readField(rp,5);
+		mBSIC_NCELL[i] = frame.readField(rp,6);
+	}
+}
+
+
+void L3MeasurementResults::text(ostream& os) const
+{
+	os << "BA_USED=" << mBA_USED;
+	os << " DTX_USED=" << mDTX_USED;
+	os << " MEAS_VALID=" << mMEAS_VALID;
+	if (!mMEAS_VALID) return;
+	os << " RXLEV_FULL_SERVING_CELL=" << mRXLEV_FULL_SERVING_CELL;
+	os << " RXLEV_SUB_SERVING_CELL=" << mRXLEV_SUB_SERVING_CELL;
+	os << " RXQUAL_FULL_SERVING_CELL=" << mRXQUAL_FULL_SERVING_CELL;
+	os << " RXQUAL_SUB_SERVING_CELL=" << mRXQUAL_SUB_SERVING_CELL;
+	os << " NO_NCELL=" << mNO_NCELL;
+	for (unsigned i=0; i<mNO_NCELL; i++) {
+		os << " RXLEV_NCELL" << i+1 << "=" << mRXLEV_NCELL[i];
+		os << " BCCH_FREQ_NCELL" << i+1 << "=" << mBCCH_FREQ_NCELL[i];
+		os << " BSIC_NCELL" << i+1 << "=" << mBSIC_NCELL[i];
+	}
+}
+
+
+int L3MeasurementResults::RXLEV_NCELL(int * target) const
+{
+	for (unsigned i=0; i<mNO_NCELL; i++) target[i] = mRXLEV_NCELL[i];
+	return mNO_NCELL;
+}
+
+
+int L3MeasurementResults::BCCH_FREQ_NCELL(int * target) const
+{
+	for (unsigned i=0; i<mNO_NCELL; i++) target[i] = mBCCH_FREQ_NCELL[i];
+	return mNO_NCELL;
+}
+
+
+int L3MeasurementResults::BSIC_NCELL(int * target) const
+{
+	for (unsigned i=0; i<mNO_NCELL; i++) target[i] = mBSIC_NCELL[i];
+	return mNO_NCELL;
+}
+
+
+
+
+
+
+
 
 
 // vim: ts=4 sw=4

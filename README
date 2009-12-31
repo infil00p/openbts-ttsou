@@ -20,15 +20,16 @@ Transceiver	The software transceiver and specific installation tests.
 apps		OpenBTS application binaries.
 doc		Project documentation.
 tests		Test fixtures for subsets of OpenBTS components.
+smqueue		RFC-3428 store-and-forward server for SMS
 
 
 
-OpenBTS uses the following UDP port assignments:
+By default, OpenBTS assumes the following UDP port assignments:
 
-5060 -- Asterisk
-5061 -- reserved for local SIP softphone
+5060 -- Asterisk SIP interface
+5061 -- local SIP softphone
 5062 -- OpenBTS SIP interface
-5063 -- reserved for local SIMPLE server
+5063 -- smqueue SIP interface
 5700-range -- OpenBTS-transceiver interface
 
 These can be controlled in the configuration file, apps/OpenBTS.config.
@@ -36,7 +37,7 @@ These can be controlled in the configuration file, apps/OpenBTS.config.
 
 Releases 2.5 and later include the smqueue SMS server.  It is NOT part of the
 normal GNU build process with the rest of OpenBTS.  To build smqueue, go
-into the smqueue directory and just type "make".
+into the smqueue directory and just type "make -f Makefile.standalone".
 
 
 
@@ -94,7 +95,7 @@ Release	Name		SVN Reposiory	SVN Rev	Comments
 							command line interface
 							emergency call setup
 
-2.4	Kinder		KSP		rxxx (trunk)	fixed BCCH neighbor list bug
+2.4	Kinder		KSP		r208? (trunk)	fixed BCCH neighbor list bug
 							support for neighbor lists
 							fixed support for non-local Asterisk servers
 							cleaner configuration management
@@ -102,13 +103,16 @@ Release	Name		SVN Reposiory	SVN Rev	Comments
 							proper rejection of Hold messages
 							fixed L3 hanging bug in MTDCheckBYE
 
-
 2.4.1	Kinder		KSP				fixed lots of valgrind errors
 
 2.4.2	Kinder		KSP				zero-length calling party number bug
 							g++ 4.4 #includes
 
-2.5	Lacassine					SMS server support
+2.5	Lacassine	KSP		rxxx (trunk)	imported Joshua Lackey patches
+							SIP fixes from Anne Kwong
+							SIP fixes from testing with SMS server
+							L3 TI handling fixes
+							SMS server support
 							GNU Radio 3.2 compatibility
 							configurable max range and LU-reject cause
 							"page" & "testcall" CLI features

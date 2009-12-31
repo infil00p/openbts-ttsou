@@ -128,9 +128,9 @@ SIPInterface::SIPInterface()
 	:mSIPSocket(gConfig.getNum("SIP.Port"), gConfig.getStr("Asterisk.IP"), gConfig.getNum("Asterisk.Port"))
 {
 	mAsteriskPort = gConfig.getNum("Asterisk.Port");
-	mMessengerPort = gConfig.getNum("Messenger.Port");
+	mMessengerPort = gConfig.getNum("Smqueue.Port");
 	assert(resolveAddress(&mAsteriskAddress,gConfig.getStr("Asterisk.IP"),mAsteriskPort));
-	assert(resolveAddress(&mMessengerAddress,gConfig.getStr("Messenger.IP"),mMessengerPort));
+	assert(resolveAddress(&mMessengerAddress,gConfig.getStr("Smqueue.IP"),mMessengerPort));
 }
 
 
@@ -321,8 +321,7 @@ bool SIPInterface::checkInvite( osip_message_t * msg )
 			return false;
 		}
 		LOG(INFO) << "repeated SIP INVITE/MESSAGE, repaging"; 
-		gBTS.pager().addID(mobile_id,requiredChannel,transaction.ID());	
-		transaction.T3113().set();
+		gBTS.pager().addID(mobile_id,requiredChannel,transaction);	
 		gTransactionTable.update(transaction);
 		return false;
 	}
@@ -352,8 +351,6 @@ bool SIPInterface::checkInvite( osip_message_t * msg )
 	// Build the transaction table entry.
 	// This constructor sets TI flag=0, TI=0 for an MT transaction.
 	TransactionEntry transaction(mobile_id,serviceType,callerID);
-	transaction.T3113().set();
-	transaction.Q931State(TransactionEntry::Paging);
 	LOG(DEBUG) << "call_id_num \"" << call_id_num << "\"";
 	LOG(DEBUG) << "IMSI \"" << IMSI << "\"";
 
@@ -374,7 +371,7 @@ bool SIPInterface::checkInvite( osip_message_t * msg )
 	
 	// Add to paging list and tell the remote SIP end that we are trying.
 	LOG(DEBUG) << "MTC MTSMS new SIP invite, initial paging for mobile ID " << mobile_id;
-	gBTS.pager().addID(mobile_id,requiredChannel,transaction.ID());	
+	gBTS.pager().addID(mobile_id,requiredChannel,transaction);	
 	// FIXME -- Send TRYING?  See MTCSendTrying for example.
 
 	return true;

@@ -57,7 +57,7 @@
 
 
 
-SOURCES = $(libtransceiver_la_SOURCES) $(USRPping_SOURCES) $(transceiver_SOURCES)
+SOURCES = $(libtransceiver_la_SOURCES) $(USRPping_SOURCES) $(sigProcLibTest_SOURCES) $(transceiver_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -85,7 +85,8 @@ target_triplet = @target@
 DIST_COMMON = README $(dist_rev2_DATA) $(dist_rev4_DATA) \
 	$(noinst_HEADERS) $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(top_srcdir)/Makefile.common
-noinst_PROGRAMS = USRPping$(EXEEXT) transceiver$(EXEEXT)
+noinst_PROGRAMS = USRPping$(EXEEXT) transceiver$(EXEEXT) \
+	sigProcLibTest$(EXEEXT)
 subdir = Transceiver52M
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -106,9 +107,13 @@ am__DEPENDENCIES_1 = $(top_builddir)/CommonLibs/libcommon.la
 am__DEPENDENCIES_2 =
 USRPping_DEPENDENCIES = libtransceiver.la $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_2)
+am_sigProcLibTest_OBJECTS = sigProcLibTest.$(OBJEXT)
+sigProcLibTest_OBJECTS = $(am_sigProcLibTest_OBJECTS)
+am__DEPENDENCIES_3 = $(top_builddir)/GSM/libGSM.la
+sigProcLibTest_DEPENDENCIES = libtransceiver.la $(am__DEPENDENCIES_3) \
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
 am_transceiver_OBJECTS = runTransceiver.$(OBJEXT)
 transceiver_OBJECTS = $(am_transceiver_OBJECTS)
-am__DEPENDENCIES_3 = $(top_builddir)/GSM/libGSM.la
 transceiver_DEPENDENCIES = libtransceiver.la $(am__DEPENDENCIES_3) \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -123,9 +128,9 @@ CXXLD = $(CXX)
 CXXLINK = $(LIBTOOL) --tag=CXX --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libtransceiver_la_SOURCES) $(USRPping_SOURCES) \
-	$(transceiver_SOURCES)
+	$(sigProcLibTest_SOURCES) $(transceiver_SOURCES)
 DIST_SOURCES = $(libtransceiver_la_SOURCES) $(USRPping_SOURCES) \
-	$(transceiver_SOURCES)
+	$(sigProcLibTest_SOURCES) $(transceiver_SOURCES)
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
     $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
@@ -266,6 +271,7 @@ SMS_INCLUDEDIR = $(top_srcdir)/SMS
 TRX_INCLUDEDIR = $(top_srcdir)/TRXManager
 GLOBALS_INCLUDEDIR = $(top_srcdir)/Globals
 CLI_INCLUDEDIR = $(top_srcdir)/CLI
+#SQL_INCLUDEDIR = $(top_srcdir)/SQL
 HLR_INCLUDEDIR = $(top_srcdir)/HLR
 STD_DEFINES_AND_INCLUDES = \
 	-I$(COMMON_INCLUDEDIR) \
@@ -278,6 +284,7 @@ STD_DEFINES_AND_INCLUDES = \
 	-I$(CLI_INCLUDEDIR) \
 	-I$(HLR_INCLUDEDIR)
 
+#	-I$(SQL_INCLUDEDIR)
 COMMON_LA = $(top_builddir)/CommonLibs/libcommon.la
 GSM_LA = $(top_builddir)/GSM/libGSM.la
 SIP_LA = $(top_builddir)/SIP/libSIP.la
@@ -287,6 +294,7 @@ CONTROL_LA = $(top_builddir)/Control/libcontrol.la
 GLOBALS_LA = $(top_builddir)/Globals/libglobals.la
 CLI_LA = $(top_builddir)/CLI/libcli.la
 HLR_LA = $(top_builddir)/HLR/libHLR.la
+#SQL_LA = $(top_builddir)/SQL/libSQL.la
 MOSTLYCLEANFILES = *~
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES) -I$(USRP_INCLUDEDIR)
 AM_CXXFLAGS = -O3 -g -lpthread
@@ -322,6 +330,13 @@ USRPping_LDADD = \
 
 transceiver_SOURCES = runTransceiver.cpp
 transceiver_LDADD = \
+	libtransceiver.la \
+	$(GSM_LA) \
+	$(COMMON_LA) \
+	$(USRP_LIBS)
+
+sigProcLibTest_SOURCES = sigProcLibTest.cpp
+sigProcLibTest_LDADD = \
 	libtransceiver.la \
 	$(GSM_LA) \
 	$(COMMON_LA) \
@@ -381,6 +396,9 @@ clean-noinstPROGRAMS:
 USRPping$(EXEEXT): $(USRPping_OBJECTS) $(USRPping_DEPENDENCIES) 
 	@rm -f USRPping$(EXEEXT)
 	$(CXXLINK) $(USRPping_LDFLAGS) $(USRPping_OBJECTS) $(USRPping_LDADD) $(LIBS)
+sigProcLibTest$(EXEEXT): $(sigProcLibTest_OBJECTS) $(sigProcLibTest_DEPENDENCIES) 
+	@rm -f sigProcLibTest$(EXEEXT)
+	$(CXXLINK) $(sigProcLibTest_LDFLAGS) $(sigProcLibTest_OBJECTS) $(sigProcLibTest_LDADD) $(LIBS)
 transceiver$(EXEEXT): $(transceiver_OBJECTS) $(transceiver_DEPENDENCIES) 
 	@rm -f transceiver$(EXEEXT)
 	$(CXXLINK) $(transceiver_LDFLAGS) $(transceiver_OBJECTS) $(transceiver_LDADD) $(LIBS)
@@ -397,6 +415,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/radioInterface.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/runTransceiver.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sigProcLib.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sigProcLibTest.Po@am__quote@
 
 .cpp.o:
 @am__fastdepCXX_TRUE@	if $(CXXCOMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \

@@ -159,7 +159,7 @@ template <class T> class InterthreadQueueWithWait {
 
 
 
-	~InterthreadQueueWithWait()
+	virtual ~InterthreadQueueWithWait()
 		{ clear(); }
 
 

@@ -156,7 +156,9 @@ void LocationUpdatingController(const GSM::L3LocationUpdatingRequest* lur, GSM::
 /**@name Functions for radio resource operations. */
 //@{
 /** Decode RACH bits and send an immediate assignment. */
-void AccessGrantResponder(unsigned requestReference, const GSM::Time& when, float timingError);
+void AccessGrantResponder(
+	unsigned requestReference, const GSM::Time& when,
+	float RSSI, float timingError);
 /** Find and compelte the in-process transaction associated with a paging repsonse. */
 void PagingResponseHandler(const GSM::L3PagingResponse*, GSM::LogicalChannel*);
 /** Find and compelte the in-process transaction associated with a completed assignment. */
@@ -206,7 +208,7 @@ void MTSMSController(TransactionEntry& transaction,
 //@}
 
 /** Create a new transaction entry and start paging. */
-void initiateMTTransaction(const TransactionEntry& transaction,
+void initiateMTTransaction(TransactionEntry& transaction,
 		GSM::ChannelType chanType, unsigned pageTime);
 
 //@}
@@ -270,7 +272,7 @@ class PagingEntry {
 	const GSM::L3MobileIdentity& ID() const { return mID; }
 
 	/** Access the channel type needed. */
-	const GSM::ChannelType type() const { return mType; }
+	GSM::ChannelType type() const { return mType; }
 
 	unsigned transactionID() const { return mTransactionID; }
 
@@ -315,13 +317,14 @@ class Pager {
 		Add a mobile ID to the paging list.
 		@param addID The mobile ID to be paged.
 		@param chanType The channel type to be requested.
+		@param transaction The transaction record, which will be modified.
 		@param wLife The paging duration in ms, default based on SIP INVITE retry preiod, Timer A.
 	*/
 	void addID(
 		const GSM::L3MobileIdentity& addID,
 		GSM::ChannelType chanType,
-		unsigned wTransactionID,
-		unsigned wLife=gConfig.getNum("SIP.Timer.A")
+		TransactionEntry& transaction,
+		unsigned wLife=2*gConfig.getNum("SIP.Timer.A")
 	);
 
 	/**
@@ -344,6 +347,14 @@ class Pager {
 
 	/** C-style adapter. */
 	friend void *PagerServiceLoopAdapter(Pager*);
+
+public:
+
+	/** return size of PagingEntryList */
+	size_t pagingEntryListSize();
+
+	/** Dump the paging list to an ostream. */
+	void dump(std::ostream&) const;
 };
 
 
@@ -387,7 +398,7 @@ class TransactionEntry {
 
 	private:
 
-	unsigned mID;							///< the internal transaction ID, assigned by a TransactionTable
+	unsigned mID;						///< the internal transaction ID, assigned by a TransactionTable
 
 	GSM::L3MobileIdentity mSubscriber;		///< some kind of subscriber ID, preferably IMSI
 	GSM::L3CMServiceType mService;			///< the associated service type
@@ -396,8 +407,9 @@ class TransactionEntry {
 	GSM::L3CalledPartyBCDNumber mCalled;	///< the associated called party number, if known
 	GSM::L3CallingPartyBCDNumber mCalling;	///< the associated calling party number, if known
 
-	SIP::SIPEngine mSIP;						///< the SIP IETF RFC-3621 protocol engine
-	Q931CallState mQ931State;					///< the GSM/ISDN/Q.931 call state
+	SIP::SIPEngine mSIP;					///< the SIP IETF RFC-3621 protocol engine
+	Q931CallState mQ931State;				///< the GSM/ISDN/Q.931 call state
+	Timeval mStateTimer;					///< timestamp of last state change.
 
 	char mMessage[256];						///< text messaging payload
 
@@ -421,10 +433,11 @@ class TransactionEntry {
 
 	TransactionEntry();
 
-	/** This form is used for MTC with TI set to 0. */
+	/** This form is used for MTC or MT-SMS with TI set to 0. */
 	TransactionEntry(const GSM::L3MobileIdentity& wSubscriber, 
 		const GSM::L3CMServiceType& wService,
-		const GSM::L3CallingPartyBCDNumber& wCalling);
+		const GSM::L3CallingPartyBCDNumber& wCalling,
+		const char *wMessage = NULL);
 
 	/** This form is used for MOC. */
 	TransactionEntry(const GSM::L3MobileIdentity& wSubscriber,
@@ -466,8 +479,15 @@ class TransactionEntry {
 	SIP::SIPEngine& SIP() { return mSIP; }
 	const SIP::SIPEngine& SIP() const { return mSIP; }
 
-	void Q931State(Q931CallState wState) { mQ931State=wState; }
+	void Q931State(Q931CallState wState)
+	{
+		mStateTimer.now();
+		mQ931State=wState;
+	}
+
 	Q931CallState Q931State() const { return mQ931State; }
+
+	unsigned stateAge() const { return mStateTimer.elapsed(); }
 
 	/**@name Timer access. */
 	// TODO -- If we were clever, this would be a table.
@@ -587,9 +607,11 @@ class TransactionTable {
 
 	/**@Access to raw map. */
 	//@{
-	TransactionMap::const_iterator begin() const { return mTable.begin(); }
+	TransactionMap::const_iterator begin() { clearDeadEntries(); return mTable.begin(); }
 	TransactionMap::const_iterator end() const { return mTable.end(); }
 	//@}
+
+	size_t size();
 };
 
 //@} // Transaction Table
@@ -651,6 +673,13 @@ class TMSITable {
 
 	/** Clear the table completely. */
 	void clear() { mMap.clear(); }
+
+	size_t size() const {
+		mLock.lock();
+		size_t retVal = mMap.size();
+		mLock.unlock();
+		return retVal;
+	}
 
 
 	TMSIMap::const_iterator begin() const { return mMap.begin(); }
@@ -743,7 +772,6 @@ extern Control::TransactionTable gTransactionTable;
 /** A single global TMSI table in the global namespace. */
 extern Control::TMSITable gTMSITable;
 //@}
-
 
 
 

@@ -1,5 +1,5 @@
 /*
-* Copyright 2008 Free Software Foundation, Inc.
+* Copyright 2008, 2009 Free Software Foundation, Inc.
 *
 * This software is distributed under the terms of the GNU Public License.
 * See the COPYING file in the main directory for details.
@@ -476,7 +476,7 @@ void SoftVector::decode(ViterbiR2O4 &decoder, BitVector& target) const
 		const float *dp = mStart;
 		for (size_t i=0; i<sz; i++) {
 			// pVal is the probability that a bit is correct.
-			// ipVal is the probability that a bit is correct.
+			// ipVal is the probability that a bit is incorrect.
 			float pVal = dp[i];
 			if (pVal>0.5F) pVal = 1.0F-pVal;
 			float ipVal = 1.0F-pVal;

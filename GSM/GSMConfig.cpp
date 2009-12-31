@@ -36,11 +36,19 @@ using namespace GSM;
 
 
 GSMConfig::GSMConfig()
-	:mSI5Frame(UNIT_DATA),mSI6Frame(UNIT_DATA),
+	:mBand((GSMBand)gConfig.getNum("GSM.Band")),
+	mSI5Frame(UNIT_DATA),mSI6Frame(UNIT_DATA),
+	mT3122(gConfig.getNum("GSM.T3122Min")),
 	mStartTime(::time(NULL))
 {
-	mBand = (GSMBand)gConfig.getNum("GSM.Band");
 	regenerateBeacon();
+}
+
+void GSMConfig::start()
+{
+	mPowerManager.start();
+	// Do not call this until the paging channels are installed.
+	mPager.start();
 }
 
 
@@ -177,36 +185,42 @@ TCHFACCHLogicalChannel *GSMConfig::getTCH()
 
 
 
-template <class ChanType> bool chanAvailable(const vector<ChanType*>& chanList)
+template <class ChanType> size_t chanAvailable(const vector<ChanType*>& chanList)
 {
+	size_t count = 0;
 	for (unsigned i=0; i<chanList.size(); i++) {
-		ChanType *chan = chanList[i];
-		if (chanList[i]->recyclable()) return true;
+		if (chanList[i]->recyclable()) count++;
 	}
-	return false;
+	return count;
 }
 
 
 
-bool GSMConfig::SDCCHAvailable() const
+size_t GSMConfig::SDCCHAvailable() const
 {
 	mLock.lock();
-	bool retVal = chanAvailable<SDCCHLogicalChannel>(mSDCCHPool);
+	size_t retVal = chanAvailable<SDCCHLogicalChannel>(mSDCCHPool);
 	mLock.unlock();
 	return retVal;
 }
 
-bool GSMConfig::TCHAvailable() const
+size_t GSMConfig::TCHAvailable() const
 {
 	mLock.lock();
-	bool retVal = chanAvailable<TCHFACCHLogicalChannel>(mTCHPool);
+	size_t retVal = chanAvailable<TCHFACCHLogicalChannel>(mTCHPool);
 	mLock.unlock();
 	return retVal;
 }
 
 
-
-
+size_t GSMConfig::totalLoad(const CCCHList& chanList) const
+{
+	size_t total = 0;
+	for (int i=0; i<chanList.size(); i++) {
+		total += chanList[i]->load();
+	}
+	return total;
+}
 
 
 
@@ -231,6 +245,39 @@ unsigned GSMConfig::TCHActive() const
 {
 	return countActive(mTCHPool);
 }
+
+
+unsigned GSMConfig::T3122() const
+{
+	mLock.lock();
+	unsigned retVal = mT3122;
+	mLock.unlock();
+	return retVal;
+}
+
+unsigned GSMConfig::growT3122()
+{
+	unsigned max = gConfig.getNum("GSM.T3122Max");
+	mLock.lock();
+	unsigned retVal = mT3122;
+	mT3122 += (random() % mT3122) / 2;
+	if (mT3122>max) mT3122=max;
+	mLock.unlock();
+	return retVal;
+}
+
+
+unsigned GSMConfig::shrinkT3122()
+{
+	unsigned min = gConfig.getNum("GSM.T3122Min");
+	mLock.lock();
+	unsigned retVal = mT3122;
+	mT3122 -= (random() % mT3122) / 2;
+	if (mT3122<min) mT3122=min;
+	mLock.unlock();
+	return retVal;
+}
+
 
 
 // vim: ts=4 sw=4

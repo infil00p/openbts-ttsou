@@ -125,7 +125,7 @@ void TransceiverManager::clockHandler()
 {
 	// The default demux table is full of NULL pointers.
 	for (int i=0; i<8; i++) {
-		for (int j=0; j<maxModulus; j++) {
+		for (unsigned j=0; j<maxModulus; j++) {
 			mDemuxTable[i][j] = NULL;
 		}
 	}
@@ -156,7 +156,7 @@ void ::ARFCNManager::installDecoder(GSM::L1Decoder *wL1d)
 
 	mTableLock.lock();
 	for (unsigned i=0; i<mapping.numFrames(); i++) {
-		int FN = mapping.frameMapping(i);
+		unsigned FN = mapping.frameMapping(i);
 		while (FN<maxModulus) {
 			// Don't overwrite existing entries.
 			assert(mDemuxTable[TN][FN]==NULL);
@@ -268,7 +268,7 @@ int ::ARFCNManager::sendCommandPacket(const char* command, char* response)
 			LOG(DEBUG) << "command retry waitTime=" << waitTime << " msgLen=" << msgLen;
 		}
 		if (msgLen<=0) {
-			LOG(WARN) << "retrying transceiver command after response timeout";
+			LOG(INFO) << "retrying transceiver command after response timeout";
 			continue;
 		}
 		else {
@@ -284,7 +284,7 @@ int ::ARFCNManager::sendCommandPacket(const char* command, char* response)
 		return msgLen;
 	}
 
-	LOG(ERROR) << "lost control link to transceiver";
+	LOG(ALARM) << "lost control link to transceiver";
 	SOCKET_ERROR;
 }
 
@@ -401,6 +401,7 @@ bool ::ARFCNManager::powerOff()
 		LOG(ALARM) << "POWEROFF failed with status " << status;
 		return false;
 	}
+	return true;
 }
 
 
@@ -411,6 +412,7 @@ bool ::ARFCNManager::powerOn()
 		LOG(ALARM) << "POWERON failed with status " << status;
 		return false;
 	}
+	return true;
 }
 
 
@@ -454,6 +456,17 @@ bool ::ARFCNManager::setSlot(unsigned TN, unsigned combination)
 	return true;
 }
 
+bool ::ARFCNManager::setMaxDelay(unsigned km)
+{
+        char paramBuf[MAX_UDP_LENGTH];
+        sprintf(paramBuf,"%d", km);
+        int status = sendCommand("SETMAXDELAY",paramBuf);
+        if (status!=0) {
+                LOG(ALARM) << "SETMAXDELAY failed with status " << status;
+                return false;
+        }
+        return true;
+}
 
 
 

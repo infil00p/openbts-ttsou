@@ -170,6 +170,13 @@ class ARFCNManager {
 	/** Turn on the transceiver. */
 	bool powerOn();
 
+        /**     
+		Set maximum expected delay spread.
+		@param km Max network range in kilometers.
+		@return true on success.
+        */
+        bool setMaxDelay(unsigned km);
+
 
 	/**
 		Set power wrt full scale.

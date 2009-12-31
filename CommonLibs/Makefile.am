@@ -21,7 +21,7 @@
 include $(top_srcdir)/Makefile.common
 
 AM_CPPFLAGS = $(STD_DEFINES_AND_INCLUDES)
-AM_CXXFLAGS = -O3 -g -lpthread
+AM_CXXFLAGS = -Wall -O3 -g -lpthread
 
 EXTRA_DIST = \
 	example.config \

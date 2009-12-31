@@ -83,7 +83,7 @@ void L3BCDDigits::parse(const L3Frame& src, size_t &rp, size_t numOctets)
 		readOctets++;
 		mDigits[i++]=d1+'0';
 		if (d2!=0x0f) mDigits[i++]=d2+'0';
-		if (i>15) L3_READ_ERROR;
+		if (i>maxDigits) L3_READ_ERROR;
 	}
 	mDigits[i++]='\0';
 }

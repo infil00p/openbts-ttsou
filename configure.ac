@@ -18,7 +18,7 @@ dnl You should have received a copy of the GNU General Public License
 dnl along with this program.  If not, see <http://www.gnu.org/licenses/>.
 dnl
 
-AC_INIT(openbts,2.5Lacassine)
+AC_INIT(openbts,2.6TRUNK)
 AC_PREREQ(2.57)
 AC_CONFIG_SRCDIR([config/Makefile.am])
 AC_CONFIG_AUX_DIR([.])	
@@ -66,6 +66,13 @@ PKG_CHECK_MODULES(OSIP, libosip2)
 # Defines ORTP_CFLAGS, ORTP_INCLUDEDIR, and ORTP_LIBS
 PKG_CHECK_MODULES(ORTP, ortp)
 
+# Removed readline due to portability problems.
+# Defines TARGET_READLINE_LIBS
+# XXX rather simply forces you to have readline()
+#AC_CHECK_LIB(readline, readline, [READLINE_LIB="-lreadline"], [echo "error: libreadline.so required!"; exit -1])
+#AC_SUBST([READLINE_LIB])
+
+
 dnl Output files
 AC_CONFIG_FILES([\
     Makefile \
@@ -86,5 +93,6 @@ AC_CONFIG_FILES([\
     HLR/Makefile \
     smqueue/Makefile \
 ])
+#    SQL/Makefile \
 
 AC_OUTPUT

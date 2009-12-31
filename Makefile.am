@@ -25,12 +25,12 @@ SUBDIRS = \
 	config \
 	AsteriskConfig \
 	CommonLibs \
+	HLR \
 	CLI \
 	Globals \
 	SIP \
 	GSM \
 	SMS \
-	HLR \
 	Transceiver \
 	Transceiver52M \
 	TRXManager \
@@ -38,9 +38,11 @@ SUBDIRS = \
 	apps \
 	doc \
 	smqueue
+#	SQL 
 
 EXTRA_DIST = \
 	INSTALLATION \
 	LEGAL \
 	COPYING \
 	README
+

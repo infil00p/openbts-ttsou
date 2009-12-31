@@ -333,6 +333,13 @@ void Z100Timer::set()
 	mActive=true;
 } 
 
+void Z100Timer::set(long wLimitTime)
+{
+	mLimitTime = wLimitTime;
+	set();
+} 
+
+
 long Z100Timer::remaining() const
 {
 	if (!mActive) return 0;
