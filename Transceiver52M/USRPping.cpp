@@ -26,6 +26,7 @@
 
 #include "Transceiver.h"
 #include <Logger.h>
+#include <cstdio>
 
 using namespace std;
 

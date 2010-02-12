@@ -27,9 +27,9 @@
 #include "config.h"
 #endif
 
-#include "usrp_standard.h"
-#include "usrp_bytesex.h"
-#include "usrp_prims.h"
+#include <usrp/usrp_standard.h>
+#include <usrp/usrp_bytesex.h>
+#include <usrp/usrp_prims.h>
 #include <sys/time.h>
 #include <math.h>
 #include <string>

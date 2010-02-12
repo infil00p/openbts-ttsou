@@ -28,7 +28,7 @@
 
 
 #include <ostream>
-
+#include <stdint.h>
 
 
 /** Round a float to the appropriate F16 value. */
